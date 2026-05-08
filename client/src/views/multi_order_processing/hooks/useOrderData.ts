@@ -14,6 +14,7 @@ export const useOrderData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+
         console.log("Fetching orders for Board ID:", ORDER_BOARD_ID);
         const res: any = await monday.api(`query {
           boards(ids: ${ORDER_BOARD_ID}) {
