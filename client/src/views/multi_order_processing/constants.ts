@@ -34,12 +34,14 @@ export const SUPPLIER_ALL_COLUMN_IDS_MAP = {
     EMAIL: "email_mkrv8ryp",
     PHONE: "phone_mkrvpr4q",
     POSTALCODE: "numeric_mkrvqzqy",
+    RATING: "text_mkrv6ppp",
 };
 
 export const SUPPLIER_PRODUCT_COLUMN_IDS_MAP = {
     PRODUCT: "board_relation_mkrvmspy",
     SUPPLIER: "board_relation_mkrv4yqt",
     AVAILABLEQUANTITY: "numeric_mm35asyy",
+    PRODUCT_WEIGHTAGE: "lookup_mktb4c84",
 };
 
 

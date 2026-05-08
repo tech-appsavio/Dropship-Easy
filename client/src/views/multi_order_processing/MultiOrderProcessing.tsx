@@ -4,7 +4,7 @@ import { Loader, Dropdown, Button } from "@vibe/core";
 import { useOrderData } from "./hooks/useOrderData";
 import { ORDER_COLUMN_LABELS_VISIBLE } from "./constants";
 import { ExpandableOrderRow } from "./components/ExpandableOrderRow";
-
+import { SupplierSelection } from "./components/SupplierSelection";
 const PAGE_SIZE_OPTIONS = [
     { value: 5, label: "5" },
     { value: 10, label: "10" },
@@ -35,6 +35,11 @@ export const MultiOrderProcessing: React.FC = () => {
 
     const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
 
+    const [view, setView] = useState<"ORDERS" | "SUPPLIERS">("ORDERS");
+
+    if (view === "SUPPLIERS") {
+        return <SupplierSelection selectedOrderIds={Array.from(selectedOrderIds)} onBack={() => setView("ORDERS")} />;
+    }
     if (loading)
         return (
             <div style={{ textAlign: "center", padding: "50px" }}>
@@ -164,14 +169,7 @@ export const MultiOrderProcessing: React.FC = () => {
             </div>
             {/* NEW: Supplier Selection Button */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "24px" }}>
-                <Button
-                    kind={Button.kinds.PRIMARY}
-                    disabled={selectedOrderIds.size === 0}
-                    onClick={() => {
-                        const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id));
-                        console.log("Proceeding with selected orders:", selectedOrders);
-                    }}
-                >
+                <Button kind={Button.kinds.PRIMARY} disabled={selectedOrderIds.size === 0} onClick={() => setView("SUPPLIERS")}>
                     Go to Supplier Selection Screen
                 </Button>
             </div>
