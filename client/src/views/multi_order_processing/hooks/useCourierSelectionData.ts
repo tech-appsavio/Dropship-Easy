@@ -26,7 +26,10 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                             items {
                                 id
                                 name
-                                column_values(ids: ["${ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE}"]) { text }
+                                column_values(ids: [
+                                    "${ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE}",
+                                    "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}"
+                                ]) { id text }
                             }
                         }
                     }
@@ -41,6 +44,7 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                 name
                                 column_values {
                                     id
+                                    text
                                     ... on BoardRelationValue { linked_item_ids display_value }
                                 }
                             }
@@ -51,22 +55,32 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                 const orders = orderRes.data.boards[0].items_page.items
                     .filter((o: any) => selectedOrderIds.includes(o.id))
                     .map((o: any) => {
-                        const deliveryCode = o.column_values[0]?.text || "";
+                        const deliveryCode = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE)?.text || "";
+                        const orderId = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.ORDERID)?.text || "";
+
                         const items = liRes.data.boards[0].items_page.items
                             .map((li: any) => {
                                 const orderCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
                                 const supplierCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER);
+                                const skuCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU);
+                                const courierNameCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME);
+                                const courierIdCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID);
+
                                 return {
                                     id: li.id,
                                     name: li.name,
                                     linkedOrderId: orderCol?.linked_item_ids?.[0],
                                     supplierId: supplierCol?.linked_item_ids?.[0],
-                                    supplierName: supplierCol?.display_value
+                                    supplierName: supplierCol?.display_value,
+                                    orderId,
+                                    sku: skuCol?.text || "",
+                                    courierName: courierNameCol?.text || courierIdCol?.text || "",
+                                    courierId: courierIdCol?.text || "",
                                 };
                             })
                             .filter((li: any) => li.linkedOrderId === o.id);
 
-                        return { ...o, deliveryCode, lineItems: items };
+                        return { ...o, deliveryCode, orderId, lineItems: items };
                     });
 
                 setOrdersWithLineItems(orders);

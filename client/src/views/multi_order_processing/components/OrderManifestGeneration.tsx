@@ -22,6 +22,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
 
     // Flatten line items from all selected orders
     const allSelectedLineItems = ordersWithLineItems.flatMap(order => order.lineItems);
+    console.log("fetch shop detial ", allSelectedLineItems);
     const fetchShopDetails = async () => {
         console.log("fetch shop detial ");
         // Step 1: Fetch raw column values (no inline fragment needed)
@@ -50,7 +51,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
 
         const shopItem = res.data.boards[0].items_page.items[0];
         const getCol = (id: string) => shopItem.column_values.find((cv: any) => cv.id === id);
-        console.log("logoRawValue ", res.data.boards);
+        console.log("fetch shop det, result boards data =  ", res.data.boards);
         // Step 2: Parse the file column JSON to extract asset ID
         let logoUrl = "";
         const logoRawValue = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.LOGO)?.value;
@@ -77,9 +78,15 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
         }
 
         return {
-            logo: logoUrl, // empty string if column is blank or parsing fails
             contactName: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PRIMARY_CONTACT)?.text || "",
-            address: `${getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STREET)?.text || ""}, ${getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.CITY)?.text || ""}`,
+            street:     getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STREET)?.text || "",
+            city:       getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.CITY)?.text || "",
+            state:      getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STATE)?.text || "",
+            country:    getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.COUNTRY)?.text || "",
+            postalCode: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.POSTAL_CODE)?.text || "",
+            phone:      getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PHONE)?.text || "",
+            email:      getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.EMAIL)?.text || "",
+            website:    getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.WEBSITE)?.text || "",
         };
     };
 
@@ -98,14 +105,14 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
             const manifestName = `${item.supplierName || "NoSupplier"}_${item.courierName || "NoCourier"}_${item.name}_${timestamp}`;
 
             // FIX: Ensure Item IDs are linked to their respective connected board columns
-            const columnValues = {
-                // Link to the parent ORDER board
+            const columnValues: any = {
                 [SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER]: { item_ids: [item.linkedOrderId] },
-                // Link to the ORDER LINE ITEM board
                 [SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM]: { item_ids: [item.id] },
-                // Link to the SUPPLIER board
-                [SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER]: { item_ids: [item.supplierId] },
             };
+
+            if (item.supplierId) {
+                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [item.supplierId] };
+            }
             const createRes: any = await monday.api(`mutation {
                 create_item (
                     board_id: ${SUPPLIER_MANIFEST_BOARD_ID},
@@ -121,7 +128,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
             const pdfBlob = await generateManifestPDF({
                 supplierName: item.supplierName,
                 courierName: item.courierName,
-                lineItem: item,
+                lineItems: [item],
                 shopDetails,
                 manifestName,
             });

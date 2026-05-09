@@ -5,10 +5,12 @@ import autoTable from "jspdf-autotable";
 export const generateManifestPDF = async (manifestData: any) => {
     console.log("generateManifestPDF method "); // debug
     const doc = new jsPDF();
-    const { supplierName, courierName, lineItem, shopDetails, manifestName } = manifestData;
+    const { supplierName, courierName, lineItems, shopDetails, manifestName } = manifestData;
 
     const pageWidth = doc.internal.pageSize.getWidth(); // 210mm for A4
-    console.log("generateManifestPDF method li = ", lineItem); // debug
+    console.log("generateManifestPDF method li = ", lineItems); // debug
+
+    console.log("generateManifestPDF methodc name = = ", courierName); // debug
 
     console.log("generateManifestPDF methodshop det = ", shopDetails); // debug
     // Logo — centered, above heading
@@ -45,45 +47,165 @@ export const generateManifestPDF = async (manifestData: any) => {
     doc.text(`Seller: ${supplierName}`, 10, contentStartY + 5);
     doc.text(`Courier: ${courierName}`, 10, contentStartY + 10);
 
+    // Updated table
     autoTable(doc, {
         startY: contentStartY + 20,
-        head: [["S.no", "Order no", "Awb no", "Contents"]],
-        body: [["1", lineItem.linkedOrderId || "N/A", lineItem.courierId || "N/A", `${lineItem.name}, ${lineItem.id}`]],
+        head: [["", "S.no", "Order no", "AWB no", "Contents"]],
+        body: lineItems.map((item: any, index: number) => [
+            "", // checkbox — drawn below
+            String(index + 1), // S.no
+            item.orderId || "Null", // custom OrderId column
+            item.sku || "Null", // SKU column as AWB
+            `${item.name}, ${item.id}`, // Contents — unchanged
+        ]),
+        columnStyles: {
+            0: { cellWidth: 10, halign: "center" }, // checkbox col
+            1: { cellWidth: 12, halign: "center" }, // S.no
+        },
+        didDrawCell: (data) => {
+            // Draw printable checkbox box in first column, body rows only
+            if (data.column.index === 0 && data.section === "body") {
+                const { x, y, width, height } = data.cell;
+                const boxSize = 4;
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.3);
+                doc.rect(x + (width - boxSize) / 2, y + (height - boxSize) / 2, boxSize, boxSize);
+            }
+        },
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 20;
-    doc.text("Shipment From:", 10, finalY);
-    doc.text(shopDetails.address, 10, finalY + 5);
-    doc.text(`Primary Contact: ${shopDetails.contactName}`, 10, finalY + 10);
+    // --- Section below table ---
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+
+    // Dotted line helper
+    const drawDottedLine = (y: number) => {
+        doc.setLineDashPattern([1, 2], 0);
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(100);
+        doc.line(10, y, pageWidth - 10, y);
+        doc.setLineDashPattern([], 0); // reset to solid
+    };
+
+    // Underline field helper — label + blank line
+    const drawField = (label: string, x: number, y: number, lineWidth: number = 50) => {
+        doc.setFont("helvetica", "normal");
+        doc.text(label, x, y);
+        const labelWidth = doc.getTextWidth(label);
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.3);
+        doc.line(x + labelWidth + 2, y, x + labelWidth + 2 + lineWidth, y);
+    };
+
+    // 1. Dotted line + heading + dotted line
+    drawDottedLine(finalY);
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    const headingText = `To Be Filled By ${courierName || "Courier"} Executive`;
+    doc.text(headingText, pageWidth / 2, finalY + 8, { align: "center" });
+
+    drawDottedLine(finalY + 12);
+
+    // 2. Fields — two columns
+    doc.setFontSize(10);
+    const col1X = 10;
+    const col2X = pageWidth / 2 + 10;
+    let rowY = finalY + 24;
+    const rowGap = 16;
+
+    drawField("Pick up time :", col1X, rowY, 50);
+    drawField("Total items picked:", col2X, rowY, 45);
+
+    rowY += rowGap;
+    drawField("FE Name:", col1X, rowY, 50);
+
+    // Seller Name — populated, no underline
+    doc.setFont("helvetica", "normal");
+    doc.text(`Seller Name: ${supplierName || ""}`, col2X, rowY);
+
+    rowY += rowGap;
+    drawField("FE Signature:", col1X, rowY, 50);
+    drawField("Seller Signature:", col2X, rowY, 45);
+
+    rowY += rowGap;
+    drawField("FE Phone:", col1X, rowY, 50);
+
+    // 3. Shipment From (footer)
+    // 3. Footer
+    rowY += rowGap + 8;
+
+    // Line 1: Full address concatenated, skip blanks
+    const addressParts = [shopDetails.street, shopDetails.city, shopDetails.state, shopDetails.country, shopDetails.postalCode].filter(Boolean);
+    const fullAddress = addressParts.join(", ");
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    // splitTextToSize handles long addresses wrapping
+    const addressLines = doc.splitTextToSize(fullAddress, pageWidth - 20);
+    doc.text(addressLines, pageWidth / 2, rowY, { align: "center" });
+    rowY += addressLines.length * 5;
+
+    // Line 2: Contact | Email | Phone | Website — bold labels, normal values
+    // Write each label+value segment inline, tracking X position
+    const writeSegment = (label: string, value: string, x: number, y: number): number => {
+        if (!value) return x; // skip entirely if blank
+        doc.setFont("helvetica", "bold");
+        doc.text(label, x, y);
+        const labelW = doc.getTextWidth(label);
+        doc.setFont("helvetica", "normal");
+        doc.text(value, x + labelW, y);
+        return x + labelW + doc.getTextWidth(value) + 4; // next X with spacing
+    };
+
+    let cx = 10;
+    rowY += 2;
+    cx = writeSegment("Contact: ", shopDetails.contactName, cx, rowY);
+    cx = writeSegment("Email: ", shopDetails.email, cx, rowY);
+    cx = writeSegment("Phone: ", shopDetails.phone, cx, rowY);
+    cx = writeSegment("Website: ", shopDetails.website, cx, rowY);
+
+    // Line 3: System generated note — centered
+    rowY += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text("This is a system generated document", pageWidth / 2, rowY, { align: "center" });
+    doc.setTextColor(0); // reset
 
     return doc.output("blob");
 };
 
-const fetchLogoAsBase64 = (url: string): Promise<string | null> => {
-    return new Promise((resolve) => {
-        console.log("Fetch logo as base 64 Attempting to load logo from:", url); // debug
+const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
+    try {
+        console.log("Fetching logo from:", url);
 
-        const img = new Image();
-        img.crossOrigin = "anonymous";
+        const response = await fetch(url, {
+            credentials: "include", // sends Monday session cookies for protected URLs
+        });
 
-        const canvas = document.createElement("canvas");
+        if (!response.ok) {
+            console.warn(`Logo fetch failed: HTTP ${response.status}`);
+            return null;
+        }
 
-        img.onload = () => {
-            console.log("Logo loaded successfully, dimensions:", img.naturalWidth, img.naturalHeight);
-            canvas.width = img.naturalWidth || 200;
-            canvas.height = img.naturalHeight || 200;
-            const ctx = canvas.getContext("2d")!;
-            ctx.drawImage(img, 0, 0);
-            const base64 = canvas.toDataURL("image/png");
-            console.log("Base64 generated, length:", base64.length);
-            resolve(base64);
-        };
+        const blob = await response.blob();
+        console.log("Logo blob received, type:", blob.type, "size:", blob.size);
 
-        img.onerror = (e) => {
-            console.warn("Logo image load failed:", e, "URL:", url);
-            resolve(null);
-        };
-
-        img.src = url;
-    });
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                console.log("Logo base64 ready");
+                resolve(reader.result as string);
+            };
+            reader.onerror = () => {
+                console.warn("FileReader failed");
+                resolve(null);
+            };
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.warn("Logo fetch error:", e);
+        return null;
+    }
 };
+
