@@ -62,11 +62,11 @@ export const SUPPLIER_MANIFEST_COLUMN_IDS_MAP = {
 
 export const SHOPS_MANIFEST_COLUMN_IDS_MAP = {
     COUNTRY: "text_mkt4ptjk",
-    POSTAL_CODE: "text_mkt4ptjk",
-    STREET: "text_mkt4ptjk",
-    CITY: "text_mkt4ptjk",
-    STATE: "text_mkt4ptjk",
-    LOGO: "file_mksncam",
+    POSTAL_CODE: "text_mkt4ykvj",
+    STREET: "text_mkt44m8k",
+    CITY: "text_mkt4vr30",
+    STATE: "text_mkt427km",
+    LOGO: "file_mm36fdnt",
     PRIMARY_CONTACT: "text_mm36hk00",
 };
 

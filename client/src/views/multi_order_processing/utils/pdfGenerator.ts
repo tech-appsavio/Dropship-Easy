@@ -1,37 +1,56 @@
+//utils/pdfGenerator.ts
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const generateManifestPDF = async (manifestData: any) => {
+    console.log("generateManifestPDF method "); // debug
     const doc = new jsPDF();
     const { supplierName, courierName, lineItem, shopDetails, manifestName } = manifestData;
 
-    // Logo — skip entirely if blank or any step fails
+    const pageWidth = doc.internal.pageSize.getWidth(); // 210mm for A4
+    console.log("generateManifestPDF method li = ", lineItem); // debug
+
+    console.log("generateManifestPDF methodshop det = ", shopDetails); // debug
+    // Logo — centered, above heading
+    let headingY = 20; // default Y for "Manifest" if no logo
+
     if (shopDetails.logo) {
+        console.log("shopDetails.logo URL:", shopDetails.logo); // debug
         const logoBase64 = await fetchLogoAsBase64(shopDetails.logo);
         if (logoBase64) {
+            const logoW = 40;
+            const logoH = 20;
+            const logoX = (pageWidth - logoW) / 2; // centered horizontally
+            const logoY = 10;
             try {
-                doc.addImage(logoBase64, "PNG", 10, 10, 30, 30);
+                doc.addImage(logoBase64, "PNG", logoX, logoY, logoW, logoH);
+                headingY = logoY + logoH + 8; // push heading below logo
+                console.log("Logo added to PDF at:", logoX, logoY);
             } catch (e) {
-                console.warn("addImage failed — skipping logo:", e);
+                console.warn("addImage failed:", e);
             }
+        } else {
+            console.warn("fetchLogoAsBase64 returned null");
         }
+    } else {
+        console.warn("shopDetails.logo is empty — check fetchShopDetails");
     }
+
     doc.setFontSize(20);
-    doc.text("Manifest", 105, 20, { align: "center" });
+    doc.text("Manifest", pageWidth / 2, headingY, { align: "center" });
 
     doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 10, 45);
-    doc.text(`Seller: ${supplierName}`, 10, 50);
-    doc.text(`Courier: ${courierName}`, 10, 55);
+    const contentStartY = headingY + 15;
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 10, contentStartY);
+    doc.text(`Seller: ${supplierName}`, 10, contentStartY + 5);
+    doc.text(`Courier: ${courierName}`, 10, contentStartY + 10);
 
-    // 2. Table: Line Item Information
     autoTable(doc, {
-        startY: 65,
+        startY: contentStartY + 20,
         head: [["S.no", "Order no", "Awb no", "Contents"]],
         body: [["1", lineItem.linkedOrderId || "N/A", lineItem.courierId || "N/A", `${lineItem.name}, ${lineItem.id}`]],
     });
 
-    // 3. Footer: Address and Primary Contact
     const finalY = (doc as any).lastAutoTable.finalY + 20;
     doc.text("Shipment From:", 10, finalY);
     doc.text(shopDetails.address, 10, finalY + 5);
@@ -40,50 +59,31 @@ export const generateManifestPDF = async (manifestData: any) => {
     return doc.output("blob");
 };
 
-const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to fetch logo: ${response.status}`);
+const fetchLogoAsBase64 = (url: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+        console.log("Fetch logo as base 64 Attempting to load logo from:", url); // debug
 
-        const blob = await response.blob();
-        const isSvg = blob.type.includes("svg") || url.toLowerCase().endsWith(".svg");
+        const img = new Image();
+        img.crossOrigin = "anonymous";
 
-        if (isSvg) {
-            const svgText = await blob.text();
-            const canvas = document.createElement("canvas");
-            canvas.width = 200;
-            canvas.height = 200;
+        const canvas = document.createElement("canvas");
+
+        img.onload = () => {
+            console.log("Logo loaded successfully, dimensions:", img.naturalWidth, img.naturalHeight);
+            canvas.width = img.naturalWidth || 200;
+            canvas.height = img.naturalHeight || 200;
             const ctx = canvas.getContext("2d")!;
-            const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
-            const objectUrl = URL.createObjectURL(svgBlob);
+            ctx.drawImage(img, 0, 0);
+            const base64 = canvas.toDataURL("image/png");
+            console.log("Base64 generated, length:", base64.length);
+            resolve(base64);
+        };
 
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, 200, 200);
-                    URL.revokeObjectURL(objectUrl);
-                    resolve(canvas.toDataURL("image/png"));
-                };
-                img.onerror = () => {
-                    URL.revokeObjectURL(objectUrl);
-                    console.warn("SVG render failed — skipping logo");
-                    resolve(null); // skip gracefully
-                };
-                img.src = objectUrl;
-            });
-        } else {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = () => {
-                    console.warn("FileReader failed — skipping logo");
-                    resolve(null);
-                };
-                reader.readAsDataURL(blob);
-            });
-        }
-    } catch (e) {
-        console.warn("Logo fetch error — skipping logo:", e);
-        return null; // always skip gracefully, never throw
-    }
+        img.onerror = (e) => {
+            console.warn("Logo image load failed:", e, "URL:", url);
+            resolve(null);
+        };
+
+        img.src = url;
+    });
 };

@@ -23,6 +23,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
     // Flatten line items from all selected orders
     const allSelectedLineItems = ordersWithLineItems.flatMap(order => order.lineItems);
     const fetchShopDetails = async () => {
+        console.log("fetch shop detial ");
         // Step 1: Fetch raw column values (no inline fragment needed)
         const res: any = await monday.api(`query {
             boards(ids: ${SHOPS_BOARD_ID}) {
@@ -49,11 +50,12 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
 
         const shopItem = res.data.boards[0].items_page.items[0];
         const getCol = (id: string) => shopItem.column_values.find((cv: any) => cv.id === id);
-
+        console.log("logoRawValue ", res.data.boards);
         // Step 2: Parse the file column JSON to extract asset ID
         let logoUrl = "";
         const logoRawValue = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.LOGO)?.value;
-
+        console.log("logoRawValue ", logoRawValue);
+        console.log("logoRawValue col id = ", SHOPS_MANIFEST_COLUMN_IDS_MAP.LOGO);
         if (logoRawValue) {
             try {
                 const parsed = JSON.parse(logoRawValue);
@@ -82,6 +84,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
     };
 
     const handleGenerateManifest = async () => {
+        console.log("orderManifest tsx, handleGenerateManifest methods ");
         if (!selectedItemId) return;
         const item = allSelectedLineItems.find((li) => li.id === selectedItemId);
         if (!item) return;
@@ -89,6 +92,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
         setIsUpdating(true);
         try {
             const shopDetails = await fetchShopDetails();
+            console.log("orderManifest tsx, handleGenerateManifest methods => fetch shosp detial ", shopDetails);
             const now = new Date();
             const timestamp = `${now.getDate()}${now.getMonth() + 1}${now.getFullYear()}_${now.getHours()}${now.getMinutes()}`;
             const manifestName = `${item.supplierName || "NoSupplier"}_${item.courierName || "NoCourier"}_${item.name}_${timestamp}`;
@@ -113,6 +117,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
             const newManifestId = createRes.data.create_item.id;
 
             // 2. Generate and Upload the PDF
+            console.log("orderManifest tsx, handleGenerateManifest methods, generateManifestPDF method 118 line ");
             const pdfBlob = await generateManifestPDF({
                 supplierName: item.supplierName,
                 courierName: item.courierName,
@@ -121,8 +126,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
                 manifestName,
             });
             const pdfFile = new File([pdfBlob], `${manifestName}.pdf`, { type: "application/pdf" });
-
-
 
             // 3. Upload File to Manifest Column
             await monday.api(
