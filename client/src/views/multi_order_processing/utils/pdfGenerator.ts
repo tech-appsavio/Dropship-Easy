@@ -147,6 +147,46 @@ export const generateManifestPDF = async (manifestData: any) => {
 
     // Line 2: Contact | Email | Phone | Website — bold labels, normal values
     // Write each label+value segment inline, tracking X position
+    doc.setFontSize(9);
+    const contactSegments = [
+        { label: "Contact: ", value: shopDetails.contactName },
+        { label: "Email: ", value: shopDetails.email },
+        { label: "Phone: ", value: shopDetails.phone },
+        { label: "Website: ", value: shopDetails.website },
+    ].filter((s) => !!s.value);
+    if (contactSegments.length > 0) {
+        rowY += 2;
+
+        // Calculate total line width to center it
+        let totalW = 0;
+        contactSegments.forEach((seg, i) => {
+            doc.setFont("helvetica", "bold");
+            totalW += doc.getTextWidth(seg.label);
+            doc.setFont("helvetica", "normal");
+            totalW += doc.getTextWidth(seg.value);
+            if (i < contactSegments.length - 1) totalW += 6; // gap between segments
+        });
+
+        let cx = (pageWidth - totalW) / 2; // start X for centered line
+
+        contactSegments.forEach((seg, i) => {
+            doc.setFont("helvetica", "bold");
+            doc.text(seg.label, cx, rowY);
+            cx += doc.getTextWidth(seg.label);
+            doc.setFont("helvetica", "normal");
+            doc.text(seg.value, cx, rowY);
+            cx += doc.getTextWidth(seg.value) + (i < contactSegments.length - 1 ? 6 : 0);
+        });
+    }
+
+    // System generated note
+    rowY += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text("This is a system generated document", pageWidth / 2, rowY, { align: "center" });
+    doc.setTextColor(0);
+    /*
     const writeSegment = (label: string, value: string, x: number, y: number): number => {
         if (!value) return x; // skip entirely if blank
         doc.setFont("helvetica", "bold");
@@ -171,7 +211,7 @@ export const generateManifestPDF = async (manifestData: any) => {
     doc.setTextColor(120);
     doc.text("This is a system generated document", pageWidth / 2, rowY, { align: "center" });
     doc.setTextColor(0); // reset
-
+    */
     return doc.output("blob");
 };
 

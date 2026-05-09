@@ -12,16 +12,23 @@ import {
 import mondaySdk from "monday-sdk-js";
 import { generateManifestPDF } from "../utils/pdfGenerator";
 
-
 const monday = mondaySdk();
 
-export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selectedOrderIds: string[], onBack: () => void }) => {
+export const OrderManifestGeneration = ({
+    selectedOrderIds,
+    onBack,
+    onFinish, // Add this prop
+}: {
+    selectedOrderIds: string[];
+    onBack: () => void;
+    onFinish: () => void;
+}) => {
     const { loading, ordersWithLineItems } = useCourierSelectionData(selectedOrderIds);
     const [selectedItemId, setSelectedLineItemId] = useState<string | null>(null);
     const [isCreating, setIsUpdating] = useState(false);
 
     // Flatten line items from all selected orders
-    const allSelectedLineItems = ordersWithLineItems.flatMap(order => order.lineItems);
+    const allSelectedLineItems = ordersWithLineItems.flatMap((order) => order.lineItems);
     console.log("fetch shop detial ", allSelectedLineItems);
     const fetchShopDetails = async () => {
         console.log("fetch shop detial ");
@@ -77,16 +84,46 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
             }
         }
 
+        // Replace the return block in fetchShopDetails:
+
+        // Helper to safely parse Monday column value JSON
+        const parseVal = (col: any) => {
+            try {
+                return col?.value ? JSON.parse(col.value) : null;
+            } catch {
+                return null;
+            }
+        };
+
+        const emailCol = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.EMAIL);
+        const emailParsed = parseVal(emailCol);
+        const email =
+            emailCol?.text || // try .text first (most reliable)
+            emailParsed?.email || // fallback: parsed JSON .email key
+            emailParsed?.text || // fallback: parsed JSON .text key
+            "";
+
+        // Add a debug log so you can confirm what's coming back
+        console.log("email col raw:", emailCol, "parsed:", emailParsed, "resolved:", email);
+
+        // Link column: value JSON is {"url": "...", "text": "..."}
+        const websiteParsed = parseVal(getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.WEBSITE));
+        const website = websiteParsed?.url || websiteParsed?.text || "";
+
+        // Phone is text_* column — .text works directly
+        const phone = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PHONE)?.text || "";
+
         return {
+            logo: logoUrl,
             contactName: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PRIMARY_CONTACT)?.text || "",
-            street:     getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STREET)?.text || "",
-            city:       getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.CITY)?.text || "",
-            state:      getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STATE)?.text || "",
-            country:    getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.COUNTRY)?.text || "",
+            street: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STREET)?.text || "",
+            city: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.CITY)?.text || "",
+            state: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STATE)?.text || "",
+            country: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.COUNTRY)?.text || "",
             postalCode: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.POSTAL_CODE)?.text || "",
-            phone:      getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PHONE)?.text || "",
-            email:      getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.EMAIL)?.text || "",
-            website:    getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.WEBSITE)?.text || "",
+            phone,
+            email,
+            website,
         };
     };
 
@@ -177,7 +214,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
                         </tr>
                     </thead>
                     <tbody>
-                        {allSelectedLineItems.map(item => (
+                        {allSelectedLineItems.map((item) => (
                             <tr key={item.id} style={{ borderBottom: "1px solid #eee" }}>
                                 <td style={{ padding: "10px", textAlign: "center" }}>
                                     <RadioButton
@@ -193,14 +230,19 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onBack }: { selected
                 </table>
             </div>
 
-            <div style={{ display: "flex", gap: "10px" }}>
-                <Button kind={Button.kinds.TERTIARY} onClick={onBack}>Back to Courier Selection</Button>
-                <Button
-                    disabled={!selectedItemId || isCreating}
-                    loading={isCreating}
-                    onClick={handleGenerateManifest}
-                >
-                    Ready for Manifest Generation
+            <div style={{ display: "flex", gap: "10px", marginTop: "24px", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", gap: "10px" }}>
+                    <Button kind={Button.kinds.TERTIARY} onClick={onBack}>
+                        Back to Courier Selection
+                    </Button>
+                    <Button disabled={!selectedItemId || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
+                        Ready for Manifest Generation
+                    </Button>
+                </div>
+
+                {/* The Finish button resets the app state as defined in MultiOrderProcessing.tsx */}
+                <Button kind={Button.kinds.PRIMARY} onClick={onFinish}>
+                    Finish & Reset Selection
                 </Button>
             </div>
         </div>

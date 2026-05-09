@@ -7,6 +7,7 @@ import { ExpandableOrderRow } from "./components/ExpandableOrderRow";
 import { SupplierSelection } from "./components/SupplierSelection";
 import { CourierSelection } from "./components/CourierSelection";
 import { OrderManifestGeneration } from "./components/OrderManifestGeneration";
+import { OrderProcessingPath } from "./components/OrderProcessingPath";
 const PAGE_SIZE_OPTIONS = [
     { value: 5, label: "5" },
     { value: 10, label: "10" },
@@ -37,26 +38,48 @@ export const MultiOrderProcessing: React.FC = () => {
 
     const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
     const [view, setView] = useState<"ORDERS" | "SUPPLIERS" | "COURIERS" | "MANIFEST">("ORDERS");
+    const handleFinish = () => {
+        setSelectedOrderIds(new Set()); // Clear all selected orders
+        setCurrentPage(1); // Reset pagination
+        setSearchTerm(""); // Clear search
+        setView("ORDERS"); // Return to the first stage: Order Selection
+    };
+
     if (view === "MANIFEST") {
-        return <OrderManifestGeneration selectedOrderIds={Array.from(selectedOrderIds)} onBack={() => setView("COURIERS")} />;
+        return (
+            <div style={{ padding: "24px", maxWidth: "1200px", margin: "auto" }}>
+                <OrderProcessingPath activeView={view} />
+                <OrderManifestGeneration
+                    selectedOrderIds={Array.from(selectedOrderIds)}
+                    onBack={() => setView("COURIERS")}
+                    onFinish={handleFinish} // Pass finish handler
+                />
+            </div>
+        );
     }
 
     if (view === "COURIERS") {
         return (
-            <CourierSelection
-                selectedOrderIds={Array.from(selectedOrderIds)}
-                onBack={() => setView("SUPPLIERS")}
-                onNext={() => setView("MANIFEST")} // Pass navigation to next screen
-            />
+            <div style={{ padding: "24px", maxWidth: "1200px", margin: "auto" }}>
+                <OrderProcessingPath activeView={view} />
+                <CourierSelection
+                    selectedOrderIds={Array.from(selectedOrderIds)}
+                    onBack={() => setView("SUPPLIERS")}
+                    onNext={() => setView("MANIFEST")} // Pass navigation to next screen
+                />
+            </div>
         );
     }
     if (view === "SUPPLIERS") {
         return (
-            <SupplierSelection
-                selectedOrderIds={Array.from(selectedOrderIds)}
-                onBack={() => setView("ORDERS")}
-                onNext={() => setView("COURIERS")} // Add this prop
-            />
+            <div style={{ padding: "24px", maxWidth: "1200px", margin: "auto" }}>
+                <OrderProcessingPath activeView={view} />
+                <SupplierSelection
+                    selectedOrderIds={Array.from(selectedOrderIds)}
+                    onBack={() => setView("ORDERS")}
+                    onNext={() => setView("COURIERS")} // Add this prop
+                />
+            </div>
         );
     }
     if (loading)
@@ -69,7 +92,8 @@ export const MultiOrderProcessing: React.FC = () => {
 
     return (
         <div style={{ padding: "24px", maxWidth: "1200px", margin: "auto" }}>
-            <h1>Multi Order Processing</h1>
+            <h1>Multi Order Processing 899</h1>
+            <OrderProcessingPath activeView={view} />
 
             <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
                 <input
