@@ -5,6 +5,8 @@ import { useOrderData } from "./hooks/useOrderData";
 import { ORDER_COLUMN_LABELS_VISIBLE } from "./constants";
 import { ExpandableOrderRow } from "./components/ExpandableOrderRow";
 import { SupplierSelection } from "./components/SupplierSelection";
+import { CourierSelection } from "./components/CourierSelection";
+import { OrderManifestGeneration } from "./components/OrderManifestGeneration";
 const PAGE_SIZE_OPTIONS = [
     { value: 5, label: "5" },
     { value: 10, label: "10" },
@@ -34,11 +36,28 @@ export const MultiOrderProcessing: React.FC = () => {
     }, [filteredOrders, currentPage, pageSize]);
 
     const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
+    const [view, setView] = useState<"ORDERS" | "SUPPLIERS" | "COURIERS" | "MANIFEST">("ORDERS");
+    if (view === "MANIFEST") {
+        return <OrderManifestGeneration selectedOrderIds={Array.from(selectedOrderIds)} onBack={() => setView("COURIERS")} />;
+    }
 
-    const [view, setView] = useState<"ORDERS" | "SUPPLIERS">("ORDERS");
-
+    if (view === "COURIERS") {
+        return (
+            <CourierSelection
+                selectedOrderIds={Array.from(selectedOrderIds)}
+                onBack={() => setView("SUPPLIERS")}
+                onNext={() => setView("MANIFEST")} // Pass navigation to next screen
+            />
+        );
+    }
     if (view === "SUPPLIERS") {
-        return <SupplierSelection selectedOrderIds={Array.from(selectedOrderIds)} onBack={() => setView("ORDERS")} />;
+        return (
+            <SupplierSelection
+                selectedOrderIds={Array.from(selectedOrderIds)}
+                onBack={() => setView("ORDERS")}
+                onNext={() => setView("COURIERS")} // Add this prop
+            />
+        );
     }
     if (loading)
         return (

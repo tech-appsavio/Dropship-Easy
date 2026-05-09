@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@vibe/core": "^3.0.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "monday-sdk-js": "^0.5.5"
   },
   "eslintConfig": {

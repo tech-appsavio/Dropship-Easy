@@ -113,17 +113,16 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
             .sort((a, b) => b.finalScore - a.finalScore); // Sort best to worst
     };
 
-    const fetchSuppliersForProduct = async (productId: string) => {
-        // Return cached data if already fetched for this product
-        if (suppliersMap[productId]) return;
+   const fetchSuppliersForProduct = async (productId: string) => {
+       if (suppliersMap[productId]) return;
 
-        // Fetching all records because Monday API filtering on connection columns is inconsistent
-        const query = `query {
+       const query = `query {
             boards(ids: ${SUPPLIER_PRODUCT_BOARD_ID}) {
                 items_page(limit: 500) {
                     items {
                         column_values {
                             id
+                            text
                             ... on BoardRelationValue {
                                 linked_item_ids
                                 display_value
@@ -134,35 +133,44 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
             }
         }`;
 
-        try {
-            const res: any = await monday.api(query);
+       try {
+           const res: any = await monday.api(query);
+           if (!res.data || !res.data.boards || res.data.boards.length === 0) {
+               throw new Error("No data returned for supplier products board.");
+           }
 
-            if (!res.data || !res.data.boards || res.data.boards.length === 0) {
-                throw new Error("No data returned for supplier products board.");
-            }
+           const allSupplierProductItems = res.data.boards[0].items_page.items;
 
-            const allSupplierProductItems = res.data.boards[0].items_page.items;
+           // Step 1: map and filter
+           const filteredSuppliers = allSupplierProductItems
+               .map((item: any) => {
+                   const productCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT);
+                   const supplierCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.SUPPLIER);
 
-            // Map and filter locally by the selected productId
-            const filteredSuppliers = allSupplierProductItems
-                .map((item: any) => {
-                    const productCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT);
-                    const supplierCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.SUPPLIER);
+                   const rating = parseFloat(item.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.RATING)?.text || "0");
+                   const price = parseFloat(item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT_WEIGHTAGE)?.text || "0");
+                   const isSelf = item.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.SELFOWNED)?.text === "true"; // ← add this
 
-                    return {
-                        linkedProductId: productCol?.linked_item_ids?.[0],
-                        label: supplierCol?.display_value,
-                        value: supplierCol?.linked_item_ids?.[0],
-                    };
-                })
-                .filter((item: any) => item.linkedProductId === productId) // Local filter
-                .map((item: any) => ({ label: item.label, value: item.value }));
+                   return {
+                       linkedProductId: productCol?.linked_item_ids?.[0],
+                       label: supplierCol?.display_value,
+                       value: supplierCol?.linked_item_ids?.[0],
+                       price,
+                       rating,
+                       isSelf,
+                   };
+               })
+               .filter((item: any) => item.linkedProductId === productId);
 
-            // Update the map to store suppliers for this specific product
-            setSuppliersMap((prev) => ({ ...prev, [productId]: filteredSuppliers }));
-        } catch (e) {
-            console.error("Error fetching suppliers locally:", e);
-        }
-    };
+           // Step 2: sort, then strip sorting fields before storing
+           const sortedSuppliers = sortSuppliersByWeightedScore(filteredSuppliers)
+               .sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0)) // ← self-owned float to top
+               .map((item: any) => ({ label: item.label, value: item.value }));
+
+           setSuppliersMap((prev) => ({ ...prev, [productId]: sortedSuppliers }));
+       } catch (e) {
+           console.error("Error fetching suppliers locally:", e);
+       }
+   };
     return { lineItems, allProducts, suppliersMap, fetchSuppliersForProduct, loading };
 };
