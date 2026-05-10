@@ -69,7 +69,7 @@ export const SHOPS_MANIFEST_COLUMN_IDS_MAP = {
     LOGO: "file_mm36fdnt",
     PRIMARY_CONTACT: "text_mm36hk00",
     PHONE: "text_mktbzkew",
-    EMAIL: "",
+    EMAIL: "email_mm36mf0p",
     WEBSITE: "link_mksq4360",
 };
 

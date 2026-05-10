@@ -7,15 +7,7 @@ import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
 
-export const CourierSelection = ({
-    selectedOrderIds,
-    onBack,
-    onNext
-}: {
-    selectedOrderIds: string[];
-    onBack: () => void;
-    onNext: () => void;
-}) => {
+export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
     const { loading, ordersWithLineItems, allSuppliers } = useCourierSelectionData(selectedOrderIds);
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedPostalCode, setSelectedPostalCode] = useState<any>(null);
@@ -27,18 +19,18 @@ export const CourierSelection = ({
     const deliveryPostalCodes = useMemo(() => {
         if (!selectedSupplier) return [];
         const codes = new Set<string>();
-        ordersWithLineItems.forEach(o => {
+        ordersWithLineItems.forEach((o) => {
             const hasSupplier = o.lineItems.some((li: any) => li.supplierId === selectedSupplier.value);
             if (hasSupplier && o.deliveryCode) codes.add(o.deliveryCode);
         });
-        return Array.from(codes).map(code => ({ label: code, value: code }));
+        return Array.from(codes).map((code) => ({ label: code, value: code }));
     }, [selectedSupplier, ordersWithLineItems]);
 
     // 2. Filter line items based on Supplier AND Postal Code
     const filteredLineItems = useMemo(() => {
         if (!selectedSupplier || !selectedPostalCode) return [];
         const items: any[] = [];
-        ordersWithLineItems.forEach(o => {
+        ordersWithLineItems.forEach((o) => {
             if (o.deliveryCode === selectedPostalCode.value) {
                 o.lineItems.forEach((li: any) => {
                     if (li.supplierId === selectedSupplier.value) items.push(li);
@@ -53,7 +45,7 @@ export const CourierSelection = ({
         console.log(`Querying couriers for route: ${supplierZip} -> ${deliveryZip}`);
         return [
             { label: "Courier 1", value: "cour_1" },
-            { label: "Courier 2", value: "cour_2" }
+            { label: "Courier 2", value: "cour_2" },
         ];
     };
 
@@ -66,7 +58,7 @@ export const CourierSelection = ({
         }
     };
 
-   const handleUpdateCourier = async () => {
+    const handleUpdateCourier = async () => {
         if (!selectedCourier || selectedLineItemIds.size === 0) return;
         setIsUpdating(true);
         try {
@@ -74,7 +66,7 @@ export const CourierSelection = ({
                 // Build the column values object
                 const columnValues: any = {
                     [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID]: selectedCourier.value,
-                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Ready for Manifest Generation" }
+                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Ready for Manifest Generation" },
                 };
 
                 // ONLY add Courier Name if the ID is actually defined to prevent API errors
@@ -117,7 +109,14 @@ export const CourierSelection = ({
             <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", marginBottom: "20px" }}>
                 <div style={{ flex: 1 }}>
                     <label>Supplier:</label>
-                    <Dropdown options={allSuppliers} value={selectedSupplier} onChange={(v: any) => { setSelectedSupplier(v); setSelectedPostalCode(null); }} />
+                    <Dropdown
+                        options={allSuppliers}
+                        value={selectedSupplier}
+                        onChange={(v: any) => {
+                            setSelectedSupplier(v);
+                            setSelectedPostalCode(null);
+                        }}
+                    />
                 </div>
                 <div style={{ flex: 1 }}>
                     <label>Delivery Postal Code:</label>
@@ -126,7 +125,10 @@ export const CourierSelection = ({
                 <div style={{ flex: 1 }}>
                     <label>Courier:</label>
                     <Dropdown
-                        options={[{ label: "Courier 1", value: "cour_1" }, { label: "Courier 2", value: "cour_2" }]}
+                        options={[
+                            { label: "Courier 1", value: "cour_1" },
+                            { label: "Courier 2", value: "cour_2" },
+                        ]}
                         value={selectedCourier}
                         onChange={(v: any) => setSelectedCourier(v)}
                         disabled={!selectedPostalCode}
@@ -145,27 +147,37 @@ export const CourierSelection = ({
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0 }}>
                         <tr>
-                            <th style={{ padding: "10px" }}><Checkbox checked={selectedLineItemIds.size === filteredLineItems.length && filteredLineItems.length > 0} onChange={() => setSelectedLineItemIds(selectedLineItemIds.size === filteredLineItems.length ? new Set() : new Set(filteredLineItems.map(i => i.id)))} /></th>
+                            <th style={{ padding: "10px" }}>
+                                <Checkbox
+                                    checked={selectedLineItemIds.size === filteredLineItems.length && filteredLineItems.length > 0}
+                                    onChange={() =>
+                                        setSelectedLineItemIds(
+                                            selectedLineItemIds.size === filteredLineItems.length ? new Set() : new Set(filteredLineItems.map((i) => i.id)),
+                                        )
+                                    }
+                                />
+                            </th>
                             <th style={{ padding: "10px", textAlign: "left" }}>Name</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredLineItems.map(item => (
+                        {filteredLineItems.map((item) => (
                             <tr key={item.id} style={{ borderBottom: "1px solid #eee" }}>
-                                <td style={{ padding: "10px", textAlign: "center" }}><Checkbox checked={selectedLineItemIds.has(item.id)} onChange={() => {
-                                    const next = new Set(selectedLineItemIds);
-                                    next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                                    setSelectedLineItemIds(next);
-                                }} /></td>
+                                <td style={{ padding: "10px", textAlign: "center" }}>
+                                    <Checkbox
+                                        checked={selectedLineItemIds.has(item.id)}
+                                        onChange={() => {
+                                            const next = new Set(selectedLineItemIds);
+                                            next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                            setSelectedLineItemIds(next);
+                                        }}
+                                    />
+                                </td>
                                 <td style={{ padding: "10px" }}>{item.name}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-            </div>
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-                <Button kind={Button.kinds.TERTIARY} onClick={onBack}>Back to Supplier Selection</Button>
-                <Button kind={Button.kinds.PRIMARY} onClick={onNext}>Go For Manifest Generation</Button>
             </div>
         </div>
     );

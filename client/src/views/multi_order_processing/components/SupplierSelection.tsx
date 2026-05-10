@@ -7,15 +7,7 @@ import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
 
-export const SupplierSelection = ({
-    selectedOrderIds,
-    onBack,
-    onNext // Add this parameter
-}: {
-    selectedOrderIds: string[];
-    onBack: () => void;
-    onNext: () => void; // Add this type definition
-}) => {
+export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
     const { allProducts, suppliersMap, fetchSuppliersForProduct, loading, lineItems } = useSupplierSelectionData(selectedOrderIds);
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
@@ -153,15 +145,6 @@ export const SupplierSelection = ({
             {selectedProduct && currentSuppliers.length === 0 && (
                 <div style={{ color: "red", marginBottom: "20px" }}>No Supplier found for Product: {selectedProduct.label}</div>
             )}
-
-            <Button kind={Button.kinds.TERTIARY} onClick={onBack}>
-                Back to Orders
-            </Button>
-
-            {/* NEW: Navigation button to Courier Selection */}
-            <Button kind={Button.kinds.PRIMARY} onClick={onNext}>
-                Go to Courier Selection Screen
-            </Button>
         </div>
     );
 };

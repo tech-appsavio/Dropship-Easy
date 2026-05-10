@@ -14,15 +14,7 @@ import { generateManifestPDF } from "../utils/pdfGenerator";
 
 const monday = mondaySdk();
 
-export const OrderManifestGeneration = ({
-    selectedOrderIds,
-    onBack,
-    onFinish, // Add this prop
-}: {
-    selectedOrderIds: string[];
-    onBack: () => void;
-    onFinish: () => void;
-}) => {
+export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
     const { loading, ordersWithLineItems } = useCourierSelectionData(selectedOrderIds);
     const [selectedItemId, setSelectedLineItemId] = useState<string | null>(null);
     const [isCreating, setIsUpdating] = useState(false);
@@ -232,18 +224,10 @@ export const OrderManifestGeneration = ({
 
             <div style={{ display: "flex", gap: "10px", marginTop: "24px", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", gap: "10px" }}>
-                    <Button kind={Button.kinds.TERTIARY} onClick={onBack}>
-                        Back to Courier Selection
-                    </Button>
                     <Button disabled={!selectedItemId || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
                         Ready for Manifest Generation
                     </Button>
                 </div>
-
-                {/* The Finish button resets the app state as defined in MultiOrderProcessing.tsx */}
-                <Button kind={Button.kinds.PRIMARY} onClick={onFinish}>
-                    Finish & Reset Selection
-                </Button>
             </div>
         </div>
     );
