@@ -1,4 +1,3 @@
-//components/OrderTable.tsx
 import React from 'react';
 import { Order } from '../types';
 

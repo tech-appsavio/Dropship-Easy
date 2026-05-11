@@ -13,11 +13,8 @@ export const ORDER_ALL_COLUMN_IDS_MAP = {
     BILLING_ADDRESS: "long_text_mkrnfk2r",
     DELIVERY_CODE: "text_mm365x5d",
     SUPPLIER_MANIFEST: "board_relation_mm36hqmm",
-    CREATEDDATE: "date4",
-    PARENTORDER: "board_relation_mkxdkae4",
-    ASSIGNEE: "multiple_person_mm37ek4z",
 };
-export const ORDER_COLUMN_LABELS_VISIBLE = ["Name", "OrderId", "STATUS", "TOTAL_PRICE", "BILLING_ADDRESS", "CREATEDDATE", "PARENTORDER", "ASSIGNEE"];
+export const ORDER_COLUMN_LABELS_VISIBLE = ["Name", "OrderId", "STATUS", "TOTAL_PRICE", "BILLING_ADDRESS"];
 
 export const ORDERLINEITEMS_ALL_COLUMN_IDS_MAP = {
     QUANTITY: "numeric_mks0z4t6",
