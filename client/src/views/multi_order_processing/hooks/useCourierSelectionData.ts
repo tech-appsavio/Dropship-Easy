@@ -1,19 +1,14 @@
 // src/views/multi_order_processing/hooks/useCourierSelectionData.ts
 import { useState, useEffect, useMemo } from "react";
 import mondaySdk from "monday-sdk-js";
-import {
-    ORDER_ITEM_BOARD_ID,
-    ORDER_BOARD_ID,
-    ORDER_ALL_COLUMN_IDS_MAP,
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
-    SUPPLIER_ALL_COLUMN_IDS_MAP
-} from "../constants";
+import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 
 const monday = mondaySdk();
 
 export const useCourierSelectionData = (selectedOrderIds: string[]) => {
     const [loading, setLoading] = useState(true);
     const [ordersWithLineItems, setOrdersWithLineItems] = useState<any[]>([]);
+    const [boardColumns, setBoardColumns] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const fetchData = async () => {
@@ -35,9 +30,10 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                     }
                 }`);
 
-                // 2. Query Line Items to get Suppliers
+                // 2. Query Line Items board — columns at board level for label lookup
                 const liRes: any = await monday.api(`query {
                     boards(ids: ${ORDER_ITEM_BOARD_ID}) {
+                        columns { id title }
                         items_page(limit: 500) {
                             items {
                                 id
@@ -45,12 +41,20 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                 column_values {
                                     id
                                     text
+                                    display_value
                                     ... on BoardRelationValue { linked_item_ids display_value }
                                 }
                             }
                         }
                     }
                 }`);
+
+                // Build column id → title map from real board metadata
+                const colMap: Record<string, string> = {};
+                (liRes.data.boards[0].columns || []).forEach((col: any) => {
+                    colMap[col.id] = col.title;
+                });
+                setBoardColumns(colMap);
 
                 const orders = orderRes.data.boards[0].items_page.items
                     .filter((o: any) => selectedOrderIds.includes(o.id))
@@ -65,7 +69,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                 const skuCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU);
                                 const courierNameCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME);
                                 const courierIdCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID);
-                                const supplierManifestCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST);
 
                                 return {
                                     id: li.id,
@@ -77,7 +80,7 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                     sku: skuCol?.text || "",
                                     courierName: courierNameCol?.text || courierIdCol?.text || "",
                                     courierId: courierIdCol?.text || "",
-                                    supplierManifest: supplierManifestCol?.display_value || supplierManifestCol?.text || "",
+                                    column_values: li.column_values, // kept for dynamic column rendering
                                 };
                             })
                             .filter((li: any) => li.linkedOrderId === o.id);
@@ -86,20 +89,24 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                     });
 
                 setOrdersWithLineItems(orders);
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+            }
             setLoading(false);
         };
         fetchData();
     }, [selectedOrderIds]);
 
-    // Derived Variables
+    // Derived: unique suppliers across all filtered orders
     const allSuppliers = useMemo(() => {
         const map = new Map();
-        ordersWithLineItems.forEach(o => o.lineItems.forEach((li: any) => {
-            if (li.supplierId) map.set(li.supplierId, li.supplierName);
-        }));
+        ordersWithLineItems.forEach((o) =>
+            o.lineItems.forEach((li: any) => {
+                if (li.supplierId) map.set(li.supplierId, li.supplierName);
+            }),
+        );
         return Array.from(map.entries()).map(([id, name]) => ({ label: name, value: id }));
     }, [ordersWithLineItems]);
 
-    return { loading, ordersWithLineItems, allSuppliers };
+    return { loading, ordersWithLineItems, allSuppliers, boardColumns };
 };

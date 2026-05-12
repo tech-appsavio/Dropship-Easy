@@ -2,13 +2,21 @@
 import React, { useState, useMemo } from "react";
 import { Dropdown, Button, Loader, Checkbox } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
-import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_BOARD_ID, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
 
+// Column IDs to display in the line items table — add more here as needed
+const COURIER_OLI_COLUMN_IDS = [
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST,
+];
+
 export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
-    const { loading, ordersWithLineItems, allSuppliers } = useCourierSelectionData(selectedOrderIds);
+    const { loading, ordersWithLineItems, allSuppliers, boardColumns } = useCourierSelectionData(selectedOrderIds);
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedPostalCode, setSelectedPostalCode] = useState<any>(null);
     const [selectedCourier, setSelectedCourier] = useState<any>(null);
@@ -53,7 +61,6 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         setSelectedPostalCode(val);
         setSelectedCourier(null);
         if (val && selectedSupplier) {
-            // Placeholder: Fetch supplier zip first in a real scenario
             await queryCouriers("SUPPLIER_ZIP_PLACEHOLDER", val.value);
         }
     };
@@ -63,13 +70,11 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         setIsUpdating(true);
         try {
             const updatePromises = Array.from(selectedLineItemIds).map((itemId: string) => {
-                // Build the column values object
                 const columnValues: any = {
                     [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID]: selectedCourier.value,
                     [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Ready for Manifest Generation" },
                 };
 
-                // ONLY add Courier Name if the ID is actually defined to prevent API errors
                 if (ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME) {
                     columnValues[ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME] = selectedCourier.label;
                 }
@@ -85,7 +90,6 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
 
             const results: any = await Promise.all(updatePromises);
 
-            // Check if any individual mutation returned errors
             const hasErrors = results.some((res: any) => res.errors);
             if (hasErrors) {
                 throw new Error(results.find((res: any) => res.errors).errors[0].message);
@@ -158,6 +162,11 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                                 />
                             </th>
                             <th style={{ padding: "10px", textAlign: "left" }}>Name</th>
+                            {COURIER_OLI_COLUMN_IDS.map((colId) => (
+                                <th key={colId} style={{ padding: "10px", textAlign: "left" }}>
+                                    {boardColumns[colId] || colId}
+                                </th>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
@@ -174,6 +183,14 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                                     />
                                 </td>
                                 <td style={{ padding: "10px" }}>{item.name}</td>
+                                {COURIER_OLI_COLUMN_IDS.map((colId) => {
+                                    const col = item.column_values?.find((cv: any) => cv.id === colId);
+                                    return (
+                                        <td key={colId} style={{ padding: "10px" }}>
+                                            {col?.display_value || col?.text || "-"}
+                                        </td>
+                                    );
+                                })}
                             </tr>
                         ))}
                     </tbody>
