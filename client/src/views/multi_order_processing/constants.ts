@@ -31,8 +31,9 @@ export const ORDERLINEITEMS_ALL_COLUMN_IDS_MAP = {
     SUPPLIER: "board_relation_mks3arpf",
     COURIERID: "text_mkw4jp1r",
     COURIERNAME: "text_mkw41y6y",
+    SUPPLIERMANIFEST
 };
-export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "Quantity", "UnitPrice", "SKU", "ListPrice", "Product Code", "SUPPLIER", "PRODUCT", "STATUS"];
+export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "Quantity", "UnitPrice", "SKU", "Product Code", "SUPPLIER", "PRODUCT", "STATUS"];
 
 export const PRODUCT_ALL_COLUMN_IDS_MAP = {
     PRODUCTCODE: "text_mks0wx1y",

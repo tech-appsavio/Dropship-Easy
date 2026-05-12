@@ -8,7 +8,7 @@ import mondaySdk from "monday-sdk-js";
 const monday = mondaySdk();
 
 export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
-    const { allProducts, suppliersMap, fetchSuppliersForProduct, loading, lineItems } = useSupplierSelectionData(selectedOrderIds);
+    const { allProducts, suppliersMap, fetchSuppliersForProduct, loading, lineItems, refetch } = useSupplierSelectionData(selectedOrderIds);
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
@@ -63,7 +63,7 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
             );
 
             await Promise.all(updatePromises);
-
+            await refetch();
             monday.execute("confirm", { message: "Supplier updated for selected items!", type: "success" });
             setSelectedLineItemIds(new Set());
         } catch (e) {
@@ -131,7 +131,16 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
                                     </td>
                                     {ORDERLINEITEMS_COLUMN_LABELS_VISIBLE.map((label) => (
                                         <td key={label} style={{ padding: "12px" }}>
-                                            {label === "Name" ? item.name : item[label.toUpperCase().replace(/\s/g, "")] || "N/A"}
+                                            {label === "Name"
+                                                ? item.name
+                                                : (() => {
+                                                      const colId =
+                                                          ORDERLINEITEMS_ALL_COLUMN_IDS_MAP[
+                                                              label.toUpperCase().replace(/\s/g, "") as keyof typeof ORDERLINEITEMS_ALL_COLUMN_IDS_MAP
+                                                          ];
+                                                      const col = item.column_values?.find((cv: any) => cv.id === colId);
+                                                      return col?.display_value || col?.text || "N/A";
+                                                  })()}
                                         </td>
                                     ))}
                                 </tr>

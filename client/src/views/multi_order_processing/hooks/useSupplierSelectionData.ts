@@ -17,76 +17,77 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
     const [suppliersMap, setSuppliersMap] = useState<Record<string, any[]>>({}); // ProductID -> SupplierList
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchLineItems = async () => {
-            setLoading(true);
-            // Query all line items from the board
-            const query = `query {
-                boards(ids: ${ORDER_ITEM_BOARD_ID}) {
-                    items_page(limit: 500) {
-                        items {
-                            id
-                            name
-                            column_values {
-                                column {
-                                    title
-                                    type
-                                    id
-                                }
-                                id
+    const fetchLineItems = async () => {
+        setLoading(true);
+        // Query all line items from the board
+        const query = `query {
+            boards(ids: ${ORDER_ITEM_BOARD_ID}) {
+                items_page(limit: 500) {
+                    items {
+                        id
+                        name
+                        column_values {
+                            column {
+                                title
                                 type
+                                id
+                            }
+                            id
+                            type
+                            text
+                            value
+                            # For mirror columns
+                            ... on MirrorValue {
+                                display_value
+                                id
                                 text
                                 value
-                                # For mirror columns
-                                ... on MirrorValue {
-                                    display_value
-                                    id
-                                    text
-                                    value
-                                }
-                                # For connect board columns
-                                ... on BoardRelationValue {
-                                    linked_item_ids
-                                    display_value
-                                }
-                                # Formula
-                                ... on FormulaValue {
-                                    value
-                                    display_value
-                                }
+                            }
+                            # For connect board columns
+                            ... on BoardRelationValue {
+                                linked_item_ids
+                                display_value
+                            }
+                            # Formula
+                            ... on FormulaValue {
+                                value
+                                display_value
                             }
                         }
                     }
                 }
-            }`;
-
-            try {
-                const res: any = await monday.api(query);
-                const allItems = res.data.boards[0].items_page.items;
-
-                const filteredItems = allItems
-                    .map((item: any) => {
-                        const orderCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
-                        const productCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT);
-
-                        return {
-                            id: item.id,
-                            name: item.name,
-                            linkedOrderId: orderCol?.linked_item_ids?.[0], // Get the Order ID this item belongs to
-                            productId: productCol?.linked_item_ids?.[0],
-                            productName: productCol?.display_value,
-                        };
-                    })
-                    .filter((item: any) => selectedOrderIds.includes(item.linkedOrderId)); // LOCAL FILTERING
-
-                setLineItems(filteredItems);
-            } catch (e) {
-                console.error("Error fetching line items:", e);
-            } finally {
-                setLoading(false);
             }
-        };
+        }`;
 
+        try {
+            const res: any = await monday.api(query);
+            const allItems = res.data.boards[0].items_page.items;
+
+            const filteredItems = allItems
+                .map((item: any) => {
+                    const orderCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
+                    const productCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT);
+
+                    return {
+                        id: item.id,
+                        name: item.name,
+                        linkedOrderId: orderCol?.linked_item_ids?.[0], // Get the Order ID this item belongs to
+                        productId: productCol?.linked_item_ids?.[0],
+                        productName: productCol?.display_value,
+                        column_values: item.column_values,
+                    };
+                })
+                .filter((item: any) => selectedOrderIds.includes(item.linkedOrderId)); // LOCAL FILTERING
+
+            setLineItems(filteredItems);
+        } catch (e) {
+            console.error("Error fetching line items:", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         if (selectedOrderIds.length > 0) fetchLineItems();
     }, [selectedOrderIds]);
 
@@ -193,5 +194,5 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
             console.error("Error fetching suppliers locally:", e);
         }
     };
-    return { lineItems, allProducts, suppliersMap, fetchSuppliersForProduct, loading };
+    return { lineItems, allProducts, suppliersMap, fetchSuppliersForProduct, loading, refetch: fetchLineItems };
 };

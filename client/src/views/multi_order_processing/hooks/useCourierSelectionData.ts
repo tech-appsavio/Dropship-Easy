@@ -65,6 +65,7 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                 const skuCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU);
                                 const courierNameCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME);
                                 const courierIdCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID);
+                                const supplierManifestCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST);
 
                                 return {
                                     id: li.id,
@@ -76,6 +77,7 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                     sku: skuCol?.text || "",
                                     courierName: courierNameCol?.text || courierIdCol?.text || "",
                                     courierId: courierIdCol?.text || "",
+                                    supplierManifest: supplierManifestCol?.display_value || supplierManifestCol?.text || "",
                                 };
                             })
                             .filter((li: any) => li.linkedOrderId === o.id);
