@@ -23,6 +23,11 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
     const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
     const [isUpdating, setIsUpdating] = useState(false);
 
+    // Inside the CourierSelection component, add these states:
+    const [courierOptions, setCourierOptions] = useState<any[]>([]);
+    const [isCouriersLoading, setIsCouriersLoading] = useState(false);
+    const [courierError, setCourierError] = useState<string | null>(null);
+
     // 1. Get postal codes for the selected supplier
     const deliveryPostalCodes = useMemo(() => {
         if (!selectedSupplier) return [];
@@ -36,10 +41,12 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
 
     // 2. Filter line items based on Supplier AND Postal Code
     const filteredLineItems = useMemo(() => {
-        if (!selectedSupplier || !selectedPostalCode) return [];
+        if (!selectedSupplier) return [];
         const items: any[] = [];
         ordersWithLineItems.forEach((o) => {
-            if (o.deliveryCode === selectedPostalCode.value) {
+            // If postal code is selected, filter by both; otherwise filter by supplier only
+            const postalMatch = !selectedPostalCode || o.deliveryCode === selectedPostalCode.value;
+            if (postalMatch) {
                 o.lineItems.forEach((li: any) => {
                     if (li.supplierId === selectedSupplier.value) items.push(li);
                 });
@@ -144,8 +151,9 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 </Button>
             </div>
 
-            {(!selectedSupplier || !selectedPostalCode) && (
-                <p style={{ color: "#666", fontStyle: "italic" }}>Please select both supplier and Delivery Postal Code</p>
+            {!selectedSupplier && <p style={{ color: "#666", fontStyle: "italic" }}>Please select a supplier to view line items</p>}
+            {selectedSupplier && !selectedPostalCode && (
+                <p style={{ color: "#666", fontStyle: "italic" }}>Select a Delivery Postal Code to filter further and assign a courier</p>
             )}
 
             <div style={{ maxHeight: "300px", overflowY: "auto", marginTop: "20px" }}>
