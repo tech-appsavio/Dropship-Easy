@@ -2,7 +2,8 @@
 import React, { useState, useMemo } from "react";
 import { Dropdown, Button, Loader, Checkbox } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
-import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
+import ShipRocketService from "../../../services/shiprocketCourier";
 import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
@@ -55,20 +56,76 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         return items;
     }, [selectedSupplier, selectedPostalCode, ordersWithLineItems]);
 
-    // 3. Mock Courier API Method
-    const queryCouriers = async (supplierZip: string, deliveryZip: string) => {
-        console.log(`Querying couriers for route: ${supplierZip} -> ${deliveryZip}`);
-        return [
-            { label: "Courier 1", value: "cour_1" },
-            { label: "Courier 2", value: "cour_2" },
-        ];
-    };
+    // 3. Shiprocket Courier API Method
+    const queryCouriers = async (deliveryZip: string) => {
+        setIsCouriersLoading(true);
+        setCourierError(null);
+        setCourierOptions([]);
 
+        try {
+            // Find the line item to extract context values
+            const item = filteredLineItems.find(li => li.supplierId === selectedSupplier.value);
+            if (!item) {
+                setCourierError("No item data found for this selection.");
+                return;
+            }
+
+            // 1. Pickup Pincode (Supplier Postal Code)
+            const pickupZip = item.column_values?.find(
+                (cv: any) => cv.id === SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE
+            )?.text;
+
+            // 2. Weight (Total Product Weight)
+            const weightRaw = item.column_values?.find(
+                (cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.TOTALPRODUCTWEIGHT
+            )?.text;
+            const weight = weightRaw ? parseFloat(weightRaw) : 0.5; // Default to 0.5
+
+            // 3. COD Status
+            const codRaw = item.column_values?.find(
+                (cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS
+            )?.text;
+            const cod = (codRaw?.toLowerCase() === "yes" || codRaw === "1") ? 1 : 0;
+
+            if (!pickupZip) {
+                setCourierError("Supplier Pincode is missing.");
+                return;
+            }
+
+            // Call service with 4 parameters
+            const response = await ShipRocketService.checkCourierServiceability(
+                pickupZip,
+                deliveryZip,
+                weight,
+                cod
+            );
+
+            if (response?.data?.available_courier_companies) {
+                const formatted = response.data.available_courier_companies.map((c: any) => ({
+                    label: c.courier_name,
+                    value: String(c.courier_company_id)
+                }));
+                setCourierOptions(formatted);
+                if (formatted.length === 0) setCourierError("No couriers found for this route.");
+            }
+        } catch (error: any) {
+            setCourierError("Error loading couriers.");
+            monday.execute("confirm", {
+                message: "Failed to fetch couriers",
+                description: error.message,
+                type: "error"
+            });
+        } finally {
+            setIsCouriersLoading(false);
+        }
+    };
     const handlePostalChange = async (val: any) => {
         setSelectedPostalCode(val);
         setSelectedCourier(null);
+        console.log("Supplier postal code ", val);
+        console.log("Selected upplier = ", val);
         if (val && selectedSupplier) {
-            await queryCouriers("SUPPLIER_ZIP_PLACEHOLDER", val.value);
+            await queryCouriers(val.value);
         }
     };
 
@@ -136,15 +193,26 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 </div>
                 <div style={{ flex: 1 }}>
                     <label>Courier:</label>
-                    <Dropdown
-                        options={[
-                            { label: "Courier 1", value: "cour_1" },
-                            { label: "Courier 2", value: "cour_2" },
-                        ]}
-                        value={selectedCourier}
-                        onChange={(v: any) => setSelectedCourier(v)}
-                        disabled={!selectedPostalCode}
-                    />
+                    <div style={{ position: 'relative' }}>
+                        <Dropdown
+                            options={courierOptions}
+                            value={selectedCourier}
+                            onChange={(v: any) => setSelectedCourier(v)}
+                            disabled={!selectedPostalCode || isCouriersLoading}
+                            placeholder={isCouriersLoading ? "Loading..." : "Select Courier"}
+                        />
+                        {isCouriersLoading && (
+                            <div style={{ position: 'absolute', right: '35px', top: '8px' }}>
+                                <Loader size={20} />
+                            </div>
+                        )}
+                    </div>
+                    {/* Error/Status Message */}
+                    {courierError && (
+                        <p style={{ color: "red", fontSize: "12px", margin: "4px 0 0 0" }}>
+                            {courierError}
+                        </p>
+                    )}
                 </div>
                 <Button disabled={!selectedCourier || selectedLineItemIds.size === 0} loading={isUpdating} onClick={handleUpdateCourier}>
                     Update Courier
@@ -207,4 +275,4 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
             </div>
         </div>
     );
-};;
+};;;

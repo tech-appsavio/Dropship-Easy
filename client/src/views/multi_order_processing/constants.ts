@@ -26,12 +26,14 @@ export const ORDERLINEITEMS_ALL_COLUMN_IDS_MAP = {
     LISTPRICE: "formula_mksents4",
     STATUS: "status",
     PRODUCTCODE: "lookup_mks1f46y",
+    TOTALPRODUCTWEIGHT: "numeric_mm3abpby",
     PRODUCT: "board_relation_mks0k89d",
     ORDER: "board_relation_mks0fnmz",
     SUPPLIER: "board_relation_mks3arpf",
     COURIERID: "text_mkw4jp1r",
     COURIERNAME: "text_mkw41y6y",
-    SUPPLIERMANIFEST: "board_relation_mks3c0r1"
+    SUPPLIERMANIFEST: "board_relation_mks3c0r1",
+    COD_STATUS: "numeric_mm3adxqz",
 };
 export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "Quantity", "UnitPrice", "SKU", "Product Code", "SUPPLIER", "PRODUCT", "STATUS"];
 
@@ -44,7 +46,7 @@ export const PRODUCT_ALL_COLUMN_IDS_MAP = {
 export const SUPPLIER_ALL_COLUMN_IDS_MAP = {
     EMAIL: "email_mkrv8ryp",
     PHONE: "phone_mkrvpr4q",
-    POSTALCODE: "numeric_mkrvqzqy",
+    POSTALCODE: "text_mm3adnnp",
     RATING: "text_mkrv6ppp",
     SELFOWNED: "boolean_mkxfqgtj",
 };
