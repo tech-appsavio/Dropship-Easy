@@ -105,6 +105,7 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         }
     };
 
+    console.log("All suppliers ", allSuppliers);
     if (loading) return <Loader size={40} />;
 
     return (
@@ -198,4 +199,4 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
             </div>
         </div>
     );
-};
+};;

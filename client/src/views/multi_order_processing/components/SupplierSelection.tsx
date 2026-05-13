@@ -75,8 +75,10 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
 
     if (loading) return <Loader size={40} />;
 
+    console.log("Selected prdoc ", selectedProduct);
     const currentSuppliers = selectedProduct ? suppliersMap[selectedProduct.value] || [] : [];
 
+    console.log("Suppliers supplier ", currentSuppliers);
     return (
         <div style={{ padding: "24px" }}>
             <h3>Order Line Items to Update</h3>

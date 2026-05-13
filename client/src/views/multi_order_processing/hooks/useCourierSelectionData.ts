@@ -9,6 +9,17 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
     const [loading, setLoading] = useState(true);
     const [ordersWithLineItems, setOrdersWithLineItems] = useState<any[]>([]);
     const [boardColumns, setBoardColumns] = useState<Record<string, string>>({});
+    const getLinkedItemId = (col: any): string | undefined => {
+        if (col?.linked_item_ids?.[0]) return col.linked_item_ids[0];
+        if (col?.value) {
+            try {
+                const parsed = JSON.parse(col.value);
+                const id = parsed?.linkedPulseIds?.[0]?.linkedPulseId;
+                return id ? String(id) : undefined;
+            } catch {}
+        }
+        return undefined;
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -41,8 +52,10 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                 column_values {
                                     id
                                     text
-                                    display_value
-                                    ... on BoardRelationValue { linked_item_ids display_value }
+                                    ... on BoardRelationValue {
+                                        linked_item_ids
+                                        display_value
+                                    }
                                 }
                             }
                         }
@@ -73,8 +86,8 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                                 return {
                                     id: li.id,
                                     name: li.name,
-                                    linkedOrderId: orderCol?.linked_item_ids?.[0],
-                                    supplierId: supplierCol?.linked_item_ids?.[0],
+                                    linkedOrderId: getLinkedItemId(orderCol),
+                                    supplierId: getLinkedItemId(supplierCol),
                                     supplierName: supplierCol?.display_value,
                                     orderId,
                                     sku: skuCol?.text || "",
