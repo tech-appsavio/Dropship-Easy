@@ -4,7 +4,7 @@ import { Dropdown, Button, Loader, Table, TableHeader, TableHeaderCell, TableBod
 import { useSupplierSelectionData } from "../hooks/useSupplierSelectionData";
 import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_COLUMN_LABELS_VISIBLE, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 import mondaySdk from "monday-sdk-js";
-
+import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 const monday = mondaySdk();
 
 export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
@@ -110,11 +110,15 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
                         <thead>
                             <tr style={{ backgroundColor: "#f1f3f5", textAlign: "left", position: "sticky", top: 0 }}>
                                 <th style={{ padding: "12px" }}>
-                                    <Checkbox
+                                    <IndeterminateCheckbox
                                         checked={filteredLineItems.length > 0 && selectedLineItemIds.size === filteredLineItems.length}
+                                        indeterminate={selectedLineItemIds.size > 0 && selectedLineItemIds.size < filteredLineItems.length}
                                         onChange={() => {
-                                            if (selectedLineItemIds.size === filteredLineItems.length) setSelectedLineItemIds(new Set());
-                                            else setSelectedLineItemIds(new Set(filteredLineItems.map((i) => i.id)));
+                                            if (selectedLineItemIds.size === filteredLineItems.length) {
+                                                setSelectedLineItemIds(new Set());
+                                            } else {
+                                                setSelectedLineItemIds(new Set(filteredLineItems.map((i) => i.id)));
+                                            }
                                         }}
                                     />
                                 </th>

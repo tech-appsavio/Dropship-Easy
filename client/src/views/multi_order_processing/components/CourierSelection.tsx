@@ -4,6 +4,7 @@ import { Dropdown, Button, Loader, Checkbox, AttentionBox } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
 import ShipRocketService from "../../../services/shiprocketCourier";
+import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
@@ -262,8 +263,9 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                     <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0 }}>
                         <tr>
                             <th style={{ padding: "10px" }}>
-                                <Checkbox
-                                    checked={selectedLineItemIds.size === filteredLineItems.length && filteredLineItems.length > 0}
+                                <IndeterminateCheckbox
+                                    checked={filteredLineItems.length > 0 && selectedLineItemIds.size === filteredLineItems.length}
+                                    indeterminate={selectedLineItemIds.size > 0 && selectedLineItemIds.size < filteredLineItems.length}
                                     onChange={() =>
                                         setSelectedLineItemIds(
                                             selectedLineItemIds.size === filteredLineItems.length ? new Set() : new Set(filteredLineItems.map((i) => i.id)),

@@ -66,7 +66,7 @@ export const SUPPLIER_MANIFEST_COLUMN_IDS_MAP = {
     MANIFEST_FILE: "file_mksncam",
 };
 
-export const SHOPS_MANIFEST_COLUMN_IDS_MAP = {
+export const SHOPS_ALL_COLUMN_IDS_MAP = {
     COUNTRY: "text_mkt4ptjk",
     POSTAL_CODE: "text_mkt4ykvj",
     STREET: "text_mm364gpw",

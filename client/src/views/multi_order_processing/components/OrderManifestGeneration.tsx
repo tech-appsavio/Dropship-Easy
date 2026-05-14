@@ -7,7 +7,7 @@ import {
     SUPPLIER_MANIFEST_COLUMN_IDS_MAP,
     ORDERLINEITEMS_COLUMN_LABELS_VISIBLE,
     SHOPS_BOARD_ID,
-    SHOPS_MANIFEST_COLUMN_IDS_MAP,
+    SHOPS_ALL_COLUMN_IDS_MAP,
 } from "../constants";
 import mondaySdk from "monday-sdk-js";
 import { generateManifestPDF } from "../utils/pdfGenerator";
@@ -53,9 +53,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         console.log("fetch shop det, result boards data =  ", res.data.boards);
         // Step 2: Parse the file column JSON to extract asset ID
         let logoUrl = "";
-        const logoRawValue = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.LOGO)?.value;
+        const logoRawValue = getCol(SHOPS_ALL_COLUMN_IDS_MAP.LOGO)?.value;
         console.log("logoRawValue ", logoRawValue);
-        console.log("logoRawValue col id = ", SHOPS_MANIFEST_COLUMN_IDS_MAP.LOGO);
+        console.log("logoRawValue col id = ", SHOPS_ALL_COLUMN_IDS_MAP.LOGO);
         if (logoRawValue) {
             try {
                 const parsed = JSON.parse(logoRawValue);
@@ -87,7 +87,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             }
         };
 
-        const emailCol = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.EMAIL);
+        const emailCol = getCol(SHOPS_ALL_COLUMN_IDS_MAP.EMAIL);
         const emailParsed = parseVal(emailCol);
         const email =
             emailCol?.text || // try .text first (most reliable)
@@ -99,20 +99,20 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         console.log("email col raw:", emailCol, "parsed:", emailParsed, "resolved:", email);
 
         // Link column: value JSON is {"url": "...", "text": "..."}
-        const websiteParsed = parseVal(getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.WEBSITE));
+        const websiteParsed = parseVal(getCol(SHOPS_ALL_COLUMN_IDS_MAP.WEBSITE));
         const website = websiteParsed?.url || websiteParsed?.text || "";
 
         // Phone is text_* column — .text works directly
-        const phone = getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PHONE)?.text || "";
+        const phone = getCol(SHOPS_ALL_COLUMN_IDS_MAP.PHONE)?.text || "";
 
         return {
             logo: logoUrl,
-            contactName: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.PRIMARY_CONTACT)?.text || "",
-            street: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STREET)?.text || "",
-            city: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.CITY)?.text || "",
-            state: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.STATE)?.text || "",
-            country: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.COUNTRY)?.text || "",
-            postalCode: getCol(SHOPS_MANIFEST_COLUMN_IDS_MAP.POSTAL_CODE)?.text || "",
+            contactName: getCol(SHOPS_ALL_COLUMN_IDS_MAP.PRIMARY_CONTACT)?.text || "",
+            street: getCol(SHOPS_ALL_COLUMN_IDS_MAP.STREET)?.text || "",
+            city: getCol(SHOPS_ALL_COLUMN_IDS_MAP.CITY)?.text || "",
+            state: getCol(SHOPS_ALL_COLUMN_IDS_MAP.STATE)?.text || "",
+            country: getCol(SHOPS_ALL_COLUMN_IDS_MAP.COUNTRY)?.text || "",
+            postalCode: getCol(SHOPS_ALL_COLUMN_IDS_MAP.POSTAL_CODE)?.text || "",
             phone,
             email,
             website,
