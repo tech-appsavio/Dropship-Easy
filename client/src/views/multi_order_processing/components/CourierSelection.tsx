@@ -63,58 +63,64 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         setCourierOptions([]);
 
         try {
-            // Find the line item to extract context values
-            const item = filteredLineItems.find(li => li.supplierId === selectedSupplier.value);
+            const item = filteredLineItems.find((li) => li.supplierId === selectedSupplier.value);
             if (!item) {
                 setCourierError("No item data found for this selection.");
                 return;
             }
 
+            // Helper to extract value regardless of column type
+            const getRobustValue = (colId: string) => {
+                const cv = item.column_values?.find((c: any) => c.id === colId);
+                if (!cv) return null;
+
+                // 1. Try display_value (standard for mirrors/status/tags)
+                if (cv.display_value) return cv.display_value;
+
+                // 2. Try text (standard for text/numbers)
+                if (cv.text) return cv.text;
+
+                // 3. Try parsing 'value' (standard for numeric/complex types)
+                if (cv.value) {
+                    try {
+                        const parsed = JSON.parse(cv.value);
+                        // For Numeric columns, value is often just the stringified number
+                        return typeof parsed === "object" ? parsed.value || parsed.text : String(parsed);
+                    } catch {
+                        return cv.value;
+                    }
+                }
+                return null;
+            };
+
             // 1. Pickup Pincode (Supplier Postal Code)
-            const pickupZip = item.column_values?.find(
-                (cv: any) => cv.id === SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE
-            )?.text;
+            const pickupZip = getRobustValue(SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE);
 
             // 2. Weight (Total Product Weight)
-            const weightRaw = item.column_values?.find(
-                (cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.TOTALPRODUCTWEIGHT
-            )?.text;
-            const weight = weightRaw ? parseFloat(weightRaw) : 0.5; // Default to 0.5
+            const weightRaw = getRobustValue(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.TOTALPRODUCTWEIGHT);
+            const weight = weightRaw ? parseFloat(weightRaw) : 0.5;
 
             // 3. COD Status
-            const codRaw = item.column_values?.find(
-                (cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS
-            )?.text;
-            const cod = (codRaw?.toLowerCase() === "yes" || codRaw === "1") ? 1 : 0;
+            const codRaw = getRobustValue(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS);
+            const cod = codRaw?.toLowerCase() === "yes" || codRaw === "1" || codRaw === "true" ? 1 : 0;
 
-            if (!pickupZip) {
-                setCourierError("Supplier Pincode is missing.");
+            if (!pickupZip || pickupZip === "-") {
+                setCourierError("Supplier Pincode is missing or empty in the board.");
                 return;
             }
 
-            // Call service with 4 parameters
-            const response = await ShipRocketService.checkCourierServiceability(
-                pickupZip,
-                deliveryZip,
-                weight,
-                cod
-            );
+            const response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, weight, cod);
 
             if (response?.data?.available_courier_companies) {
                 const formatted = response.data.available_courier_companies.map((c: any) => ({
-                    label: c.courier_name,
-                    value: String(c.courier_company_id)
+                    label: `${c.courier_name} (₹${c.freight_charge})`,
+                    value: String(c.courier_company_id),
                 }));
                 setCourierOptions(formatted);
                 if (formatted.length === 0) setCourierError("No couriers found for this route.");
             }
         } catch (error: any) {
-            setCourierError("Error loading couriers.");
-            monday.execute("confirm", {
-                message: "Failed to fetch couriers",
-                description: error.message,
-                type: "error"
-            });
+            setCourierError("ShipRocket: " + (error.message || "Serviceability failed"));
         } finally {
             setIsCouriersLoading(false);
         }
@@ -123,7 +129,7 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         setSelectedPostalCode(val);
         setSelectedCourier(null);
         console.log("Supplier postal code ", val);
-        console.log("Selected upplier = ", val);
+        console.log("Selected upplier = ", selectedSupplier);
         if (val && selectedSupplier) {
             await queryCouriers(val.value);
         }
