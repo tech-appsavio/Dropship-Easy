@@ -1,6 +1,6 @@
 // src/views/multi_order_processing/components/CourierSelection.tsx
 import React, { useState, useMemo } from "react";
-import { Dropdown, Button, Loader, Checkbox } from "@vibe/core";
+import { Dropdown, Button, Loader, Checkbox, AttentionBox } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
 import ShipRocketService from "../../../services/shiprocketCourier";
@@ -17,7 +17,7 @@ const COURIER_OLI_COLUMN_IDS = [
 ];
 
 export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
-    const { loading, ordersWithLineItems, allSuppliers, boardColumns } = useCourierSelectionData(selectedOrderIds);
+    const { loading, ordersWithLineItems, allSuppliers, boardColumns, refetch } = useCourierSelectionData(selectedOrderIds);
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedPostalCode, setSelectedPostalCode] = useState<any>(null);
     const [selectedCourier, setSelectedCourier] = useState<any>(null);
@@ -28,6 +28,8 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
     const [courierOptions, setCourierOptions] = useState<any[]>([]);
     const [isCouriersLoading, setIsCouriersLoading] = useState(false);
     const [courierError, setCourierError] = useState<string | null>(null);
+
+    const [rawError, setRawError] = useState<string | null>(null);
 
     // 1. Get postal codes for the selected supplier
     const deliveryPostalCodes = useMemo(() => {
@@ -62,29 +64,57 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         setCourierError(null);
         setCourierOptions([]);
 
+        // Define the fallback default courier
+        const DEFAULT_COURIER = {
+            label: "SP Store (Self)",
+            value: "SP Store (Self)",
+        };
+
         try {
-            const item = filteredLineItems.find((li) => li.supplierId === selectedSupplier.value);
-            if (!item) {
-                setCourierError("No item data found for this selection.");
+            // 1. Fetch the Supplier's Pincode directly from the Supplier board
+            const supplierRes: any = await monday.api(`query {
+                items(ids: [${selectedSupplier.value}]) {
+                    column_values(ids: ["${SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE}"]) {
+                        text
+                        value
+                    }
+                }
+            }`);
+
+            const supplierCol = supplierRes.data?.items?.[0]?.column_values?.[0];
+            let pickupZip = supplierCol?.text || "";
+
+            // If text is empty (common for Numeric columns), parse the 'value' field
+            if (!pickupZip && supplierCol?.value) {
+                try {
+                    const parsed = JSON.parse(supplierCol.value);
+                    pickupZip = typeof parsed === "object" ? parsed.value || parsed.text : String(parsed);
+                } catch (e) {
+                    pickupZip = supplierCol.value;
+                }
+            }
+
+            if (!pickupZip || pickupZip === "-") {
+                setCourierError(`Pincode is missing on Supplier board for: ${selectedSupplier.label}`);
+                setIsCouriersLoading(false);
                 return;
             }
 
-            // Helper to extract value regardless of column type
+            // 2. Extract Weight and COD from the Line Item using your existing robust method
+            const item = filteredLineItems.find((li) => li.supplierId === selectedSupplier.value);
+            if (!item) {
+                setCourierError("No line item context found.");
+                return;
+            }
+
             const getRobustValue = (colId: string) => {
                 const cv = item.column_values?.find((c: any) => c.id === colId);
                 if (!cv) return null;
-
-                // 1. Try display_value (standard for mirrors/status/tags)
                 if (cv.display_value) return cv.display_value;
-
-                // 2. Try text (standard for text/numbers)
                 if (cv.text) return cv.text;
-
-                // 3. Try parsing 'value' (standard for numeric/complex types)
                 if (cv.value) {
                     try {
                         const parsed = JSON.parse(cv.value);
-                        // For Numeric columns, value is often just the stringified number
                         return typeof parsed === "object" ? parsed.value || parsed.text : String(parsed);
                     } catch {
                         return cv.value;
@@ -93,34 +123,37 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 return null;
             };
 
-            // 1. Pickup Pincode (Supplier Postal Code)
-            const pickupZip = getRobustValue(SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE);
-
-            // 2. Weight (Total Product Weight)
             const weightRaw = getRobustValue(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.TOTALPRODUCTWEIGHT);
             const weight = weightRaw ? parseFloat(weightRaw) : 0.5;
 
-            // 3. COD Status
             const codRaw = getRobustValue(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS);
             const cod = codRaw?.toLowerCase() === "yes" || codRaw === "1" || codRaw === "true" ? 1 : 0;
 
-            if (!pickupZip || pickupZip === "-") {
-                setCourierError("Supplier Pincode is missing or empty in the board.");
-                return;
-            }
-
+            // 3. Call ShipRocket with verified data
+            console.log("Pickup = ", pickupZip, " Delivery Zip = ", deliveryZip, " Weight = ", weight, " COD = ", cod);
             const response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, weight, cod);
 
-            if (response?.data?.available_courier_companies) {
+            if (response?.data?.available_courier_companies && response.data.available_courier_companies.length > 0) {
                 const formatted = response.data.available_courier_companies.map((c: any) => ({
                     label: `${c.courier_name} (₹${c.freight_charge})`,
                     value: String(c.courier_company_id),
                 }));
                 setCourierOptions(formatted);
-                if (formatted.length === 0) setCourierError("No couriers found for this route.");
+            } else {
+                // No couriers found case
+                setCourierOptions([DEFAULT_COURIER]);
+                setCourierError("No serviceability found. Defaulting to SP Store (Self).");
             }
         } catch (error: any) {
-            setCourierError("ShipRocket: " + (error.message || "Serviceability failed"));
+            console.error("Courier Selection Error:", error);
+            // Capture any error (404, 500, Network, etc.) and stringify it
+            const errorContent = error.response
+                ? `Status: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+                : error.message || "An unexpected error occurred";
+
+            setRawError(errorContent);
+            setCourierOptions([DEFAULT_COURIER]);
+            setCourierError("Failed to fetch couriers. Defaulting to SP Store (Self).");
         } finally {
             setIsCouriersLoading(false);
         }
@@ -128,8 +161,6 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
     const handlePostalChange = async (val: any) => {
         setSelectedPostalCode(val);
         setSelectedCourier(null);
-        console.log("Supplier postal code ", val);
-        console.log("Selected upplier = ", selectedSupplier);
         if (val && selectedSupplier) {
             await queryCouriers(val.value);
         }
@@ -159,7 +190,7 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
             });
 
             const results: any = await Promise.all(updatePromises);
-
+            await refetch();
             const hasErrors = results.some((res: any) => res.errors);
             if (hasErrors) {
                 throw new Error(results.find((res: any) => res.errors).errors[0].message);
@@ -199,7 +230,7 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 </div>
                 <div style={{ flex: 1 }}>
                     <label>Courier:</label>
-                    <div style={{ position: 'relative' }}>
+                    <div style={{ position: "relative" }}>
                         <Dropdown
                             options={courierOptions}
                             value={selectedCourier}
@@ -208,17 +239,13 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                             placeholder={isCouriersLoading ? "Loading..." : "Select Courier"}
                         />
                         {isCouriersLoading && (
-                            <div style={{ position: 'absolute', right: '35px', top: '8px' }}>
+                            <div style={{ position: "absolute", right: "35px", top: "8px" }}>
                                 <Loader size={20} />
                             </div>
                         )}
                     </div>
                     {/* Error/Status Message */}
-                    {courierError && (
-                        <p style={{ color: "red", fontSize: "12px", margin: "4px 0 0 0" }}>
-                            {courierError}
-                        </p>
-                    )}
+                    {courierError && <p style={{ color: "red", fontSize: "12px", margin: "4px 0 0 0" }}>{courierError}</p>}
                 </div>
                 <Button disabled={!selectedCourier || selectedLineItemIds.size === 0} loading={isUpdating} onClick={handleUpdateCourier}>
                     Update Courier
