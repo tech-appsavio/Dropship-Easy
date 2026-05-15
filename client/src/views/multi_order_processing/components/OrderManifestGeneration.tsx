@@ -8,9 +8,15 @@ import {
     ORDERLINEITEMS_COLUMN_LABELS_VISIBLE,
     SHOPS_BOARD_ID,
     SHOPS_ALL_COLUMN_IDS_MAP,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
+    ORDER_ALL_COLUMN_IDS_MAP,
+    CUSTOMER_ALL_COLUMN_IDS_MAP,
 } from "../constants";
 import mondaySdk from "monday-sdk-js";
 import { generateManifestPDF } from "../utils/pdfGenerator";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+import { LabelPdfTemplate } from "./LabelPdfTemplate";
 
 const monday = mondaySdk();
 
@@ -18,6 +24,16 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     const { loading, ordersWithLineItems } = useCourierSelectionData(selectedOrderIds);
     const [selectedItemId, setSelectedLineItemId] = useState<string | null>(null);
     const [isCreating, setIsUpdating] = useState(false);
+
+    const labelRef = React.useRef<HTMLDivElement>(null);
+    const generateLabelBlob = async (): Promise<Blob> => {
+        if (!labelRef.current) throw new Error("Label template not found");
+        const canvas = await html2canvas(labelRef.current, { scale: 2 });
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF("p", "mm", [101, 152]); // 4x6 inch label size
+        pdf.addImage(imgData, "PNG", 0, 0, 101, 152);
+        return pdf.output("blob");
+    };
 
     // Flatten line items from all selected orders
     const allSelectedLineItems = ordersWithLineItems.flatMap((order) => order.lineItems);
@@ -120,28 +136,114 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     };
 
     const handleGenerateManifest = async () => {
-        console.log("orderManifest tsx, handleGenerateManifest methods ");
         if (!selectedItemId) return;
-        const item = allSelectedLineItems.find((li) => li.id === selectedItemId);
-        if (!item) return;
-
         setIsUpdating(true);
+
         try {
-            const shopDetails = await fetchShopDetails();
-            console.log("orderManifest tsx, handleGenerateManifest methods => fetch shosp detial ", shopDetails);
+            // 1. Query the Specific Line Item and its parent Order/Customer details
+            const itemDataRes: any = await monday.api(`query {
+                items(ids: [${selectedItemId}]) {
+                    id
+                    name
+                    column_values {
+                        id
+                        text
+                        ... on BoardRelationValue { linked_item_ids display_value }
+                    }
+                }
+            }`);
+
+            const item = itemDataRes.data.items[0];
+            const getVal = (id: string) => item.column_values.find((cv: any) => cv.id === id);
+
+            // Extract Order ID and Supplier ID from the OLI
+            const parentOrderId = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER)?.linked_item_ids?.[0];
+            const supplierId = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER)?.linked_item_ids?.[0];
+            const supplierName = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER)?.display_value || "N/A";
+            const courierName = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME)?.text || "N/A";
+            const sku = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU)?.text || item.name;
+
+            console.log(
+                "Parent order id ",
+                parentOrderId,
+                ", supplier id ",
+                supplierId,
+                ", supplier name ",
+                supplierName,
+                ", courier name ",
+                courierName,
+                ", sku ",
+                sku,
+            );
+            if (!parentOrderId) throw new Error("Order link missing on this line item.");
+
+            // 2. Query Parent Order (Billing Address, Total Price, Payment Method, and Customer Link)
+            const orderRes: any = await monday.api(`query {
+                items(ids: [${parentOrderId}]) {
+                    column_values {
+                        id
+                        text
+                        ... on BoardRelationValue { linked_item_ids }
+                    }
+                }
+            }`);
+
+            const order = orderRes.data.items[0];
+            const getOrderVal = (id: string) => order.column_values.find((cv: any) => cv.id === id);
+
+            const billingAddress = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.BILLING_ADDRESS)?.text || "[Address]";
+            const totalPrice = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE)?.text || "0";
+            const paymentMethod = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD)?.text || "To be paid";
+            const customerId = getOrderVal("board_relation_to_customer")?.linked_item_ids?.[0]; // Update with your actual Customer Relation ID
+
+            // 3. Query Customer (Name, Phone, Email)
+            let customerData = { name: "[Customer Name]", phone: "[Mobile]", email: "[Email]" };
+            if (customerId) {
+                const custRes: any = await monday.api(`query {
+                items(ids: [${customerId}]) {
+                    name
+                    column_values { id text }
+                }
+            }`);
+                const cust = custRes.data.items[0];
+                customerData = {
+                    name: cust.name,
+                    phone: cust.column_values.find((cv: any) => cv.id === CUSTOMER_ALL_COLUMN_IDS_MAP.PHONE)?.text || "[Mobile]",
+                    email: cust.column_values.find((cv: any) => cv.id === CUSTOMER_ALL_COLUMN_IDS_MAP.EMAIL)?.text || "[Email]",
+                };
+            }
+
+            // 4. Prepare data for PDF Templates
+            const fullItemDetails = {
+                ...item,
+                sku,
+                supplierName,
+                courierName,
+                orderId: getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.ORDERID)?.text || item.name,
+                billingAddress,
+                totalPrice,
+                paymentMethod,
+                customerName: customerData.name,
+                customerPhone: customerData.phone,
+                customerEmail: customerData.email,
+            };
             const now = new Date();
             const timestamp = `${now.getDate()}${now.getMonth() + 1}${now.getFullYear()}_${now.getHours()}${now.getMinutes()}`;
             const manifestName = `${item.supplierName || "NoSupplier"}_${item.courierName || "NoCourier"}_${item.name}_${timestamp}`;
+            const columnValues: any = {};
 
-            // FIX: Ensure Item IDs are linked to their respective connected board columns
-            const columnValues: any = {
-                [SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER]: { item_ids: [item.linkedOrderId] },
-                [SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM]: { item_ids: [item.id] },
-            };
-
+            if (parentOrderId) {
+                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER] = { item_ids: [String(parentOrderId)] };
+            }
+            if (item.id) {
+                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM] = { item_ids: [String(item.id)] };
+            }
             if (item.supplierId) {
                 columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [item.supplierId] };
             }
+
+            const shopDetails = await fetchShopDetails();
+            console.log("Column values for suppleirManifest record ", columnValues);
             const createRes: any = await monday.api(`mutation {
                 create_item (
                     board_id: ${SUPPLIER_MANIFEST_BOARD_ID},
@@ -154,14 +256,17 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
             // 2. Generate and Upload the PDF
             console.log("orderManifest tsx, handleGenerateManifest methods, generateManifestPDF method 118 line ");
-            const pdfBlob = await generateManifestPDF({
+            const manifestBlob = await generateManifestPDF({
                 supplierName: item.supplierName,
                 courierName: item.courierName,
                 lineItems: [item],
                 shopDetails,
                 manifestName,
             });
-            const pdfFile = new File([pdfBlob], `${manifestName}.pdf`, { type: "application/pdf" });
+            const labelBlob = await generateLabelBlob(); // New HTML-based PDF
+
+            const manifestFile = new File([manifestBlob], `${manifestName}_manifest.pdf`, { type: "application/pdf" });
+            const labelFile = new File([labelBlob], `${manifestName}_label.pdf`, { type: "application/pdf" });
 
             // 3. Upload File to Manifest Column
             await monday.api(
@@ -172,7 +277,14 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                     file: $file
                 ) { id }
             }`,
-                { variables: { file: pdfFile } },
+                { variables: { file: manifestFile } },
+            );
+
+            await monday.api(
+                `mutation ($file: File!) {
+                add_file_to_column (item_id: ${newManifestId}, column_id: "${SUPPLIER_MANIFEST_COLUMN_IDS_MAP.LABEL_FILE}", file: $file) { id }
+            }`,
+                { variables: { file: labelFile } },
             );
 
             monday.execute("confirm", { message: "Manifest Generated and File Uploaded!", type: "success" });
@@ -194,6 +306,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
     return (
         <div style={{ padding: "24px" }}>
+            <LabelPdfTemplate ref={labelRef} item={allSelectedLineItems.find((li) => li.id === selectedItemId)} />
             <h3>Generate Supplier Manifests</h3>
 
             <div style={{ maxHeight: "500px", overflowY: "auto", marginBottom: "20px" }}>
