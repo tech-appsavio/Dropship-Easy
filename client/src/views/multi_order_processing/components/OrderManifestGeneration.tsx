@@ -17,7 +17,15 @@ import { generateManifestPDF } from "../utils/pdfGenerator";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { LabelPdfTemplate } from "./LabelPdfTemplate";
-
+import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
+const MANIFEST_OLI_TABLE_COLUMNS = [
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER,
+];
 const monday = mondaySdk();
 
 export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
