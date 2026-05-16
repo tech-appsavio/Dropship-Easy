@@ -1,11 +1,10 @@
 // src/views/multi_order_processing/components/OrderManifestGeneration.tsx
-import React, { useState } from "react";
-import { Button, Loader, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, RadioButton } from "@vibe/core";
+import React, { useState, useMemo } from "react";
+import { Button, Loader, Dropdown, Checkbox } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import {
     SUPPLIER_MANIFEST_BOARD_ID,
     SUPPLIER_MANIFEST_COLUMN_IDS_MAP,
-    ORDERLINEITEMS_COLUMN_LABELS_VISIBLE,
     SHOPS_BOARD_ID,
     SHOPS_ALL_COLUMN_IDS_MAP,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
@@ -18,6 +17,8 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { LabelPdfTemplate } from "./LabelPdfTemplate";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
+
+// Dynamic columns configuration for easy extension
 const MANIFEST_OLI_TABLE_COLUMNS = [
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
@@ -26,14 +27,66 @@ const MANIFEST_OLI_TABLE_COLUMNS = [
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER,
 ];
+
 const monday = mondaySdk();
 
 export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
-    const { loading, ordersWithLineItems } = useCourierSelectionData(selectedOrderIds);
-    const [selectedItemId, setSelectedLineItemId] = useState<string | null>(null);
+    const { loading, ordersWithLineItems, boardColumns } = useCourierSelectionData(selectedOrderIds);
+
+    // Cascading filtering and selection states
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
+    const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+    const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
     const [isCreating, setIsUpdating] = useState(false);
 
     const labelRef = React.useRef<HTMLDivElement>(null);
+
+    // 1. Dropdown options for Orders selected in Stage 1
+    const orderOptions = useMemo(() => {
+        return ordersWithLineItems.map((o) => ({ label: o.name, value: o.id }));
+    }, [ordersWithLineItems]);
+
+    // 2. Cascading Dropdown options for Suppliers (scoped strictly to currently selected order line items)
+    const supplierOptions = useMemo(() => {
+        if (!selectedOrder) return [];
+        const currentOrder = ordersWithLineItems.find((o) => o.id === selectedOrder.value);
+        const suppliersMap = new Map();
+
+        currentOrder?.lineItems.forEach((li: any) => {
+            if (li.supplierId) {
+                suppliersMap.set(li.supplierId, li.supplierName);
+            }
+        });
+
+        const options = Array.from(suppliersMap.entries()).map(([id, name]) => ({
+            label: name,
+            value: id,
+        }));
+
+        // Handle case where line items are unassigned to include an empty option
+        const hasBlankSupplier = currentOrder?.lineItems.some((li: any) => !li.supplierId);
+        if (hasBlankSupplier) {
+            options.unshift({ label: "No Supplier Assigned", value: "none" });
+        }
+
+        return options;
+    }, [selectedOrder, ordersWithLineItems]);
+
+    // 3. Hierarchical evaluation of table items (Order filters first, Supplier filters second)
+    const filteredLineItems = useMemo(() => {
+        if (!selectedOrder) return [];
+        const currentOrder = ordersWithLineItems.find((o) => o.id === selectedOrder.value);
+        let items = currentOrder?.lineItems || [];
+
+        if (selectedSupplier) {
+            items = items.filter((li: any) => {
+                if (selectedSupplier.value === "none") return !li.supplierId;
+                return li.supplierId === selectedSupplier.value;
+            });
+        }
+        return items;
+    }, [selectedOrder, selectedSupplier, ordersWithLineItems]);
+
     const generateLabelBlob = async (): Promise<Blob> => {
         if (!labelRef.current) throw new Error("Label template not found");
         const canvas = await html2canvas(labelRef.current, { scale: 2 });
@@ -43,12 +96,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         return pdf.output("blob");
     };
 
-    // Flatten line items from all selected orders
-    const allSelectedLineItems = ordersWithLineItems.flatMap((order) => order.lineItems);
-    console.log("fetch shop detial ", allSelectedLineItems);
     const fetchShopDetails = async () => {
         console.log("fetch shop detial ");
-        // Step 1: Fetch raw column values (no inline fragment needed)
         const res: any = await monday.api(`query {
             boards(ids: ${SHOPS_BOARD_ID}) {
                 items_page(limit: 1) {
@@ -74,19 +123,14 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
         const shopItem = res.data.boards[0].items_page.items[0];
         const getCol = (id: string) => shopItem.column_values.find((cv: any) => cv.id === id);
-        console.log("fetch shop det, result boards data =  ", res.data.boards);
-        // Step 2: Parse the file column JSON to extract asset ID
+
         let logoUrl = "";
         const logoRawValue = getCol(SHOPS_ALL_COLUMN_IDS_MAP.LOGO)?.value;
-        console.log("logoRawValue ", logoRawValue);
-        console.log("logoRawValue col id = ", SHOPS_ALL_COLUMN_IDS_MAP.LOGO);
         if (logoRawValue) {
             try {
                 const parsed = JSON.parse(logoRawValue);
                 const assetId = parsed?.files?.[0]?.assetId;
-
                 if (assetId) {
-                    // Step 3: Fetch public URL via assets query
                     const assetRes: any = await monday.api(`query {
                         assets(ids: [${assetId}]) {
                             public_url
@@ -96,13 +140,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 }
             } catch (e) {
                 console.warn("Could not parse logo column — skipping logo:", e);
-                // logoUrl stays "" — PDF will skip logo gracefully
             }
         }
 
-        // Replace the return block in fetchShopDetails:
-
-        // Helper to safely parse Monday column value JSON
         const parseVal = (col: any) => {
             try {
                 return col?.value ? JSON.parse(col.value) : null;
@@ -113,20 +153,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
         const emailCol = getCol(SHOPS_ALL_COLUMN_IDS_MAP.EMAIL);
         const emailParsed = parseVal(emailCol);
-        const email =
-            emailCol?.text || // try .text first (most reliable)
-            emailParsed?.email || // fallback: parsed JSON .email key
-            emailParsed?.text || // fallback: parsed JSON .text key
-            "";
+        const email = emailCol?.text || emailParsed?.email || emailParsed?.text || "";
 
-        // Add a debug log so you can confirm what's coming back
-        console.log("email col raw:", emailCol, "parsed:", emailParsed, "resolved:", email);
-
-        // Link column: value JSON is {"url": "...", "text": "..."}
         const websiteParsed = parseVal(getCol(SHOPS_ALL_COLUMN_IDS_MAP.WEBSITE));
         const website = websiteParsed?.url || websiteParsed?.text || "";
-
-        // Phone is text_* column — .text works directly
         const phone = getCol(SHOPS_ALL_COLUMN_IDS_MAP.PHONE)?.text || "";
 
         return {
@@ -144,13 +174,16 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     };
 
     const handleGenerateManifest = async () => {
-        if (!selectedItemId) return;
+        if (selectedLineItemIds.size === 0) return;
         setIsUpdating(true);
 
         try {
-            // 1. Query the Specific Line Item and its parent Order/Customer details
+            // Take the first line item ID from the set for our generation contexts
+            const primaryItemId = Array.from(selectedLineItemIds)[0];
+
+            // 1. Query the primary selected Line Item and its relational parents
             const itemDataRes: any = await monday.api(`query {
-                items(ids: [${selectedItemId}]) {
+                items(ids: [${primaryItemId}]) {
                     id
                     name
                     column_values {
@@ -164,28 +197,15 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             const item = itemDataRes.data.items[0];
             const getVal = (id: string) => item.column_values.find((cv: any) => cv.id === id);
 
-            // Extract Order ID and Supplier ID from the OLI
             const parentOrderId = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER)?.linked_item_ids?.[0];
             const supplierId = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER)?.linked_item_ids?.[0];
             const supplierName = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER)?.display_value || "N/A";
             const courierName = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME)?.text || "N/A";
             const sku = getVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU)?.text || item.name;
 
-            console.log(
-                "Parent order id ",
-                parentOrderId,
-                ", supplier id ",
-                supplierId,
-                ", supplier name ",
-                supplierName,
-                ", courier name ",
-                courierName,
-                ", sku ",
-                sku,
-            );
             if (!parentOrderId) throw new Error("Order link missing on this line item.");
 
-            // 2. Query Parent Order (Billing Address, Total Price, Payment Method, and Customer Link)
+            // 2. Query Parent Order
             const orderRes: any = await monday.api(`query {
                 items(ids: [${parentOrderId}]) {
                     column_values {
@@ -202,17 +222,17 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             const billingAddress = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.BILLING_ADDRESS)?.text || "[Address]";
             const totalPrice = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE)?.text || "0";
             const paymentMethod = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD)?.text || "To be paid";
-            const customerId = getOrderVal("board_relation_to_customer")?.linked_item_ids?.[0]; // Update with your actual Customer Relation ID
+            const customerId = getOrderVal("board_relation_to_customer")?.linked_item_ids?.[0];
 
-            // 3. Query Customer (Name, Phone, Email)
+            // 3. Query Customer Info
             let customerData = { name: "[Customer Name]", phone: "[Mobile]", email: "[Email]" };
             if (customerId) {
                 const custRes: any = await monday.api(`query {
-                items(ids: [${customerId}]) {
-                    name
-                    column_values { id text }
-                }
-            }`);
+                    items(ids: [${customerId}]) {
+                        name
+                        column_values { id text }
+                    }
+                }`);
                 const cust = custRes.data.items[0];
                 customerData = {
                     name: cust.name,
@@ -221,7 +241,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 };
             }
 
-            // 4. Prepare data for PDF Templates
+            // 4. Inject aggregated details back into local tracking for the HTML Ref Template
             const fullItemDetails = {
                 ...item,
                 sku,
@@ -235,23 +255,26 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 customerPhone: customerData.phone,
                 customerEmail: customerData.email,
             };
+
             const now = new Date();
             const timestamp = `${now.getDate()}${now.getMonth() + 1}${now.getFullYear()}_${now.getHours()}${now.getMinutes()}`;
-            const manifestName = `${item.supplierName || "NoSupplier"}_${item.courierName || "NoCourier"}_${item.name}_${timestamp}`;
-            const columnValues: any = {};
+            const manifestName = `${supplierName.replace(/\s/g, "")}_${courierName.replace(/\s/g, "")}_${item.name.replace(/\s/g, "")}_${timestamp}`;
 
+            // Build mutation parameters safely filtering out any blank values
+            const columnValues: any = {};
             if (parentOrderId) {
                 columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER] = { item_ids: [String(parentOrderId)] };
             }
-            if (item.id) {
-                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM] = { item_ids: [String(item.id)] };
+            if (selectedLineItemIds.size > 0) {
+                // Link multiple line item mappings into your plural column connection
+                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM] = { item_ids: Array.from(selectedLineItemIds).map(id => String(id)) };
             }
-            if (item.supplierId) {
-                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [item.supplierId] };
+            if (supplierId) {
+                columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [String(supplierId)] };
             }
 
             const shopDetails = await fetchShopDetails();
-            console.log("Column values for suppleirManifest record ", columnValues);
+
             const createRes: any = await monday.api(`mutation {
                 create_item (
                     board_id: ${SUPPLIER_MANIFEST_BOARD_ID},
@@ -262,45 +285,44 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
             const newManifestId = createRes.data.create_item.id;
 
-            // 2. Generate and Upload the PDF
-            console.log("orderManifest tsx, handleGenerateManifest methods, generateManifestPDF method 118 line ");
+            // Generate Manifest PDF (passing primary single line item mapping for step 7 constraint)
             const manifestBlob = await generateManifestPDF({
-                supplierName: item.supplierName,
-                courierName: item.courierName,
-                lineItems: [item],
+                supplierName,
+                courierName,
+                lineItems: [fullItemDetails],
                 shopDetails,
                 manifestName,
             });
-            const labelBlob = await generateLabelBlob(); // New HTML-based PDF
+
+            const labelBlob = await generateLabelBlob();
 
             const manifestFile = new File([manifestBlob], `${manifestName}_manifest.pdf`, { type: "application/pdf" });
             const labelFile = new File([labelBlob], `${manifestName}_label.pdf`, { type: "application/pdf" });
 
-            // 3. Upload File to Manifest Column
-            await monday.api(
-                `mutation ($file: File!) {
+            // Upload assets sequentially to their specific board columns
+            await monday.api(`mutation ($file: File!) {
                 add_file_to_column (
                     item_id: ${newManifestId},
                     column_id: "${SUPPLIER_MANIFEST_COLUMN_IDS_MAP.MANIFEST_FILE}",
                     file: $file
                 ) { id }
-            }`,
-                { variables: { file: manifestFile } },
-            );
+            }`, { variables: { file: manifestFile } });
 
-            await monday.api(
-                `mutation ($file: File!) {
-                add_file_to_column (item_id: ${newManifestId}, column_id: "${SUPPLIER_MANIFEST_COLUMN_IDS_MAP.LABEL_FILE}", file: $file) { id }
-            }`,
-                { variables: { file: labelFile } },
-            );
+            await monday.api(`mutation ($file: File!) {
+                add_file_to_column (
+                    item_id: ${newManifestId},
+                    column_id: "${SUPPLIER_MANIFEST_COLUMN_IDS_MAP.LABEL_FILE}",
+                    file: $file
+                ) { id }
+            }`, { variables: { file: labelFile } });
 
-            monday.execute("confirm", { message: "Manifest Generated and File Uploaded!", type: "success" });
+            monday.execute("confirm", { message: "Manifest and Label Uploaded Successfully!", type: "success" });
+            setSelectedLineItemIds(new Set());
         } catch (e: any) {
             console.error("Manifest Creation Failed:", e);
             monday.execute("confirm", {
                 message: "Manifest Generation Failed",
-                description: e.message, // This will show the detailed line from the console
+                description: e.message,
                 type: "error",
                 confirmButtonText: "OK",
                 excludeCancelButton: true,
@@ -314,41 +336,110 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
     return (
         <div style={{ padding: "24px" }}>
-            <LabelPdfTemplate ref={labelRef} item={allSelectedLineItems.find((li) => li.id === selectedItemId)} />
+            {/* Template handles rendering details dynamically when selectedLineItemIds changes */}
+            <LabelPdfTemplate
+                ref={labelRef}
+                item={ordersWithLineItems.flatMap(o => o.lineItems).find(li => li.id === Array.from(selectedLineItemIds)[0])}
+            />
+
             <h3>Generate Supplier Manifests</h3>
 
-            <div style={{ maxHeight: "500px", overflowY: "auto", marginBottom: "20px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0 }}>
+            {/* Top Hierarchical Controls */}
+            <div style={{ display: "flex", gap: "20px", marginBottom: "25px" }}>
+                <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: "13px", fontWeight: 500 }}>Select Order:</label>
+                    <Dropdown
+                        options={orderOptions}
+                        value={selectedOrder}
+                        onChange={(val: any) => {
+                            setSelectedOrder(val);
+                            setSelectedSupplier(null);
+                            setSelectedLineItemIds(new Set());
+                        }}
+                    />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: "13px", fontWeight: 500 }}>Select Supplier:</label>
+                    <Dropdown
+                        disabled={!selectedOrder}
+                        options={supplierOptions}
+                        value={selectedSupplier}
+                        onChange={(val: any) => {
+                            setSelectedSupplier(val);
+                            setSelectedLineItemIds(new Set());
+                        }}
+                    />
+                </div>
+            </div>
+
+            {/* OLI Table Container supporting dynamic horizontal scrolling */}
+            <div style={{ overflowX: "auto", border: "1px solid #eee", borderRadius: "4px", marginBottom: "20px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1000px" }}>
+                    <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0, zIndex: 2 }}>
                         <tr>
-                            <th style={{ padding: "10px" }}>Select</th>
-                            <th style={{ padding: "10px", textAlign: "left" }}>Name</th>
-                            <th style={{ padding: "10px", textAlign: "left" }}>Supplier</th>
+                            <th style={{ padding: "10px", width: "50px", textAlign: "center" }}>
+                                <IndeterminateCheckbox
+                                    checked={filteredLineItems.length > 0 && selectedLineItemIds.size === filteredLineItems.length}
+                                    indeterminate={selectedLineItemIds.size > 0 && selectedLineItemIds.size < filteredLineItems.length}
+                                    onChange={() => {
+                                        if (selectedLineItemIds.size === filteredLineItems.length) {
+                                            setSelectedLineItemIds(new Set());
+                                        } else {
+                                            setSelectedLineItemIds(new Set(filteredLineItems.map(i => i.id)));
+                                        }
+                                    }}
+                                />
+                            </th>
+                            <th style={{ padding: "10px", textAlign: "left", fontWeight: 600 }}>Item Name</th>
+                            {MANIFEST_OLI_TABLE_COLUMNS.map(colId => (
+                                <th key={colId} style={{ padding: "10px", textAlign: "left", fontWeight: 600 }}>
+                                    {boardColumns[colId] || colId}
+                                </th>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {allSelectedLineItems.map((item) => (
+                        {filteredLineItems.map((item: any) => (
                             <tr key={item.id} style={{ borderBottom: "1px solid #eee" }}>
                                 <td style={{ padding: "10px", textAlign: "center" }}>
-                                    <RadioButton
-                                        checked={selectedItemId === item.id}
-                                        onSelect={() => setSelectedLineItemId(item.id)} // Note: Vibe uses 'onSelect' for RadioButtons
+                                    <Checkbox
+                                        checked={selectedLineItemIds.has(item.id)}
+                                        onChange={() => {
+                                            const next = new Set(selectedLineItemIds);
+                                            if (next.has(item.id)) next.delete(item.id);
+                                            else next.add(item.id);
+                                            setSelectedLineItemIds(next);
+                                        }}
                                     />
                                 </td>
-                                <td style={{ padding: "10px" }}>{item.name}</td>
-                                <td style={{ padding: "10px" }}>{item.supplierName || "N/A"}</td>
+                                <td style={{ padding: "10px", fontWeight: 500 }}>{item.name}</td>
+                                {MANIFEST_OLI_TABLE_COLUMNS.map(colId => {
+                                    const col = item.column_values?.find((cv: any) => cv.id === colId);
+                                    return (
+                                        <td key={colId} style={{ padding: "10px" }}>
+                                            {col?.display_value || col?.text || "-"}
+                                        </td>
+                                    );
+                                })}
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                {selectedOrder && filteredLineItems.length === 0 && (
+                    <p style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+                        No line items match the selected supplier filters.
+                    </p>
+                )}
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "24px", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", gap: "10px" }}>
-                    <Button disabled={!selectedItemId || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
-                        Ready for Manifest Generation
-                    </Button>
-                </div>
+            <div style={{ display: "flex", marginTop: "24px", justifyContent: "flex-start" }}>
+                <Button
+                    disabled={selectedLineItemIds.size === 0 || isCreating}
+                    loading={isCreating}
+                    onClick={handleGenerateManifest}
+                >
+                    Ready for Manifest Generation ({selectedLineItemIds.size})
+                </Button>
             </div>
         </div>
     );
