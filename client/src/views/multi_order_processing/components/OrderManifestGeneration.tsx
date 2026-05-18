@@ -18,6 +18,7 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { LabelPdfTemplate } from "./LabelPdfTemplate";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
+import { generateLabelPDF } from "../utils/labelPdfGenerator";
 
 // Dynamic columns configuration for easy extension
 const MANIFEST_OLI_TABLE_COLUMNS = [
@@ -39,8 +40,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
     const [isCreating, setIsUpdating] = useState(false);
-    const [activeLabelItems, setActiveLabelItems] = useState<any[]>([]);
-    const labelRef = React.useRef<HTMLDivElement>(null);
 
     // 1. Dropdown options for Orders selected in Stage 1
     const orderOptions = useMemo(() => {
@@ -87,43 +86,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         }
         return items;
     }, [selectedOrder, selectedSupplier, ordersWithLineItems]);
-
-    const generateLabelBlob = async (itemsCount: number): Promise<Blob> => {
-        if (!labelRef.current) throw new Error("Label template not found");
-
-        // FIX: Removed 'textRendering' property to fix the TypeScript build error
-        const canvas = await html2canvas(labelRef.current, {
-            scale: 3, // Keeps resolution high for crisp prints
-            useCORS: true,
-            logging: false,
-            imageTimeout: 0,
-        });
-
-        const pageHeightCanvas = Math.floor(canvas.height / itemsCount);
-        const pdf = new jsPDF("p", "mm", [101, 152]);
-
-        for (let i = 0; i < itemsCount; i++) {
-            if (i > 0) pdf.addPage();
-
-            const pageCanvas = document.createElement("canvas");
-            pageCanvas.width = canvas.width;
-            pageCanvas.height = pageHeightCanvas;
-
-            const context = pageCanvas.getContext("2d");
-            if (context) {
-                // Ensure the background color is explicitly solid white inside the rendering context
-                context.fillStyle = "#ffffff";
-                context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-
-                context.drawImage(canvas, 0, i * pageHeightCanvas, canvas.width, pageHeightCanvas, 0, 0, canvas.width, pageHeightCanvas);
-            }
-
-            const imgData = pageCanvas.toDataURL("image/png");
-            pdf.addImage(imgData, "PNG", 0, 0, 101, 152);
-        }
-
-        return pdf.output("blob");
-    };
 
     const fetchShopDetails = async () => {
         console.log("fetch shop detial ");
@@ -342,8 +304,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             if (baseSupplierId) {
                 columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [String(baseSupplierId)] };
             }
-            setActiveLabelItems(compiledFullLineItems);
-            await new Promise((resolve) => setTimeout(resolve, 150));
+
             const shopDetails = await fetchShopDetails();
 
             const createRes: any = await monday.api(`mutation {
@@ -365,9 +326,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 manifestName,
             });
 
-            const labelBlob = await generateLabelBlob(compiledFullLineItems.length);
-
             const manifestFile = new File([manifestBlob], `${manifestName}_manifest.pdf`, { type: "application/pdf" });
+            const labelBlob = await generateLabelPDF(compiledFullLineItems);
+
             const labelFile = new File([labelBlob], `${manifestName}_label.pdf`, { type: "application/pdf" });
 
             // 7. Upload binaries sequentially to respective board column mappings
@@ -414,7 +375,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     return (
         <div style={{ padding: "24px" }}>
             {/* Template handles rendering details dynamically when selectedLineItemIds changes */}
-            <LabelPdfTemplate ref={labelRef} items={activeLabelItems} />
 
             <h3>Generate Supplier Manifests</h3>
 
