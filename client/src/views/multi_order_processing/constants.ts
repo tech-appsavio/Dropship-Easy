@@ -50,6 +50,7 @@ export const SUPPLIER_ALL_COLUMN_IDS_MAP = {
     POSTALCODE: "text_mm3adnnp",
     RATING: "text_mkrv6ppp",
     SELFOWNED: "boolean_mkxfqgtj",
+    ADDRESS: "long_text_mkrvdvsx",
 };
 
 export const SUPPLIER_PRODUCT_COLUMN_IDS_MAP = {
