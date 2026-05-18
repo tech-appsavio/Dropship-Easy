@@ -39,7 +39,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
     const [isCreating, setIsUpdating] = useState(false);
-    const [activeLabelData, setActiveLabelData] = useState<any>(null);
+    const [activeLabelItems, setActiveLabelItems] = useState<any[]>([]);
     const labelRef = React.useRef<HTMLDivElement>(null);
 
     // 1. Dropdown options for Orders selected in Stage 1
@@ -88,15 +88,48 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         return items;
     }, [selectedOrder, selectedSupplier, ordersWithLineItems]);
 
-    const generateLabelBlob = async (labelData: any): Promise<Blob> => {
+    const generateLabelBlob = async (itemsCount: number): Promise<Blob> => {
         if (!labelRef.current) throw new Error("Label template not found");
 
-        const canvas = await html2canvas(labelRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL("image/png");
-        const pdf = new jsPDF("p", "mm", [101, 152]); // 4x6 inch label size
-        pdf.addImage(imgData, "PNG", 0, 0, 101, 152);
+        // Capture the entire dynamic array stream canvas layout
+        const canvas = await html2canvas(labelRef.current, { scale: 2, useCORS: true });
+
+        // Calculate the height footprint matching each single order line item block
+        const pageHeightCanvas = Math.floor(canvas.height / itemsCount);
+
+        const pdf = new jsPDF("p", "mm", [101, 152]); // Standard 4x6 shipping label size
+
+        for (let i = 0; i < itemsCount; i++) {
+            if (i > 0) pdf.addPage();
+
+            // Setup a sub-canvas to cleanly capture each individual element segment
+            const pageCanvas = document.createElement("canvas");
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = pageHeightCanvas;
+
+            const context = pageCanvas.getContext("2d");
+            if (context) {
+                // Slice the master canvas chunk by index multiplier coordinates
+                context.drawImage(
+                    canvas,
+                    0,
+                    i * pageHeightCanvas,
+                    canvas.width,
+                    pageHeightCanvas, // Source bounds
+                    0,
+                    0,
+                    canvas.width,
+                    pageHeightCanvas, // Destination bounds
+                );
+            }
+
+            const imgData = pageCanvas.toDataURL("image/png");
+            pdf.addImage(imgData, "PNG", 0, 0, 101, 152);
+        }
+
         return pdf.output("blob");
     };
+
     const fetchShopDetails = async () => {
         console.log("fetch shop detial ");
         const res: any = await monday.api(`query {
@@ -314,7 +347,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             if (baseSupplierId) {
                 columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [String(baseSupplierId)] };
             }
-            setActiveLabelData(compiledFullLineItems[0]);
+            setActiveLabelItems(compiledFullLineItems);
+            await new Promise((resolve) => setTimeout(resolve, 150));
             const shopDetails = await fetchShopDetails();
 
             const createRes: any = await monday.api(`mutation {
@@ -336,7 +370,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 manifestName,
             });
 
-            const labelBlob = await generateLabelBlob(compiledFullLineItems[0]);
+            const labelBlob = await generateLabelBlob(compiledFullLineItems.length);
 
             const manifestFile = new File([manifestBlob], `${manifestName}_manifest.pdf`, { type: "application/pdf" });
             const labelFile = new File([labelBlob], `${manifestName}_label.pdf`, { type: "application/pdf" });
@@ -369,8 +403,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         } catch (e: any) {
             console.error("Manifest Creation Failed:", e);
             monday.execute("confirm", {
-                message: "Manifest Generation Failed",
-                description: e.message,
+                message: "Manifest Generation Failed: " + e.message,
+                description: e,
                 type: "error",
                 confirmButtonText: "OK",
                 excludeCancelButton: true,
@@ -385,7 +419,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     return (
         <div style={{ padding: "24px" }}>
             {/* Template handles rendering details dynamically when selectedLineItemIds changes */}
-            <LabelPdfTemplate ref={labelRef} item={activeLabelData} />
+            <LabelPdfTemplate ref={labelRef} items={activeLabelItems} />
 
             <h3>Generate Supplier Manifests</h3>
 
