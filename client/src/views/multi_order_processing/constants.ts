@@ -17,6 +17,7 @@ export const ORDER_ALL_COLUMN_IDS_MAP = {
     PARENTORDER: "board_relation_mkxdkae4",
     ASSIGNEE: "multiple_person_mm37ek4z",
     PAYMENTMETHOD: "color_mm3ba5yb",
+    CUSTOMER: "board_relation_mkrwaecz",
 };
 export const ORDER_COLUMN_LABELS_VISIBLE = ["Name", "OrderId", "STATUS", "TOTAL_PRICE", "BILLING_ADDRESS", "CREATEDDATE", "PARENTORDER", "ASSIGNEE"];
 

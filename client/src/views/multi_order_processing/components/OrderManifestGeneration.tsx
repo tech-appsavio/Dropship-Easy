@@ -228,7 +228,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             const billingAddress = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.BILLING_ADDRESS)?.text || "[Address]";
             const totalPrice = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE)?.text || "0";
             const paymentMethod = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD)?.text || "To be paid";
-            const customerId = getOrderVal("board_relation_to_customer")?.linked_item_ids?.[0];
+            const customerId = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER)?.linked_item_ids?.[0];
 
             // 3. Query Customer Info
             let customerData = { name: "", phone: "", email: "" };
@@ -309,6 +309,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             if (parentOrderId) {
                 columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER] = { item_ids: [String(parentOrderId)] };
             }
+
             columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM] = { item_ids: selectedIdsArray.map((id) => String(id)) };
             if (baseSupplierId) {
                 columnValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [String(baseSupplierId)] };
