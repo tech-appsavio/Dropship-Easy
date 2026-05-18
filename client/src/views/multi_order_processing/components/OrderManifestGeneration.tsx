@@ -91,36 +91,31 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     const generateLabelBlob = async (itemsCount: number): Promise<Blob> => {
         if (!labelRef.current) throw new Error("Label template not found");
 
-        // Capture the entire dynamic array stream canvas layout
-        const canvas = await html2canvas(labelRef.current, { scale: 2, useCORS: true });
+        // FIX: Removed 'textRendering' property to fix the TypeScript build error
+        const canvas = await html2canvas(labelRef.current, {
+            scale: 3, // Keeps resolution high for crisp prints
+            useCORS: true,
+            logging: false,
+            imageTimeout: 0,
+        });
 
-        // Calculate the height footprint matching each single order line item block
         const pageHeightCanvas = Math.floor(canvas.height / itemsCount);
-
-        const pdf = new jsPDF("p", "mm", [101, 152]); // Standard 4x6 shipping label size
+        const pdf = new jsPDF("p", "mm", [101, 152]);
 
         for (let i = 0; i < itemsCount; i++) {
             if (i > 0) pdf.addPage();
 
-            // Setup a sub-canvas to cleanly capture each individual element segment
             const pageCanvas = document.createElement("canvas");
             pageCanvas.width = canvas.width;
             pageCanvas.height = pageHeightCanvas;
 
             const context = pageCanvas.getContext("2d");
             if (context) {
-                // Slice the master canvas chunk by index multiplier coordinates
-                context.drawImage(
-                    canvas,
-                    0,
-                    i * pageHeightCanvas,
-                    canvas.width,
-                    pageHeightCanvas, // Source bounds
-                    0,
-                    0,
-                    canvas.width,
-                    pageHeightCanvas, // Destination bounds
-                );
+                // Ensure the background color is explicitly solid white inside the rendering context
+                context.fillStyle = "#ffffff";
+                context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+                context.drawImage(canvas, 0, i * pageHeightCanvas, canvas.width, pageHeightCanvas, 0, 0, canvas.width, pageHeightCanvas);
             }
 
             const imgData = pageCanvas.toDataURL("image/png");
