@@ -14,9 +14,6 @@ import {
 } from "../constants";
 import mondaySdk from "monday-sdk-js";
 import { generateManifestPDF } from "../utils/pdfGenerator";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
-import { LabelPdfTemplate } from "./LabelPdfTemplate";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import { generateLabelPDF } from "../utils/labelPdfGenerator";
 
