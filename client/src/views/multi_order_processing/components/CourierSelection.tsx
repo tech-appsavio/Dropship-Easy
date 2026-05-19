@@ -212,10 +212,23 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
 
     return (
         <div style={{ padding: "24px" }}>
-            <h3>Courier Selection</h3>
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", marginBottom: "20px" }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                }}
+            >
+                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Courier Selection</h3>
+
+                <Button disabled={!selectedCourier || selectedLineItemIds.size === 0 || isUpdating} loading={isUpdating} onClick={handleUpdateCourier}>
+                    Update Courier
+                </Button>
+            </div>
+            <div style={{ display: "flex", gap: "20px", alignItems: "flex-end", marginBottom: "20px" }}>
                 <div style={{ flex: 1 }}>
-                    <label>Supplier:</label>
+                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px" }}>Supplier:</label>
                     <Dropdown
                         options={allSuppliers}
                         value={selectedSupplier}
@@ -226,11 +239,11 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                     />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <label>Delivery Postal Code:</label>
+                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px" }}>Delivery Postal Code:</label>
                     <Dropdown options={deliveryPostalCodes} value={selectedPostalCode} onChange={handlePostalChange} disabled={!selectedSupplier} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <label>Courier:</label>
+                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px" }}>Courier:</label>
                     <div style={{ position: "relative" }}>
                         <Dropdown
                             options={courierOptions}
@@ -248,9 +261,6 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                     {/* Error/Status Message */}
                     {courierError && <p style={{ color: "red", fontSize: "12px", margin: "4px 0 0 0" }}>{courierError}</p>}
                 </div>
-                <Button disabled={!selectedCourier || selectedLineItemIds.size === 0} loading={isUpdating} onClick={handleUpdateCourier}>
-                    Update Courier
-                </Button>
             </div>
 
             {!selectedSupplier && <p style={{ color: "#666", fontStyle: "italic" }}>Please select a supplier to view line items</p>}

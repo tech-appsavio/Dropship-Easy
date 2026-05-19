@@ -90,16 +90,20 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
                 }}
             >
                 <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Supplier Selection</h3>
+
+                <Button disabled={!selectedSupplier || selectedLineItemIds.size === 0 || isUpdating} loading={isUpdating} onClick={handleUpdateSupplier}>
+                    Update Supplier
+                </Button>
             </div>
 
             {/* Top Selection Controls */}
             <div style={{ display: "flex", gap: "20px", alignItems: "flex-end", marginBottom: "30px" }}>
                 <div style={{ flex: 1 }}>
-                    <label>Select Product:</label>
+                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px" }}>Select Product:</label>
                     <Dropdown options={allProducts} onChange={handleProductChange} value={selectedProduct} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <label>Select Supplier:</label>
+                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px" }}>Select Supplier:</label>
                     <Dropdown
                         options={currentSuppliers}
                         onChange={(val: any) => setSelectedSupplier(val)}
@@ -107,9 +111,6 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
                         disabled={!selectedProduct}
                     />
                 </div>
-                <Button disabled={!selectedSupplier || selectedLineItemIds.size === 0 || isUpdating} loading={isUpdating} onClick={handleUpdateSupplier}>
-                    Update Supplier
-                </Button>
             </div>
 
             {/* Dynamic Line Items Table */}

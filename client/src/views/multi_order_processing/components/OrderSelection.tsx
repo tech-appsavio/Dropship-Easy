@@ -1,3 +1,4 @@
+// src/views/multi_order_processing/components/OrderSelection.tsx
 import React, { useState, useMemo, useEffect } from "react";
 import { Loader, Dropdown } from "@vibe/core";
 import mondaySdk from "monday-sdk-js";
@@ -18,6 +19,10 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
     const [searchTerm, setSearchTerm] = useState("");
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
+
+    // NEW STATES: Salesforce-like list filtering layout components
+    const [showFilters, setShowFilters] = useState(false);
+    const [selectedStatus, setSelectedStatus] = useState<any>(null);
 
     // Line items map: orderId → line item rows
     const [lineItemsMap, setLineItemsMap] = useState<Record<string, any[]>>({});
@@ -42,19 +47,16 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                                     type
                                     text
                                     value
-                                    # For mirror columns
                                     ... on MirrorValue {
                                         display_value
                                         id
                                         text
                                         value
                                     }
-                                    # For connect board columns
                                     ... on BoardRelationValue {
                                         linked_item_ids
                                         display_value
                                     }
-                                    # Formula
                                     ... on FormulaValue {
                                         value
                                         display_value
@@ -63,14 +65,13 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                             }
                         }
                     }
-                }`);
+                }`); //
 
                 const items = res.data?.boards?.[0]?.items_page?.items || [];
                 console.log("Order Line item all records ", items);
                 const map: Record<string, any[]> = {};
 
                 items.forEach((item: any) => {
-                    // AFTER
                     console.log("Order Line item each records ", item);
                     const orderCol = item.column_values.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
                     let orderId = orderCol?.linked_item_ids?.[0];
@@ -95,7 +96,23 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
         fetchLineItems();
     }, []);
 
-    const filteredOrders = useMemo(() => orders.filter((o) => o.name.toLowerCase().includes(searchTerm.toLowerCase())), [orders, searchTerm]);
+    // Collect all active unique statuses available across all incoming Order records dynamically
+    const statusOptions = useMemo(() => {
+        const statuses = new Set<string>();
+        orders.forEach((o) => {
+            if (o.STATUS) statuses.add(String(o.STATUS));
+        });
+        return Array.from(statuses).map((status) => ({ value: status, label: status }));
+    }, [orders]);
+
+    // Combined multi-filter routine (Searching + Status Dropdown Evaluation)
+    const filteredOrders = useMemo(() => {
+        return orders.filter((o) => {
+            const matchesSearch = o.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesStatus = !selectedStatus || String(o.STATUS) === selectedStatus.value;
+            return matchesSearch && matchesStatus;
+        });
+    }, [orders, searchTerm, selectedStatus]);
 
     const paginatedOrders = useMemo(() => {
         const start = (currentPage - 1) * pageSize;
@@ -110,6 +127,15 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
         onSelectionChange(next);
     };
 
+    const handleClearAllFilters = () => {
+        setSelectedStatus(null);
+        setSearchTerm("");
+        // Reset search input value manually since it's an uncontrolled node
+        const searchInput = document.getElementById("order-search-input") as HTMLInputElement;
+        if (searchInput) searchInput.value = "";
+        setCurrentPage(1);
+    };
+
     if (loading)
         return (
             <div style={{ textAlign: "center", padding: 50 }}>
@@ -120,17 +146,56 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
 
     return (
         <div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                }}
+            >
+                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Order Selection</h3>
+            </div>
+            {/* Top Toolbar controls area */}
+            <div style={{ display: "flex", gap: 10, marginBottom: "16px", alignItems: "center" }}>
                 <input
+                    id="order-search-input"
                     type="text"
-                    placeholder="Search orders..."
-                    style={{ flex: 1, padding: 8, borderRadius: 4, border: "1px solid #ccc" }}
+                    placeholder="Search orders by name..."
+                    style={{ flex: 1, padding: "8px 12px", borderRadius: 4, border: "1px solid #cccccc", fontSize: "14px" }}
                     onChange={(e) => {
                         setSearchTerm(e.target.value);
                         setCurrentPage(1);
                     }}
                 />
-                <div style={{ width: 150 }}>
+
+                {/* Salesforce-Style Toggleable Filter Action Icon */}
+                <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "8px 14px",
+                        borderRadius: "4px",
+                        border: "1px solid #cccccc",
+                        background: showFilters || selectedStatus ? "#f0f4ff" : "#ffffff",
+                        color: selectedStatus ? "#0073ea" : "#323338",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        gap: "6px",
+                        transition: "all 0.2s ease",
+                    }}
+                    title="Toggle Filter Panel"
+                >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M1.5 2.5A.5.5 0 0 1 2 2h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.146.354l-4.5 4.5V13.5a.5.5 0 0 1-.724.447l-2-1A.5.5 0 0 1 7 12.5V9.354l-4.5-4.5A.5.5 0 0 1 2 4.5v-2z" />
+                    </svg>
+                    Filters {selectedStatus ? "(1)" : ""}
+                </button>
+
+                <div style={{ width: 120, position: "relative", zIndex: 6 }}>
                     <Dropdown
                         placeholder="Page Size"
                         options={PAGE_SIZE_OPTIONS}
@@ -145,10 +210,62 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                 </div>
             </div>
 
-            <div style={{ maxHeight: 450, overflowY: "auto", border: "1px solid #eee", borderRadius: 4 }}>
+            {/* Collapsible Filter Panel Grid Box */}
+            {showFilters && (
+                <div
+                    style={{
+                        background: "#f8f9fa",
+                        border: "1px solid #e2e4e9",
+                        borderRadius: "4px",
+                        padding: "16px",
+                        marginBottom: "16px",
+                        display: "flex",
+                        alignItems: "flex-end",
+                        gap: "20px",
+                        animation: "fadeIn 0.2s ease-in-out",
+
+                        // FIX: Forces the entire filter tray and its popovers over the sticky table header below
+                        position: "relative",
+                        zIndex: 10,
+                    }}
+                >
+                    <div style={{ width: "240px" }}>
+                        <label style={{ fontSize: "12px", fontWeight: 600, color: "#676879", display: "block", marginBottom: "6px" }}>Filter by Status:</label>
+                        <Dropdown
+                            placeholder="All Statuses"
+                            options={statusOptions}
+                            value={selectedStatus}
+                            onChange={(opt: any) => {
+                                setSelectedStatus(opt);
+                                setCurrentPage(1);
+                            }}
+                        />
+                    </div>
+
+                    {(selectedStatus || searchTerm) && (
+                        <button
+                            onClick={handleClearAllFilters}
+                            style={{
+                                border: "none",
+                                background: "none",
+                                color: "#ba3e3a",
+                                cursor: "pointer",
+                                fontSize: "13px",
+                                fontWeight: 500,
+                                padding: "8px 4px",
+                                textDecoration: "underline",
+                            }}
+                        >
+                            Clear Active Filters
+                        </button>
+                    )}
+                </div>
+            )}
+
+            <div style={{ overflowX: "auto", overflowY: "visible", border: "1px solid #eee", borderRadius: 4 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                        <tr style={{ borderBottom: "2px solid #c3c7d4", backgroundColor: "#f1f3f5", position: "sticky", top: 0, zIndex: 1 }}>
+                    <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0, zIndex: 5 }}>
+                        <tr style={{ borderBottom: "2px solid #c3c7d4" }}>
                             <th style={{ padding: 12, width: 40 }}>
                                 <input
                                     type="checkbox"
@@ -167,7 +284,15 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                             ))}
                         </tr>
                     </thead>
-                    <tbody>
+
+                    {/* FIX: Apply maximum viewport height limits directly to the scrollable table body layer layout */}
+                    <tbody
+                        style={{
+                            maxHeight: "420px",
+                            overflowY: "auto",
+                            display: "table-row-group",
+                        }}
+                    >
                         {paginatedOrders.map((order) => (
                             <ExpandableOrderRow
                                 key={order.id}
