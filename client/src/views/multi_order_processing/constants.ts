@@ -59,6 +59,7 @@ export const SUPPLIER_PRODUCT_COLUMN_IDS_MAP = {
     SUPPLIER: "board_relation_mkrv4yqt",
     AVAILABLEQUANTITY: "numeric_mm35asyy",
     PRODUCT_WEIGHTAGE: "lookup_mktb4c84",
+    SELF: "lookup_mkxjavpw",
 };
 
 export const SUPPLIER_MANIFEST_COLUMN_IDS_MAP = {

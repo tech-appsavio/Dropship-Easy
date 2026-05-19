@@ -508,9 +508,37 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
     return (
         <div style={{ padding: "24px" }}>
-            <h3>Generate Supplier Manifests</h3>
+            {/* 1. TOP ROW: Heading and Action Button aligned perfectly */}
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                }}
+            >
+                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Generate Supplier Manifests</h3>
 
-            {/* Top Hierarchical Controls - Responsive Layout to Prevent Cluttering */}
+                {/* Button Wrapper with Validation Text under the button */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                    <Button disabled={!batchValidation.isValid || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
+                        Generate Supplier Manifest ({selectedLineItemIds.size})
+                    </Button>
+                    <p
+                        style={{
+                            margin: 0,
+                            fontSize: "12px",
+                            fontWeight: 500,
+                            color: batchValidation.isValid ? "#137333" : "#c5221f",
+                            transition: "color 0.2s ease",
+                        }}
+                    >
+                        {batchValidation.reason}
+                    </p>
+                </div>
+            </div>
+
+            {/* 2. DROPDOWN MENUS: Responsive Filter Layer */}
             <div
                 style={{
                     display: "flex",
@@ -561,8 +589,17 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 </div>
             </div>
 
-            {/* OLI Table Container supporting dynamic horizontal scrolling */}
-            <div style={{ overflowX: "auto", border: "1px solid #eee", borderRadius: "4px", marginBottom: "20px" }}>
+            {/* 3. TABLE LAYER: OLI Table Container supporting dynamic horizontal scrolling */}
+            <div
+                style={{
+                    overflowX: "auto",
+                    overflowY: "auto", // FIX: Enables independent inner vertical scrolling
+                    maxHeight: "380px", // FIX: Constrains the viewport size of your table rows
+                    border: "1px solid #eee",
+                    borderRadius: "4px",
+                    marginBottom: "20px",
+                }}
+            >
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1000px" }}>
                     <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0, zIndex: 2 }}>
                         <tr>
@@ -600,7 +637,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                                             setSelectedLineItemIds(next);
                                         }}
                                     />
-                                    bounds{" "}
                                 </td>
                                 <td style={{ padding: "10px", fontWeight: 500 }}>{item.name}</td>
                                 {MANIFEST_OLI_TABLE_COLUMNS.map((colId) => {
@@ -618,27 +654,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 {selectedOrder && filteredLineItems.length === 0 && (
                     <p style={{ padding: "20px", textAlign: "center", color: "#666" }}>No line items match the selected supplier filters.</p>
                 )}
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "24px", justifyContent: "flex-start" }}>
-                <div style={{ display: "inline-block" }}>
-                    <Button disabled={!batchValidation.isValid || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
-                        Ready for Manifest Generation ({selectedLineItemIds.size})
-                    </Button>
-                </div>
-
-                {/* Dynamically renders help/validation status layout messages */}
-                <p
-                    style={{
-                        margin: 0,
-                        fontSize: "12px",
-                        fontWeight: 500,
-                        color: batchValidation.isValid ? "#137333" : "#c5221f",
-                        transition: "color 0.2s ease",
-                    }}
-                >
-                    {batchValidation.reason}
-                </p>
             </div>
         </div>
     );

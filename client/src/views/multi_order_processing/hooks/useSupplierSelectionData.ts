@@ -140,15 +140,18 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
     const fetchSuppliersForProduct = async (productId: string) => {
         if (suppliersMap[productId]) return;
 
-        const query = `query {
+        // 1. Query the cross-reference SupplierProduct board to extract suppliers matching this product
+        const relationQuery = `query {
             boards(ids: ${SUPPLIER_PRODUCT_BOARD_ID}) {
                 items_page(limit: 500) {
                     items {
                         column_values {
                             id
-                            text
                             ... on BoardRelationValue {
                                 linked_item_ids
+                                display_value
+                            }
+                            ... on MirrorValue {
                                 display_value
                             }
                         }
@@ -158,42 +161,96 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
         }`;
 
         try {
-            const res: any = await monday.api(query);
-            if (!res.data || !res.data.boards || res.data.boards.length === 0) {
+            const relRes: any = await monday.api(relationQuery);
+            if (!relRes.data || !relRes.data.boards || relRes.data.boards.length === 0) {
                 throw new Error("No data returned for supplier products board.");
             }
 
-            const allSupplierProductItems = res.data.boards[0].items_page.items;
+            const allSupplierProductItems = relRes.data.boards[0].items_page.items;
 
-            // Step 1: map and filter
-            const filteredSuppliers = allSupplierProductItems
+            // Map and filter relations that match the currently selected productId
+            const productRelations = allSupplierProductItems
                 .map((item: any) => {
                     const productCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT);
                     const supplierCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.SUPPLIER);
+                    const weightageCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT_WEIGHTAGE);
 
-                    const rating = parseFloat(item.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.RATING)?.text || "0");
-                    const price = parseFloat(item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT_WEIGHTAGE)?.text || "0");
-                    const isSelf = item.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.SELFOWNED)?.text === "true"; // ← add this
+                    const price = parseFloat(weightageCol?.text || weightageCol?.display_value || "0");
 
                     return {
                         linkedProductId: productCol?.linked_item_ids?.[0],
-                        label: supplierCol?.display_value,
-                        value: supplierCol?.linked_item_ids?.[0],
+                        label: supplierCol?.display_value || "Unknown Supplier",
+                        supplierId: supplierCol?.linked_item_ids?.[0],
                         price,
-                        rating,
-                        isSelf,
                     };
                 })
-                .filter((item: any) => item.linkedProductId === productId);
-            console.log("Filterd suppliers ", filteredSuppliers);
-            // Step 2: sort, then strip sorting fields before storing
-            const sortedSuppliers = sortSuppliersByWeightedScore(filteredSuppliers)
-                .sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0)) // ← self-owned float to top
+                .filter((item: any) => item.linkedProductId === productId && item.supplierId);
+
+            if (productRelations.length === 0) {
+                setSuppliersMap((prev) => ({ ...prev, [productId]: [] }));
+                return;
+            }
+
+            // Extract unique Supplier IDs to build an isolated batch query
+            const supplierIdsToQuery = Array.from(new Set(productRelations.map((r) => r.supplierId)));
+
+            // 2. Query the source Supplier board records directly to safely extract structural configurations
+            const supplierBoardQuery = `query {
+                items(ids: [${supplierIdsToQuery.join(",")}]) {
+                    id
+                    column_values(ids: ["${SUPPLIER_ALL_COLUMN_IDS_MAP.RATING}", "${SUPPLIER_ALL_COLUMN_IDS_MAP.SELFOWNED}"]) {
+                        id
+                        text
+                        value
+                    }
+                }
+            }`;
+
+            const suppRes: any = await monday.api(supplierBoardQuery);
+            const sourceSupplierItems = suppRes.data?.items || [];
+
+            // 3. Build a map of verified source columns by Supplier ID
+            const sourceSuppliersMap: Record<string, any> = {};
+            sourceSupplierItems.forEach((sItem: any) => {
+                const ratingCol = sItem.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.RATING);
+                const selfOwnedCol = sItem.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.SELFOWNED);
+
+                const rating = parseFloat(ratingCol?.text || "0");
+
+                // Safely handle both Boolean primitives or text statuses ("checked", "true", or raw state)
+                const selfValueRaw = selfOwnedCol?.value ? JSON.parse(selfOwnedCol.value) : null;
+                const isSelf =
+                    selfOwnedCol?.text?.toLowerCase() === "yes" ||
+                    selfOwnedCol?.text?.toLowerCase() === "true" ||
+                    selfValueRaw === true ||
+                    (selfValueRaw && (selfValueRaw.checked === true || String(selfValueRaw.checked) === "true"));
+
+                sourceSuppliersMap[String(sItem.id)] = { rating, isSelf };
+            });
+
+            // 4. Combine the relational pricing definitions with the deep supplier source properties
+            const combinedSuppliers = productRelations.map((relation) => {
+                const sourceData = sourceSuppliersMap[String(relation.supplierId)] || { rating: 0, isSelf: false };
+                return {
+                    label: relation.label,
+                    value: relation.supplierId,
+                    price: relation.price,
+                    rating: sourceData.rating,
+                    isSelf: sourceData.isSelf,
+                };
+            });
+
+            console.log("Combined suppliers before sorting processing:", combinedSuppliers);
+
+            // 5. Apply the baseline sorting, floating self-owned items to the top index positions
+            const sortedSuppliers = sortSuppliersByWeightedScore(combinedSuppliers)
+                .sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0))
                 .map((item: any) => ({ label: item.label, value: item.value }));
-            console.log("Sorted suppliers ", sortedSuppliers);
+
+            console.log("Sorted suppliers ready for dropdown consumption:", sortedSuppliers);
             setSuppliersMap((prev) => ({ ...prev, [productId]: sortedSuppliers }));
         } catch (e) {
-            console.error("Error fetching suppliers locally:", e);
+            console.error("Error fetching suppliers by direct batch lookup:", e);
         }
     };
     return { lineItems, allProducts, suppliersMap, fetchSuppliersForProduct, loading, refetch: fetchLineItems };

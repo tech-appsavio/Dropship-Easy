@@ -81,7 +81,16 @@ export const SupplierSelection = ({ selectedOrderIds }: { selectedOrderIds: stri
     console.log("Suppliers supplier ", currentSuppliers);
     return (
         <div style={{ padding: "24px" }}>
-            <h3>Order Line Items to Update</h3>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                }}
+            >
+                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Supplier Selection</h3>
+            </div>
 
             {/* Top Selection Controls */}
             <div style={{ display: "flex", gap: "20px", alignItems: "flex-end", marginBottom: "30px" }}>
