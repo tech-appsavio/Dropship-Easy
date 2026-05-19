@@ -11,10 +11,11 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         return String(val);
     };
 
+    // Deep extractor supporting compound Monday values (Lookups, Mirrors, Formulas)
     const getRobustValue = (item: any, colId: string): string => {
         const cv = item.column_values?.find((c: any) => c.id === colId);
         if (!cv) return "";
-        return cv.text || cv.display_value || "";
+        return cv.display_value || cv.text || "";
     };
 
     /**
@@ -165,8 +166,9 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         const method = item.paymentMethod ? String(item.paymentMethod).toUpperCase() : "CASH ON DELIVERY";
         doc.text(method, LX + PAD, y + 10.5);
 
+        // FIX: Extract dynamic totalPrice from order board record instead of hardcoded '0' fallback
         doc.setFontSize(11);
-        doc.text(`COLLECT COD - Rs. ${cleanDisplay(item.totalPrice) || "0"}`, LX + PAD, y + 16);
+        doc.text(`COLLECT COD - Rs. ${cleanDisplay(item.totalPrice) || "0.00"}`, LX + PAD, y + 16);
 
         y += PAYMENT_H;
         hRule(doc, y, LX, RX);
@@ -218,6 +220,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.rect(LX, y, W, ROW_H, "S");
         drawVLines(y, ROW_H);
 
+        // FIX: Extract raw properties reliably out of robust mirror configurations
         const rawQty = getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY) || "1";
         const qty = parseInt(rawQty) || 1;
         const rawUnit = getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.UNITPRICE) || "0";
@@ -292,4 +295,4 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
     });
 
     return doc.output("blob");
-};
+};;

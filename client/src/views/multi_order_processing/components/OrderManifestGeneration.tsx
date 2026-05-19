@@ -376,7 +376,15 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             <h3>Generate Supplier Manifests</h3>
 
             {/* Top Hierarchical Controls */}
-            <div style={{ display: "flex", gap: "20px", marginBottom: "25px" }}>
+            <div
+                style={{
+                    display: "flex",
+                    gap: "20px",
+                    marginBottom: "25px",
+                    position: "relative",
+                    zIndex: 3,
+                }}
+            >
                 <div style={{ flex: 1 }}>
                     <label style={{ fontSize: "13px", fontWeight: 500 }}>Select Order:</label>
                     <Dropdown
