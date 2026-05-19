@@ -11,10 +11,13 @@ import {
     ORDER_ALL_COLUMN_IDS_MAP,
     CUSTOMER_ALL_COLUMN_IDS_MAP,
     SUPPLIER_ALL_COLUMN_IDS_MAP,
+    ORDER_BOARD_ID,
+    ORDER_ITEM_BOARD_ID,
 } from "../constants";
 import mondaySdk from "monday-sdk-js";
-import { generateManifestPDF } from "../utils/pdfGenerator";
+
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
+import { generateManifestPDF } from "../utils/pdfGenerator";
 import { generateLabelPDF } from "../utils/labelPdfGenerator";
 
 // Dynamic columns configuration for easy extension
@@ -35,6 +38,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
     // Cascading filtering and selection states
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+    const [selectedCourier, setSelectedCourier] = useState<any>(null);
     const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
     const [isCreating, setIsUpdating] = useState(false);
 
@@ -69,20 +73,56 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         return options;
     }, [selectedOrder, ordersWithLineItems]);
 
-    // 3. Hierarchical evaluation of table items (Order filters first, Supplier filters second)
+    // 3. Cascading Dropdown options for Couriers (scoped strictly to currently selected order line items)
+    const courierOptions = useMemo(() => {
+        if (!selectedOrder) return [];
+        const currentOrder = ordersWithLineItems.find((o) => o.id === selectedOrder.value);
+        const couriersMap = new Map();
+
+        currentOrder?.lineItems.forEach((li: any) => {
+            // Filter by supplier first if one is chosen to maintain strict hierarchy
+            if (selectedSupplier) {
+                const supplierMatch = selectedSupplier.value === "none" ? !li.supplierId : li.supplierId === selectedSupplier.value;
+                if (!supplierMatch) return;
+            }
+
+            const courierName = li.courierName || "Unknown Courier";
+            const courierId = li.courierId || courierName;
+            if (courierId) {
+                couriersMap.set(courierId, courierName);
+            }
+        });
+
+        return Array.from(couriersMap.entries()).map(([id, name]) => ({
+            label: name,
+            value: id,
+        }));
+    }, [selectedOrder, selectedSupplier, ordersWithLineItems]);
+
+    // 4. Hierarchical evaluation of table items (Order -> Supplier -> Courier)
     const filteredLineItems = useMemo(() => {
         if (!selectedOrder) return [];
         const currentOrder = ordersWithLineItems.find((o) => o.id === selectedOrder.value);
         let items = currentOrder?.lineItems || [];
 
+        // Supplier Layer Filter
         if (selectedSupplier) {
             items = items.filter((li: any) => {
                 if (selectedSupplier.value === "none") return !li.supplierId;
                 return li.supplierId === selectedSupplier.value;
             });
         }
+
+        // Courier Layer Filter
+        if (selectedCourier) {
+            items = items.filter((li: any) => {
+                const itemCourierId = li.courierId || li.courierName;
+                return itemCourierId === selectedCourier.value;
+            });
+        }
+
         return items;
-    }, [selectedOrder, selectedSupplier, ordersWithLineItems]);
+    }, [selectedOrder, selectedSupplier, selectedCourier, ordersWithLineItems]);
 
     const fetchShopDetails = async () => {
         console.log("fetch shop detial ");
@@ -252,11 +292,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 if (suppItem) {
                     const getSuppCol = (id: string) => suppItem.column_values.find((cv: any) => cv.id === id);
 
-                    // Extracts text mapping or parses mirror location definitions safely
-                    const addressVal = getSuppCol("long_text")?.text || getSuppCol("text")?.text || ""; // Fallbacks depending on your supplier text/address type
-
                     supplierData = {
-                        //address: addressVal,
                         address: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.ADDRESS)?.text || "",
                         phone: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.PHONE)?.text || "",
                         email: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.EMAIL)?.text || "",
@@ -351,6 +387,78 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 { variables: { file: labelFile } },
             );
 
+            // ==========================================================
+            // NEW STATUS & INTERBOARD RELATION UPDATES
+            // ==========================================================
+
+            // 1. Update status and link the created Manifest item on ALL selected Order Line Items
+            const itemUpdatePromises = selectedIdsArray.map((itemId) => {
+                const oliColumnValues = {
+                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Manifest Generated" },
+                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST]: { item_ids: [String(newManifestId)] },
+                };
+
+                return monday.api(`mutation {
+                    change_multiple_column_values(
+                        item_id: ${itemId},
+                        board_id: ${ORDER_ITEM_BOARD_ID},
+                        column_values: "${JSON.stringify(oliColumnValues).replace(/"/g, '\\"')}"
+                    ) { id }
+                }`);
+            });
+
+            await Promise.all(itemUpdatePromises);
+            console.log(`Successfully updated ${selectedIdsArray.length} Order Line Items.`);
+
+            // 2. Query all sibling line items under the parent Order to check if the complete batch is processed
+            const parentOrderAuditRes: any = await monday.api(`query {
+                boards(ids: ${ORDER_ITEM_BOARD_ID}) {
+                    items_page(limit: 500) {
+                        items {
+                            id
+                            column_values {
+                                id
+                                text
+                                ... on BoardRelationValue { linked_item_ids }
+                            }
+                        }
+                    }
+                }
+            }`);
+
+            const allOliItems = parentOrderAuditRes.data?.boards?.[0]?.items_page?.items || [];
+
+            // Filter down to elements explicitly linked to this specific parent Order
+            const siblingLineItems = allOliItems.filter((li: any) => {
+                const orderCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
+                const linkedId = orderCol?.linked_item_ids?.[0] || (orderCol?.value ? JSON.parse(orderCol.value)?.linkedPulseIds?.[0]?.linkedPulseId : null);
+                return String(linkedId) === String(parentOrderId);
+            });
+
+            // Evaluate if all records have been marked as generated
+            const areAllLineItemsGenerated = siblingLineItems.every((li: any) => {
+                const statusCol = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS);
+                return statusCol?.text === "Manifest Generated";
+            });
+
+            // 3. Conditionally promote the parent Order status if no unmanifested items remain
+            if (areAllLineItemsGenerated && siblingLineItems.length > 0) {
+                const orderColumnValues = {
+                    [ORDER_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Manifest Generated" },
+                };
+
+                await monday.api(`mutation {
+                    change_multiple_column_values(
+                        item_id: ${parentOrderId},
+                        board_id: ${ORDER_BOARD_ID},
+                        column_values: "${JSON.stringify(orderColumnValues).replace(/"/g, '\\"')}"
+                    ) { id }
+                }`);
+                console.log(`All line items complete. Promoted Parent Order ${parentOrderId} status to 'Manifest Generated'.`);
+            } else {
+                console.log("Parent Order status left unchanged; incomplete sibling line items remaining.");
+            }
+
             monday.execute("confirm", { message: "Manifest and Label Uploaded Successfully!", type: "success" });
             setSelectedLineItemIds(new Set());
         } catch (e: any) {
@@ -371,11 +479,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
     return (
         <div style={{ padding: "24px" }}>
-            {/* Template handles rendering details dynamically when selectedLineItemIds changes */}
-
             <h3>Generate Supplier Manifests</h3>
 
-            {/* Top Hierarchical Controls */}
+            {/* Top Hierarchical Controls - Responsive Layout to Prevent Cluttering */}
             <div
                 style={{
                     display: "flex",
@@ -383,9 +489,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                     marginBottom: "25px",
                     position: "relative",
                     zIndex: 3,
+                    flexWrap: "wrap",
                 }}
             >
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: "1 1 250px", minWidth: "200px" }}>
                     <label style={{ fontSize: "13px", fontWeight: 500 }}>Select Order:</label>
                     <Dropdown
                         options={orderOptions}
@@ -393,11 +500,12 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                         onChange={(val: any) => {
                             setSelectedOrder(val);
                             setSelectedSupplier(null);
+                            setSelectedCourier(null);
                             setSelectedLineItemIds(new Set());
                         }}
                     />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: "1 1 250px", minWidth: "200px" }}>
                     <label style={{ fontSize: "13px", fontWeight: 500 }}>Select Supplier:</label>
                     <Dropdown
                         disabled={!selectedOrder}
@@ -405,6 +513,19 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                         value={selectedSupplier}
                         onChange={(val: any) => {
                             setSelectedSupplier(val);
+                            setSelectedCourier(null);
+                            setSelectedLineItemIds(new Set());
+                        }}
+                    />
+                </div>
+                <div style={{ flex: "1 1 250px", minWidth: "200px" }}>
+                    <label style={{ fontSize: "13px", fontWeight: 500 }}>Select Courier:</label>
+                    <Dropdown
+                        disabled={!selectedOrder}
+                        options={courierOptions}
+                        value={selectedCourier}
+                        onChange={(val: any) => {
+                            setSelectedCourier(val);
                             setSelectedLineItemIds(new Set());
                         }}
                     />
@@ -450,6 +571,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                                             setSelectedLineItemIds(next);
                                         }}
                                     />
+                                    bounds{" "}
                                 </td>
                                 <td style={{ padding: "10px", fontWeight: 500 }}>{item.name}</td>
                                 {MANIFEST_OLI_TABLE_COLUMNS.map((colId) => {
