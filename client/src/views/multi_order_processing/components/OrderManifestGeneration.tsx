@@ -28,6 +28,7 @@ const MANIFEST_OLI_TABLE_COLUMNS = [
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST,
 ];
 
 const monday = mondaySdk();
@@ -124,8 +125,36 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         return items;
     }, [selectedOrder, selectedSupplier, selectedCourier, ordersWithLineItems]);
 
+    const batchValidation = useMemo(() => {
+        if (selectedLineItemIds.size === 0) {
+            return { isValid: false, reason: "Please select at least one item." };
+        }
+
+        // Isolate the selected line items records from our data source
+        const selectedItems = filteredLineItems.filter((li) => selectedLineItemIds.has(li.id));
+
+        // Evaluate Supplier uniformity
+        const firstSupplierId = selectedItems[0]?.supplierId || "";
+        const allSuppliersMatch = selectedItems.every((li) => (li.supplierId || "") === firstSupplierId);
+
+        // Evaluate Courier uniformity (normalizing fallback parameters)
+        const firstCourierKey = selectedItems[0]?.courierId || selectedItems[0]?.courierName || "";
+        const allCouriersMatch = selectedItems.every((li) => {
+            const currentCourierKey = li.courierId || li.courierName || "";
+            return currentCourierKey === firstCourierKey;
+        });
+
+        if (!allSuppliersMatch) {
+            return { isValid: false, reason: "Selected items have mismatching Suppliers. They must match." };
+        }
+        if (!allCouriersMatch) {
+            return { isValid: false, reason: "Selected items have mismatching Couriers. They must match." };
+        }
+
+        return { isValid: true, reason: `Ready to generate manifest for ${selectedLineItemIds.size} items.` };
+    }, [selectedLineItemIds, filteredLineItems]);
+
     const fetchShopDetails = async () => {
-        console.log("fetch shop detial ");
         const res: any = await monday.api(`query {
             boards(ids: ${SHOPS_BOARD_ID}) {
                 items_page(limit: 1) {
@@ -591,10 +620,25 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 )}
             </div>
 
-            <div style={{ display: "flex", marginTop: "24px", justifyContent: "flex-start" }}>
-                <Button disabled={selectedLineItemIds.size === 0 || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
-                    Ready for Manifest Generation ({selectedLineItemIds.size})
-                </Button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "24px", justifyContent: "flex-start" }}>
+                <div style={{ display: "inline-block" }}>
+                    <Button disabled={!batchValidation.isValid || isCreating} loading={isCreating} onClick={handleGenerateManifest}>
+                        Ready for Manifest Generation ({selectedLineItemIds.size})
+                    </Button>
+                </div>
+
+                {/* Dynamically renders help/validation status layout messages */}
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        color: batchValidation.isValid ? "#137333" : "#c5221f",
+                        transition: "color 0.2s ease",
+                    }}
+                >
+                    {batchValidation.reason}
+                </p>
             </div>
         </div>
     );
