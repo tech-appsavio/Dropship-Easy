@@ -3,7 +3,7 @@ import { jsPDF } from "jspdf";
 import { ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 
 export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
-    // Standard 4x6 inch shipping label (101.6mm x 152.4mm)
+    // Standard 4×6 inch shipping label  (101.6 mm × 152.4 mm)
     const doc = new jsPDF("p", "mm", [101.6, 152.4]);
 
     const cleanDisplay = (val: any): string => {
@@ -11,208 +11,197 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         return String(val);
     };
 
-    // Deep extractor supporting compound Monday values (Lookups, Mirrors, Formulas)
     const getRobustValue = (item: any, colId: string): string => {
         const cv = item.column_values?.find((c: any) => c.id === colId);
         if (!cv) return "";
         return cv.display_value || cv.text || "";
     };
 
-    /**
-     * Draws a representational barcode centered at centerX.
-     * Narrow/medium/wide bars simulate a Code-128 look.
-     */
+    // Compact representational barcode (Code-128 style)
     const drawBarcode = (pdf: jsPDF, centerX: number, startY: number, width: number, height: number) => {
         const startX = centerX - width / 2;
-        pdf.setDrawColor(0, 0, 0);
+        pdf.setDrawColor(0);
         let x = startX;
         let i = 0;
         while (x < startX + width) {
-            const bw = i % 7 === 0 ? 0.7 : i % 3 === 0 ? 0.45 : 0.25;
+            const bw = i % 7 === 0 ? 0.65 : i % 3 === 0 ? 0.4 : 0.22;
             pdf.setLineWidth(bw);
             pdf.line(x, startY, x, startY + height);
-            const gap = i % 5 === 0 ? 0.75 : 0.38;
-            x += bw + gap;
+            x += bw + (i % 5 === 0 ? 0.7 : 0.35);
             i++;
         }
     };
 
-    const hRule = (pdf: jsPDF, y: number, lx: number, rx: number) => {
-        pdf.setLineWidth(0.3);
-        pdf.setDrawColor(0);
-        pdf.line(lx, y, rx, y);
+    const hRule = (y: number, lx: number, rx: number) => {
+        doc.setLineWidth(0.25);
+        doc.setDrawColor(0);
+        doc.line(lx, y, rx, y);
     };
 
     items.forEach((item, pageIndex) => {
         if (pageIndex > 0) doc.addPage();
 
-        // ── Page constants ────────────────────────────────────────────
-        const PW = 101.6; // page width  mm
-        const PH = 152.4; // page height mm
-        const M = 3.5; // outer margin mm
-        const W = PW - M * 2; // usable width ≈ 94.6 mm
-        const LX = M; // left content edge
-        const RX = M + W; // right content edge
-        const MID = M + W / 2; // horizontal centre
-        const PAD = 2; // inner horizontal text pad
+        // ── Page geometry ─────────────────────────────────────────────
+        const PW = 101.6;
+        const PH = 152.4;
+        const M = 4; // outer margin
+        const W = PW - M * 2; // ≈ 93.6 mm usable width
+        const LX = M;
+        const RX = M + W;
+        const MID = M + W / 2;
+        const PAD = 2.5; // inner horizontal text padding
 
-        // Section heights — tuned so content ends ~141 mm from top,
-        // leaving ≈6 mm natural whitespace before the footer at ~147 mm.
-        const HEADER_H = 40; // DELIVER TO | SHIPPED BY
-        const ORDER_H = 23; // ORDER # + barcode
-        const PAYMENT_H = 18; // weight / COD
-        const COURIER_H = 20; // courier + AWB barcode
-        const ROW_H = 5.5; // each table row
+        // ── Section heights (must total ≤ PH - 2*M - footer gap) ─────
+        //   Budget: 152.4 - 8 - 6(footer zone) = 138.4 mm
+        //   Total below: 34+19+15+17 + 3×5 + 3.5+14.5 = 118 mm  → ~20 mm whitespace
+        const HEADER_H = 34; // deliver-to / shipped-by
+        const ORDER_H = 19; // order # + barcode
+        const PAYMENT_H = 15; // weight / COD
+        const COURIER_H = 17; // courier + AWB barcode
+        const ROW_H = 5; // each table row (3 rows = 15 mm)
 
         // Outer border
         doc.setLineWidth(0.5);
         doc.setDrawColor(0);
         doc.rect(M, M, W, PH - M * 2);
 
-        let y = M; // ← incremental y-cursor
+        let y = M; // incremental y-cursor
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 1 — HEADER: DELIVER TO (left) | SHIPPED BY (right)
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         const SPLIT = MID;
-        const colW = W / 2 - PAD - 2; // max text width per column
+        const colW = W / 2 - PAD - 2;
 
-        // Vertical divider
-        doc.setLineWidth(0.3);
-        doc.line(SPLIT, y, SPLIT, y + HEADER_H);
+        doc.setLineWidth(0.25);
+        doc.line(SPLIT, y, SPLIT, y + HEADER_H); // vertical divider
 
-        // ── Left: Deliver To ─────────────────────────────────────────
+        // ── Left: Deliver To ────────────────────────────────────────
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(7);
-        doc.text("DELIVER TO:", LX + PAD, y + 5);
+        doc.setFontSize(6);
+        doc.text("DELIVER TO:", LX + PAD, y + 4.5);
 
-        doc.setFontSize(10);
-        doc.text(cleanDisplay(item.customerName) || "—", LX + PAD, y + 10);
+        doc.setFontSize(8.5);
+        doc.text(cleanDisplay(item.customerName) || "—", LX + PAD, y + 9);
 
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(7);
+        doc.setFontSize(6);
         const addrText = cleanDisplay(item.billingAddress);
         if (addrText) {
-            const addrLines = doc.splitTextToSize(addrText, colW);
-            doc.text(addrLines.slice(0, 4), LX + PAD, y + 15);
+            const lines = doc.splitTextToSize(addrText, colW);
+            doc.text(lines.slice(0, 4), LX + PAD, y + 13.5);
         }
 
         const custPhone = cleanDisplay(item.customerPhone);
         if (custPhone) {
             doc.setFont("Helvetica", "bold");
-            doc.setFontSize(7);
-            doc.text(`MOBILE NO.: ${custPhone}`, LX + PAD, y + 30);
+            doc.setFontSize(6);
+            doc.text(`MOBILE NO.: ${custPhone}`, LX + PAD, y + 27);
         }
         const custEmail = cleanDisplay(item.customerEmail);
         if (custEmail) {
             doc.setFont("Helvetica", "normal");
-            doc.setFontSize(6.5);
-            doc.text(`Email: ${custEmail}`, LX + PAD, y + 35);
+            doc.setFontSize(5.5);
+            doc.text(`Email: ${custEmail}`, LX + PAD, y + 31);
         }
 
         // ── Right: Shipped By ────────────────────────────────────────
         const RCol = SPLIT + PAD;
 
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(6.5);
+        doc.setFontSize(5.5);
         const retLabel = doc.splitTextToSize("Shipped By (If undelivered, return to):", colW);
-        doc.text(retLabel, RCol, y + 5);
+        doc.text(retLabel, RCol, y + 4.5);
 
-        doc.setFontSize(9);
-        doc.text(cleanDisplay(item.supplierName) || "—", RCol, y + 12);
+        doc.setFontSize(8);
+        doc.text(cleanDisplay(item.supplierName) || "—", RCol, y + 11);
 
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(6.5);
+        doc.setFontSize(5.8);
         const suppAddr = cleanDisplay(item.supplierAddress);
         if (suppAddr) {
-            const suppLines = doc.splitTextToSize(suppAddr, colW);
-            doc.text(suppLines.slice(0, 3), RCol, y + 17);
+            const lines = doc.splitTextToSize(suppAddr, colW);
+            doc.text(lines.slice(0, 3), RCol, y + 15.5);
         }
 
         const suppPhone = cleanDisplay(item.supplierPhone);
         if (suppPhone) {
-            doc.text(`Phone: ${suppPhone}`, RCol, y + 30);
+            doc.text(`Phone: ${suppPhone}`, RCol, y + 27);
         }
         const suppEmail = cleanDisplay(item.supplierEmail);
         if (suppEmail) {
-            doc.text(`Email: ${suppEmail}`, RCol, y + 35);
+            doc.text(`Email: ${suppEmail}`, RCol, y + 31);
         }
 
         y += HEADER_H;
-        hRule(doc, y, LX, RX);
+        hRule(y, LX, RX);
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 2 — ORDER # + BARCODE
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(12);
-        doc.text(`ORDER #: ${cleanDisplay(item.orderId) || "N/A"}`, LX + PAD, y + 6);
+        doc.setFontSize(10);
+        doc.text(`ORDER #: ${cleanDisplay(item.orderId) || "N/A"}`, LX + PAD, y + 5.5);
 
-        // 75 mm wide × 12 mm tall, centred on page
-        drawBarcode(doc, MID, y + 9, 75, 12);
+        // 70 mm wide × 10 mm tall, centred
+        drawBarcode(doc, MID, y + 7.5, 70, 10);
 
         y += ORDER_H;
-        hRule(doc, y, LX, RX);
+        hRule(y, LX, RX);
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 3 — WEIGHT / PAYMENT METHOD / COD AMOUNT
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(7.5);
-        doc.text("WEIGHT: 1 | DIMENSIONS: 29×26×23 (cm)", LX + PAD, y + 5);
+        doc.setFontSize(6.5);
+        doc.text("WEIGHT: 1 | DIMENSIONS: 29×26×23 (cm)", LX + PAD, y + 4.5);
 
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(9);
+        doc.setFontSize(7.5);
         const method = item.paymentMethod ? String(item.paymentMethod).toUpperCase() : "CASH ON DELIVERY";
-        doc.text(method, LX + PAD, y + 10.5);
+        doc.text(method, LX + PAD, y + 9.5);
 
-        // FIX: Extract dynamic totalPrice from order board record instead of hardcoded '0' fallback
-        doc.setFontSize(11);
-        doc.text(`COLLECT COD - Rs. ${cleanDisplay(item.totalPrice) || "0.00"}`, LX + PAD, y + 16);
+        doc.setFontSize(9.5);
+        doc.text(`COLLECT COD - Rs. ${cleanDisplay(item.totalPrice) || "0.00"}`, LX + PAD, y + 14);
 
         y += PAYMENT_H;
-        hRule(doc, y, LX, RX);
+        hRule(y, LX, RX);
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 4 — COURIER NAME + AWB BARCODE
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text(cleanDisplay(item.courierName) || "Courier", LX + PAD, y + 5.5);
+        doc.setFontSize(9.5);
+        doc.text(cleanDisplay(item.courierName) || "Courier", LX + PAD, y + 5);
 
-        doc.setFontSize(8);
-        doc.text(`AWB #: ${cleanDisplay(item.sku) || "N/A"}`, LX + PAD, y + 10.5);
+        doc.setFontSize(7);
+        doc.text(`AWB #: ${cleanDisplay(item.sku) || "N/A"}`, LX + PAD, y + 9.5);
 
-        // 72 mm wide × 8 mm tall, centred on page
-        drawBarcode(doc, MID, y + 12, 72, 8);
+        // 68 mm wide × 7 mm tall, centred
+        drawBarcode(doc, MID, y + 11, 68, 7);
 
         y += COURIER_H;
-        hRule(doc, y, LX, RX);
+        hRule(y, LX, RX);
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 5 — PRODUCT TABLE
-        // ══════════════════════════════════════════════════════════════
-        const C = {
-            sku: LX,
-            item: LX + 22,
-            qty: LX + 68,
-            price: LX + 79,
-        };
-        const vLines = [C.item, C.qty, C.price];
-        const drawVLines = (top: number, h: number) => vLines.forEach((cx) => doc.line(cx, top, cx, top + h));
+        // ═════════════════════════════════════════════════════════════
+        const C = { sku: LX, item: LX + 20, qty: LX + 66, price: LX + 77 };
+        const vCols = [C.item, C.qty, C.price];
+        const drawVLines = (top: number, h: number) => vCols.forEach((cx) => doc.line(cx, top, cx, top + h));
 
-        // Header row (shaded)
-        doc.setFillColor(240, 240, 240);
+        // Header row
+        doc.setFillColor(242, 242, 242);
         doc.rect(LX, y, W, ROW_H, "FD");
-        doc.setLineWidth(0.15);
+        doc.setLineWidth(0.12);
         drawVLines(y, ROW_H);
 
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(7);
-        doc.text("SKU", C.sku + 1.5, y + ROW_H - 1.5);
-        doc.text("ITEM", C.item + 1.5, y + ROW_H - 1.5);
-        doc.text("QTY", C.qty + 1.5, y + ROW_H - 1.5);
-        doc.text("PRICE", C.price + 1.5, y + ROW_H - 1.5);
+        doc.setFontSize(6.5);
+        doc.text("SKU", C.sku + 1.5, y + ROW_H - 1.3);
+        doc.text("ITEM", C.item + 1.5, y + ROW_H - 1.3);
+        doc.text("QTY", C.qty + 1.5, y + ROW_H - 1.3);
+        doc.text("PRICE", C.price + 1.5, y + ROW_H - 1.3);
 
         y += ROW_H;
 
@@ -220,23 +209,22 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.rect(LX, y, W, ROW_H, "S");
         drawVLines(y, ROW_H);
 
-        // FIX: Extract raw properties reliably out of robust mirror configurations
         const rawQty = getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY) || "1";
         const qty = parseInt(rawQty) || 1;
         const rawUnit = getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.UNITPRICE) || "0";
         const unitPrice = parseFloat(rawUnit.replace(/[^0-9.]/g, "")) || 0;
         const calcTotal = qty * unitPrice;
 
-        const skuDisplay = cleanDisplay(item.sku).substring(0, 12);
-        const maxName = 30;
+        const skuDisplay = cleanDisplay(item.sku).substring(0, 11);
+        const maxName = 28;
         const nameDisplay = item.name.length > maxName ? `${item.name.substring(0, maxName - 1)}…` : item.name;
 
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(7);
-        doc.text(skuDisplay, C.sku + 1.5, y + ROW_H - 1.5);
-        doc.text(nameDisplay, C.item + 1.5, y + ROW_H - 1.5);
-        doc.text(String(qty), C.qty + 1.5, y + ROW_H - 1.5);
-        doc.text(`Rs. ${unitPrice.toFixed(2)}`, C.price + 1.5, y + ROW_H - 1.5);
+        doc.setFontSize(6.5);
+        doc.text(skuDisplay, C.sku + 1.5, y + ROW_H - 1.3);
+        doc.text(nameDisplay, C.item + 1.5, y + ROW_H - 1.3);
+        doc.text(String(qty), C.qty + 1.5, y + ROW_H - 1.3);
+        doc.text(`Rs. ${unitPrice.toFixed(2)}`, C.price + 1.5, y + ROW_H - 1.3);
 
         y += ROW_H;
 
@@ -245,36 +233,36 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         [C.qty, C.price].forEach((cx) => doc.line(cx, y, cx, y + ROW_H));
 
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(7);
-        doc.text("TOTAL:", C.sku + 1.5, y + ROW_H - 1.5);
-        doc.text(`Rs. ${calcTotal.toFixed(2)}`, C.price + 1.5, y + ROW_H - 1.5);
+        doc.setFontSize(6.5);
+        doc.text("TOTAL:", C.sku + 1.5, y + ROW_H - 1.3);
+        doc.text(`Rs. ${calcTotal.toFixed(2)}`, C.price + 1.5, y + ROW_H - 1.3);
 
         y += ROW_H + 3;
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 6 — INVOICE METADATA
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         const now = new Date();
         const dStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         const tStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(6.5);
+        doc.setFontSize(5.8);
         doc.text(`Invoice No.: ${cleanDisplay(item.orderId) || "N/A"} | Invoice Date: ${dStr} at ${tStr}`, LX + 1, y);
 
         y += 4;
 
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // SECTION 7 — TERMS & CONDITIONS
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(7);
+        doc.setFontSize(6);
         doc.text("TERMS AND CONDITIONS:", LX + 1, y);
 
         y += 3.5;
 
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(6.2);
+        doc.setFontSize(5.5);
         const terms = [
             "1. Visit official website of DTDC Surface 2kg to view the Conditions of Carriage.",
             "2. Shipping charges are inclusive of service tax and all figures are in INR.",
@@ -286,13 +274,13 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
             y += 3;
         });
 
-        // ══════════════════════════════════════════════════════════════
-        // FOOTER — fixed to bottom inside the border
-        // ══════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
+        // FOOTER — anchored to bottom of border
+        // ═════════════════════════════════════════════════════════════
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(5.5);
+        doc.setFontSize(5);
         doc.text("THIS IS AN AUTO-GENERATED LABEL AND DOES NOT NEED SIGNATURE.", LX + 1, PH - M - 2);
     });
 
     return doc.output("blob");
-};;
+};

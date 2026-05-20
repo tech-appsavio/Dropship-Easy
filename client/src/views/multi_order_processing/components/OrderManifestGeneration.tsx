@@ -13,6 +13,7 @@ import {
     SUPPLIER_ALL_COLUMN_IDS_MAP,
     ORDER_BOARD_ID,
     ORDER_ITEM_BOARD_ID,
+    PRODUCT_ALL_COLUMN_IDS_MAP,
 } from "../constants";
 import mondaySdk from "monday-sdk-js";
 
@@ -34,7 +35,7 @@ const MANIFEST_OLI_TABLE_COLUMNS = [
 const monday = mondaySdk();
 
 export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
-    const { loading, ordersWithLineItems, boardColumns } = useCourierSelectionData(selectedOrderIds);
+    const { loading, ordersWithLineItems, boardColumns, refetch } = useCourierSelectionData(selectedOrderIds);
 
     // Cascading filtering and selection states
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -329,9 +330,44 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 }
             }
 
+            const productIdsToQuery = rawFetchedItems
+                .map((item: any) => item.column_values.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT)?.linked_item_ids?.[0])
+                .filter(Boolean);
+
+            let productPriceMap: Record<string, number> = {};
+
+            if (productIdsToQuery.length > 0) {
+                // Batch query the Product Board directly using the isolated IDs
+                const productRes: any = await monday.api(`query {
+                    items(ids: [${Array.from(new Set(productIdsToQuery)).join(",")}]) {
+                        id
+                        column_values(ids: ["${PRODUCT_ALL_COLUMN_IDS_MAP.SELLINGPRICE}"]) {
+                            id
+                            text
+                        }
+                    }
+                }`);
+
+                const productItems = productRes.data?.items || [];
+                productItems.forEach((pItem: any) => {
+                    const priceCol = pItem.column_values.find((cv: any) => cv.id === PRODUCT_ALL_COLUMN_IDS_MAP.SELLINGPRICE);
+                    const priceValue = parseFloat(priceCol?.text?.replace(/[^0-9.]/g, "") || "0");
+                    productPriceMap[String(pItem.id)] = priceValue;
+                });
+            }
+
             // 4. Map and complement structural info across ALL selected items for the PDF Table
             const compiledFullLineItems = rawFetchedItems.map((item: any) => {
                 const getItemVal = (id: string) => item.column_values.find((cv: any) => cv.id === id);
+
+                // Match raw selling price from source product board using linked relation key
+                const linkedProdId = getItemVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT)?.linked_item_ids?.[0];
+                const cleanUnitPrice = productPriceMap[String(linkedProdId)] || 0;
+
+                const rawQty = getItemVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY)?.text || "1";
+                const parsedQty = parseInt(rawQty, 10) || 1;
+                const itemCalculatedTotal = cleanUnitPrice * parsedQty;
+
                 return {
                     ...item,
                     sku: getItemVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU)?.text || item.name,
@@ -342,16 +378,18 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                     courierName: baseCourierName,
                     orderId: getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.ORDERID)?.text || item.name,
                     billingAddress,
-                    totalPrice,
+
+                    // Override pricing strings with direct board variables
+                    unitPrice: cleanUnitPrice,
+                    totalPrice: totalPrice !== "0" && totalPrice !== "" ? totalPrice : itemCalculatedTotal.toFixed(2),
+
                     paymentMethod,
                     customerName: customerData.name,
                     customerPhone: customerData.phone,
                     customerEmail: customerData.email,
                 };
             });
-            console.log("Customer info ", customerData);
-            console.log("Supplier info ", supplierData);
-            console.log("compiledFullLineItems", compiledFullLineItems);
+
             const now = new Date();
             const timestamp = `${now.getDate()}${now.getMonth() + 1}${now.getFullYear()}_${now.getHours()}${now.getMinutes()}`;
             const manifestName = `${baseSupplierName.replace(/\s/g, "")}_${baseCourierName.replace(/\s/g, "")}_Batch_${timestamp}`;
@@ -437,7 +475,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             });
 
             await Promise.all(itemUpdatePromises);
-            console.log(`Successfully updated ${selectedIdsArray.length} Order Line Items.`);
 
             // 2. Query all sibling line items under the parent Order to check if the complete batch is processed
             const parentOrderAuditRes: any = await monday.api(`query {
@@ -483,10 +520,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                         column_values: "${JSON.stringify(orderColumnValues).replace(/"/g, '\\"')}"
                     ) { id }
                 }`);
-                console.log(`All line items complete. Promoted Parent Order ${parentOrderId} status to 'Manifest Generated'.`);
-            } else {
-                console.log("Parent Order status left unchanged; incomplete sibling line items remaining.");
             }
+
+            await refetch();
 
             monday.execute("confirm", { message: "Manifest and Label Uploaded Successfully!", type: "success" });
             setSelectedLineItemIds(new Set());

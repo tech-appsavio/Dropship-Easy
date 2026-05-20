@@ -240,17 +240,22 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                 };
             });
 
-            console.log("Combined suppliers before sorting processing:", combinedSuppliers);
 
             // 5. Apply the baseline sorting, floating self-owned items to the top index positions
             const sortedSuppliers = sortSuppliersByWeightedScore(combinedSuppliers)
                 .sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0))
                 .map((item: any) => ({ label: item.label, value: item.value }));
 
-            console.log("Sorted suppliers ready for dropdown consumption:", sortedSuppliers);
+
             setSuppliersMap((prev) => ({ ...prev, [productId]: sortedSuppliers }));
         } catch (e) {
-            console.error("Error fetching suppliers by direct batch lookup:", e);
+            monday.execute("confirm", {
+                message: "Error fetching suppliers by direct batch lookup: " + e.message,
+                description: e,
+                type: "error",
+                confirmButtonText: "OK",
+                excludeCancelButton: true,
+            });
         }
     };
     return { lineItems, allProducts, suppliersMap, fetchSuppliersForProduct, loading, refetch: fetchLineItems };

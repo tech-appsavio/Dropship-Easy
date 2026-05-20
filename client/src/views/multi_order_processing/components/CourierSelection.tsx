@@ -12,9 +12,11 @@ const monday = mondaySdk();
 // Column IDs to display in the line items table — add more here as needed
 const COURIER_OLI_COLUMN_IDS = [
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST,
+    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS,
 ];
 
 export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
@@ -131,7 +133,6 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
             const cod = codRaw?.toLowerCase() === "yes" || codRaw === "1" || codRaw === "true" ? 1 : 0;
 
             // 3. Call ShipRocket with verified data
-            console.log("Pickup = ", pickupZip, " Delivery Zip = ", deliveryZip, " Weight = ", weight, " COD = ", cod);
             const response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, weight, cod);
 
             if (response?.data?.available_courier_companies && response.data.available_courier_companies.length > 0) {
@@ -146,7 +147,6 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 setCourierError("No serviceability found. Defaulting to SP Store (Self).");
             }
         } catch (error: any) {
-            console.error("Courier Selection Error:", error);
             // Capture any error (404, 500, Network, etc.) and stringify it
             const errorContent = error.response
                 ? `Status: ${error.response.status} - ${JSON.stringify(error.response.data)}`
@@ -155,6 +155,13 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
             setRawError(errorContent);
             setCourierOptions([DEFAULT_COURIER]);
             setCourierError("Failed to fetch couriers. Defaulting to SP Store (Self).");
+            monday.execute("confirm", {
+                message: "Error fetching couriers: " + error.message,
+                description: error,
+                type: "error",
+                confirmButtonText: "OK",
+                excludeCancelButton: true,
+            });
         } finally {
             setIsCouriersLoading(false);
         }
@@ -196,18 +203,15 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
             if (hasErrors) {
                 throw new Error(results.find((res: any) => res.errors).errors[0].message);
             }
-
+            await refetch();
             monday.execute("confirm", { message: "Couriers updated successfully!", type: "success" });
             setSelectedLineItemIds(new Set());
         } catch (e: any) {
-            console.error("Update failed:", e);
-            monday.execute("confirm", { message: `Update failed: ${e.message}`, type: "error" });
+            monday.execute("confirm", { message: `Update failed: ${e.message}. Error: ${e}`, type: "error" });
         } finally {
             setIsUpdating(false);
         }
     };
-
-    console.log("All suppliers ", allSuppliers);
     if (loading) return <Loader size={40} />;
 
     return (

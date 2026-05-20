@@ -29,8 +29,7 @@ export const ExpandableOrderRow: React.FC<{
 }> = ({ order, isSelected, onSelect, lineItems }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const totalCols = ORDER_COLUMN_LABELS_VISIBLE.length + 1;
-    console.log("Expandable ordr row, order = ", order);
-    console.log("Expandable ordr row, lineItems = ", lineItems);
+
     // Helper to get the correct Monday instance URL from the current environment
     const getMondayUrl = (boardId: string | number, itemId: string) => {
         // If we are in a monday.app domain, we should redirect to the main monday domain

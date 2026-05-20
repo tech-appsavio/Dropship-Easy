@@ -3,21 +3,15 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const generateManifestPDF = async (manifestData: any) => {
-    console.log("generateManifestPDF method "); // debug
     const doc = new jsPDF();
     const { supplierName, courierName, lineItems, shopDetails, manifestName } = manifestData;
 
     const pageWidth = doc.internal.pageSize.getWidth(); // 210mm for A4
-    console.log("generateManifestPDF method li = ", lineItems); // debug
 
-    console.log("generateManifestPDF methodc name = = ", courierName); // debug
-
-    console.log("generateManifestPDF methodshop det = ", shopDetails); // debug
     // Logo — centered, above heading
     let headingY = 20; // default Y for "Manifest" if no logo
 
     if (shopDetails.logo) {
-        console.log("shopDetails.logo URL:", shopDetails.logo); // debug
         const logoBase64 = await fetchLogoAsBase64(shopDetails.logo);
         if (logoBase64) {
             const logoW = 40;
@@ -27,7 +21,6 @@ export const generateManifestPDF = async (manifestData: any) => {
             try {
                 doc.addImage(logoBase64, "PNG", logoX, logoY, logoW, logoH);
                 headingY = logoY + logoH + 8; // push heading below logo
-                console.log("Logo added to PDF at:", logoX, logoY);
             } catch (e) {
                 console.warn("addImage failed:", e);
             }
@@ -217,7 +210,6 @@ export const generateManifestPDF = async (manifestData: any) => {
 
 const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
     try {
-        console.log("Fetching logo from:", url);
 
         const response = await fetch(url, {
             credentials: "include", // sends Monday session cookies for protected URLs
@@ -229,16 +221,13 @@ const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
         }
 
         const blob = await response.blob();
-        console.log("Logo blob received, type:", blob.type, "size:", blob.size);
 
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = () => {
-                console.log("Logo base64 ready");
                 resolve(reader.result as string);
             };
             reader.onerror = () => {
-                console.warn("FileReader failed");
                 resolve(null);
             };
             reader.readAsDataURL(blob);

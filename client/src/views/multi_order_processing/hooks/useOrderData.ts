@@ -14,9 +14,7 @@ export const useOrderData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-
-        console.log("Fetching orders for Board ID:", ORDER_BOARD_ID);
-        const res: any = await monday.api(`query {
+          const res: any = await monday.api(`query {
           boards(ids: ${ORDER_BOARD_ID}) {
             items_page(limit: 100) {
               items {
@@ -34,45 +32,40 @@ export const useOrderData = () => {
           }
         }`);
 
-        console.log("GraphQL raw response:", res);
+          // Safety check for undefined response or internal GraphQL errors
+          if (!res) {
+              throw new Error("No response received from Monday API.");
+          }
 
-        // Safety check for undefined response or internal GraphQL errors
-        if (!res) {
-          throw new Error("No response received from Monday API.");
-        }
+          if (res.errors) {
+              console.error("GraphQL Errors detected:", res.errors);
+              throw new Error(res.errors[0].message);
+          }
 
-        if (res.errors) {
-          console.error("GraphQL Errors detected:", res.errors);
-          throw new Error(res.errors[0].message);
-        }
+          if (!res.data || !res.data.boards || res.data.boards.length === 0) {
+              throw new Error("No board data found. Verify the ORDER_BOARD_ID is correct.");
+          }
 
-        if (!res.data || !res.data.boards || res.data.boards.length === 0) {
-          throw new Error("No board data found. Verify the ORDER_BOARD_ID is correct.");
-        }
+          const items = res.data.boards[0].items_page.items;
+          
+          // Map the API response to friendly keys
+          const mappedOrders = items.map((item: any) => {
+              const orderObj: Order = { id: item.id, name: item.name };
 
-        const items = res.data.boards[0].items_page.items;
-        console.log("Items found:", items.length);
+              Object.entries(ORDER_ALL_COLUMN_IDS_MAP).forEach(([friendlyKey, columnId]) => {
+                  const colValue = item.column_values.find((cv: any) => cv.id === columnId);
+                  // Use display_value for complex types, otherwise fall back to text
+                  orderObj[friendlyKey] = colValue?.display_value || colValue?.text || "";
+              });
 
-        // Map the API response to friendly keys
-        const mappedOrders = items.map((item: any) => {
-          const orderObj: Order = { id: item.id, name: item.name };
-
-          Object.entries(ORDER_ALL_COLUMN_IDS_MAP).forEach(([friendlyKey, columnId]) => {
-            const colValue = item.column_values.find((cv: any) => cv.id === columnId);
-            // Use display_value for complex types, otherwise fall back to text
-            orderObj[friendlyKey] = colValue?.display_value || colValue?.text || "";
+              return orderObj;
           });
 
-          return orderObj;
-        });
-
-        console.log("Mapped Orders successfully:", mappedOrders);
-        setOrders(mappedOrders);
+          setOrders(mappedOrders);
       } catch (err: any) {
-        console.error("Error in useOrderData hook:", err);
-        setError(err.message || "Failed to fetch orders");
+          setError("Failed to fetch orders: " + err.message + err);
       } finally {
-        setLoading(false);
+          setLoading(false);
       }
     };
 

@@ -29,7 +29,6 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
 
     useEffect(() => {
         const fetchLineItems = async () => {
-            console.log("Fetch order line items ");
             try {
                 const res: any = await monday.api(`query {
                     boards(ids: ${ORDER_ITEM_BOARD_ID}) {
@@ -68,11 +67,9 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                 }`); //
 
                 const items = res.data?.boards?.[0]?.items_page?.items || [];
-                console.log("Order Line item all records ", items);
                 const map: Record<string, any[]> = {};
 
                 items.forEach((item: any) => {
-                    console.log("Order Line item each records ", item);
                     const orderCol = item.column_values.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
                     let orderId = orderCol?.linked_item_ids?.[0];
                     if (!orderId && orderCol?.value) {
@@ -87,10 +84,15 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                     }
                 });
 
-                console.log("Order Line item each records map = ", map);
                 setLineItemsMap(map);
             } catch (e) {
-                console.error("Failed to fetch line items:", e);
+                monday.execute("confirm", {
+                    message: "Failed to query Order Line Items: " + e.message,
+                    description: e,
+                    type: "error",
+                    confirmButtonText: "OK",
+                    excludeCancelButton: true,
+                });
             }
         };
         fetchLineItems();
