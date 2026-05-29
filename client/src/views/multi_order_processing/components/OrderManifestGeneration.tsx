@@ -353,9 +353,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                     const priceCol = pItem.column_values.find((cv: any) => cv.id === PRODUCT_ALL_COLUMN_IDS_MAP.SELLINGPRICE);
                     const priceValue = parseFloat(priceCol?.text?.replace(/[^0-9.]/g, "") || "0");
                     productPriceMap[String(pItem.id)] = priceValue;
+                    console.log("products " + productRes);
                 });
             }
-
+            console.log("products " + productPriceMap);
             // 4. Map and complement structural info across ALL selected items for the PDF Table
             const compiledFullLineItems = rawFetchedItems.map((item: any) => {
                 const getItemVal = (id: string) => item.column_values.find((cv: any) => cv.id === id);
@@ -527,7 +528,6 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             monday.execute("confirm", { message: "Manifest and Label Uploaded Successfully!", type: "success" });
             setSelectedLineItemIds(new Set());
         } catch (e: any) {
-            console.error("Manifest Creation Failed:", e);
             monday.execute("confirm", {
                 message: "Manifest Generation Failed: " + e.message,
                 description: e,

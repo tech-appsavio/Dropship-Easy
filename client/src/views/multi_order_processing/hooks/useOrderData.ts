@@ -47,7 +47,7 @@ export const useOrderData = () => {
           }
 
           const items = res.data.boards[0].items_page.items;
-          
+
           // Map the API response to friendly keys
           const mappedOrders = items.map((item: any) => {
               const orderObj: Order = { id: item.id, name: item.name };

@@ -233,7 +233,6 @@ const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
             reader.readAsDataURL(blob);
         });
     } catch (e) {
-        console.warn("Logo fetch error:", e);
         return null;
     }
 };
