@@ -1,8 +1,10 @@
 import express from 'express';
 const router = express.Router();
 import mondayRoutes from './monday';
+import shiprocketRoutes from './shiprocket';
 
 router.use(mondayRoutes);
+router.use(shiprocketRoutes);
 
 // serve client app
 router.use(express.static('client/build'));

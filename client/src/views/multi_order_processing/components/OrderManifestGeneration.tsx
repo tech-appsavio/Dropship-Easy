@@ -1,6 +1,6 @@
 // src/views/multi_order_processing/components/OrderManifestGeneration.tsx
 import React, { useState, useMemo } from "react";
-import { Button, Loader, Dropdown, Checkbox } from "@vibe/core";
+import { Button, Loader, Dropdown, Checkbox, Toast } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import {
     SUPPLIER_MANIFEST_BOARD_ID,
@@ -18,8 +18,10 @@ import {
 import mondaySdk from "monday-sdk-js";
 
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
+import { useToast } from "../hooks/useToast";
 import { generateManifestPDF } from "../utils/pdfGenerator";
 import { generateLabelPDF } from "../utils/labelPdfGenerator";
+import ShipRocketService from "../../../services/shiprocketCourier";
 
 // Dynamic columns configuration for easy extension
 const MANIFEST_OLI_TABLE_COLUMNS = [
@@ -36,6 +38,7 @@ const monday = mondaySdk();
 
 export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
     const { loading, ordersWithLineItems, boardColumns, refetch } = useCourierSelectionData(selectedOrderIds);
+    const { toast, showToast, hideToast } = useToast();
 
     // Cascading filtering and selection states
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -155,6 +158,118 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
         return { isValid: true, reason: `Ready to generate manifest for ${selectedLineItemIds.size} items.` };
     }, [selectedLineItemIds, filteredLineItems]);
 
+    // ── Shiprocket post-manifest flow ─────────────────────────────────────────
+    const runShiprocketFlow = async ({
+        shiprocketOrderId,
+        shiprocketShipmentId,
+        courierId,
+        supplierName,
+        supplierAddress,
+        supplierPhone,
+        supplierEmail,
+        supplierPostalCode,
+    }: {
+        shiprocketOrderId: string;
+        shiprocketShipmentId: string;
+        courierId: string;
+        supplierName: string;
+        supplierAddress: string;
+        supplierPhone: string;
+        supplierEmail: string;
+        supplierPostalCode: string;
+    }) => {
+        console.log("[SR Flow] Starting Shiprocket flow with inputs:", {
+            shiprocketOrderId,
+            shiprocketShipmentId,
+            courierId,
+            supplierName,
+            supplierAddress,
+            supplierPhone,
+            supplierEmail,
+            supplierPostalCode,
+        });
+
+        if (!shiprocketOrderId || !shiprocketShipmentId) {
+            console.warn("[SR Flow] Missing shiprocketOrderId or shiprocketShipmentId — aborting flow.", { shiprocketOrderId, shiprocketShipmentId });
+            showToast("Shiprocket Order ID or Shipment ID missing on order board — skipping Shiprocket flow.", "negative");
+            return;
+        }
+
+        // STEP 1 — Fetch all pickup locations
+        console.log("[SR Flow] STEP 1: Fetching all pickup locations from Shiprocket...");
+        const pickupRes = await ShipRocketService.getPickupLocations();
+        console.log("[SR Flow] STEP 1 Response (pickup locations):", JSON.stringify(pickupRes, null, 2));
+        const allPickups: any[] = pickupRes?.data?.shipping_address || [];
+        console.log("[SR Flow] STEP 1: Total pickup locations found:", allPickups.length);
+
+        // STEP 2 — Match supplier address against existing pickup locations
+        console.log("[SR Flow] STEP 2: Matching supplier address against pickup locations...");
+        console.log("[SR Flow] STEP 2: Supplier postal code:", supplierPostalCode);
+        console.log("[SR Flow] STEP 2: Supplier address:", supplierAddress);
+
+        const normalize = (s: string) => (s || "").toLowerCase().trim();
+        const addrWords = normalize(supplierAddress).split(/\s+/).filter((w) => w.length > 3);
+        console.log("[SR Flow] STEP 2: Address keywords for matching:", addrWords);
+
+        const matched = allPickups.find((p: any) => {
+            const pinMatch = normalize(p.pin_code) === normalize(supplierPostalCode);
+            const cityMatch = normalize(p.city) === normalize(supplierAddress.split(",")[0]) || normalize(supplierAddress).includes(normalize(p.city));
+            const stateMatch = normalize(supplierAddress).includes(normalize(p.state));
+            const addrMatch = addrWords.some((w) => normalize(p.address + " " + (p.address_2 || "")).includes(w));
+            console.log(`[SR Flow] STEP 2: Checking pickup "${p.pickup_location}" — pin:${pinMatch} city:${cityMatch} state:${stateMatch} addr:${addrMatch}`);
+            return pinMatch && (cityMatch || stateMatch || addrMatch);
+        });
+
+        console.log("[SR Flow] STEP 2: Matched pickup location:", matched ? matched.pickup_location : "NO MATCH — will create new");
+
+        let pickupLocationName: string;
+
+        if (matched) {
+            pickupLocationName = matched.pickup_location;
+            console.log("[SR Flow] STEP 2: Using existing pickup location:", pickupLocationName);
+        } else {
+            // STEP 3 — No match: create new pickup address
+            const parts = supplierAddress.split(",").map((s: string) => s.trim());
+            const addPickupPayload = {
+                pickup_location: supplierName,
+                name: supplierName,
+                email: supplierEmail || "noreply@example.com",
+                phone: supplierPhone.replace(/\D/g, "").slice(-10),
+                address: parts[0] || supplierAddress,
+                address_2: parts[1] || "",
+                city: parts[parts.length - 3] || "",
+                state: parts[parts.length - 2] || "",
+                country: "India",
+                pin_code: supplierPostalCode,
+                lat: "",
+                long: "",
+                vendor_name: supplierName,
+                phone_verified: true,
+            };
+            console.log("[SR Flow] STEP 3: Creating new pickup address with payload:", JSON.stringify(addPickupPayload, null, 2));
+            const addPickupRes = await ShipRocketService.addPickupAddress(addPickupPayload);
+            console.log("[SR Flow] STEP 3 Response (add pickup):", JSON.stringify(addPickupRes, null, 2));
+            pickupLocationName = supplierName;
+        }
+
+        // STEP 4 — Update pickup location on the Shiprocket order
+        console.log("[SR Flow] STEP 4: Updating pickup location on Shiprocket order...", { shiprocketOrderId, pickupLocationName });
+        const updatePickupRes = await ShipRocketService.updatePickupLocation(Number(shiprocketOrderId), pickupLocationName);
+        console.log("[SR Flow] STEP 4 Response (update pickup location):", JSON.stringify(updatePickupRes, null, 2));
+
+        // STEP 5 — Assign AWB
+        console.log("[SR Flow] STEP 5: Assigning AWB...", { shiprocketShipmentId, courierId });
+        const awbRes = await ShipRocketService.assignAWB(shiprocketShipmentId, courierId);
+        console.log("[SR Flow] STEP 5 Response (assign AWB):", JSON.stringify(awbRes, null, 2));
+
+        // STEP 6 — Generate pickup
+        console.log("[SR Flow] STEP 6: Generating pickup...", { shiprocketShipmentId });
+        const generatePickupRes = await ShipRocketService.generatePickup(shiprocketShipmentId);
+        console.log("[SR Flow] STEP 6 Response (generate pickup):", JSON.stringify(generatePickupRes, null, 2));
+
+        console.log("[SR Flow] ✅ Shiprocket flow completed successfully.");
+    };
+
     const fetchShopDetails = async () => {
         const res: any = await monday.api(`query {
             boards(ids: ${SHOPS_BOARD_ID}) {
@@ -266,6 +381,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             const baseSupplierName = getFirstVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER)?.display_value || "N/A";
             const baseCourierName = getFirstVal(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME)?.text || "N/A";
 
+            console.log("[Manifest] Line items fetched:", rawFetchedItems.length);
+            console.log("[Manifest] parentOrderId:", parentOrderId, "| baseSupplierId:", baseSupplierId, "| baseSupplierName:", baseSupplierName, "| baseCourierName:", baseCourierName);
+
             if (!parentOrderId) throw new Error("Order link missing on the primary selected line item.");
 
             // 2. Query Parent Order details (Address, Prices, Relations)
@@ -286,6 +404,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             const totalPrice = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE)?.text || "0";
             const paymentMethod = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD)?.text || "To be paid";
             const customerId = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER)?.linked_item_ids?.[0];
+            const shiprocketOrderId = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Order_ID)?.text || "";
+            const shiprocketShipmentId = getOrderVal(ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID)?.text || "";
+
+            console.log("[Manifest] Order data fetched:", { billingAddress, totalPrice, paymentMethod, customerId, shiprocketOrderId, shiprocketShipmentId });
 
             // 3. Query Customer Info
             let customerData = { name: "", phone: "", email: "" };
@@ -307,7 +429,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
             }
 
             // NEW: Fetch details for Supplier directly from the Supplier board
-            let supplierData = { address: "", phone: "", email: "" };
+            let supplierData = { address: "", phone: "", email: "", postalCode: "" };
             if (baseSupplierId) {
                 const suppRes: any = await monday.api(`query {
                     items(ids: [${baseSupplierId}]) {
@@ -321,12 +443,13 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 const suppItem = suppRes.data?.items?.[0];
                 if (suppItem) {
                     const getSuppCol = (id: string) => suppItem.column_values.find((cv: any) => cv.id === id);
-
                     supplierData = {
                         address: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.ADDRESS)?.text || "",
                         phone: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.PHONE)?.text || "",
                         email: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.EMAIL)?.text || "",
+                        postalCode: getSuppCol(SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE)?.text || "",
                     };
+                    console.log("[Manifest] Supplier data fetched:", supplierData);
                 }
             }
 
@@ -455,6 +578,22 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
                 { variables: { file: labelFile } },
             );
 
+            // ── Shiprocket post-manifest flow ─────────────────────────────────────────
+            const firstLineItem = filteredLineItems.find((li) => selectedLineItemIds.has(li.id));
+            const courierId = firstLineItem?.courierId || "";
+            console.log("[Manifest] Resolved courierId for SR flow:", courierId, "| from line item:", firstLineItem?.id);
+
+            await runShiprocketFlow({
+                shiprocketOrderId,
+                shiprocketShipmentId,
+                courierId,
+                supplierName: baseSupplierName,
+                supplierAddress: supplierData.address,
+                supplierPhone: supplierData.phone,
+                supplierEmail: supplierData.email,
+                supplierPostalCode: supplierData.postalCode,
+            });
+
             // ==========================================================
             // NEW STATUS & INTERBOARD RELATION UPDATES
             // ==========================================================
@@ -525,16 +664,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
             await refetch();
 
-            monday.execute("confirm", { message: "Manifest and Label Uploaded Successfully!", type: "success" });
+            showToast("Manifest and Label Uploaded Successfully!", "positive");
             setSelectedLineItemIds(new Set());
         } catch (e: any) {
-            monday.execute("confirm", {
-                message: "Manifest Generation Failed: " + e.message,
-                description: e,
-                type: "error",
-                confirmButtonText: "OK",
-                excludeCancelButton: true,
-            });
+            showToast("Manifest Generation Failed: " + e.message, "negative");
         } finally {
             setIsUpdating(false);
         }
@@ -544,6 +677,15 @@ export const OrderManifestGeneration = ({ selectedOrderIds }: { selectedOrderIds
 
     return (
         <div style={{ padding: "24px" }}>
+            <Toast
+                open={toast.open}
+                type={toast.type}
+                onClose={hideToast}
+                autoHideDuration={4000}
+                style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}
+            >
+                {toast.message}
+            </Toast>
             {/* 1. TOP ROW: Heading and Action Button aligned perfectly */}
             <div
                 style={{

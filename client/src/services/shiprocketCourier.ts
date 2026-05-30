@@ -1,69 +1,65 @@
-import { SHIPROCKET_LOGIN_URL, SHIPROCKET_EMAIL, SHIPROCKET_PASSWORD } from "../constants";
-
 class ShipRocketService {
-    /**
-     * Ports Python generate_token method
-     * Authenticates with ShipRocket and returns a JWT token
-     */
-    static async generateToken() {
-        const payload = {
-            email: SHIPROCKET_EMAIL,
-            password: SHIPROCKET_PASSWORD
-        };
-
-        try {
-            const response = await fetch(SHIPROCKET_LOGIN_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) throw new Error(`Auth failed: ${response.statusText}`);
-
-            const data = await response.json();
-            return {
-                success: true,
-                token: data.token,
-                error: null
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                token: null,
-                error: error.message
-            };
-        }
+    private static async post(path: string, body: object) {
+        const response = await fetch(path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        if (!response.ok) throw new Error(`${path} failed: ${response.statusText}`);
+        return response.json();
     }
 
-    /**
-     * Ports Python check_courier_serviceability method
-     * Checks which couriers can deliver from pickup to delivery pincode
-     */
     static async checkCourierServiceability(pickupPincode: string, deliveryPincode: string, weight: number = 0.5, cod: number = 0) {
-        const auth = await this.generateToken();
+        const params = new URLSearchParams({
+            pickup_postcode: pickupPincode,
+            delivery_postcode: deliveryPincode,
+            weight: String(weight),
+            cod: String(cod),
+        });
+        const response = await fetch(`/api/shiprocket/serviceability?${params}`);
+        if (!response.ok) throw new Error(`Serviceability check failed: ${response.statusText}`);
+        return response.json();
+    }
 
-        if (!auth.success) {
-            throw new Error(`ShipRocket Authentication Error: ${auth.error}`);
-        }
+    static async getPickupLocations(): Promise<any> {
+        const response = await fetch("/api/shiprocket/pickup-locations");
+        if (!response.ok) throw new Error(`Failed to fetch pickup locations: ${response.statusText}`);
+        return response.json();
+    }
 
-        const url = `https://apiv2.shiprocket.in/v1/external/courier/serviceability/?pickup_postcode=${pickupPincode}&delivery_postcode=${deliveryPincode}&weight=${weight}&cod=${cod}`;
+    static async addPickupAddress(payload: {
+        pickup_location: string;
+        name: string;
+        email: string;
+        phone: string;
+        address: string;
+        address_2?: string;
+        city: string;
+        state: string;
+        country: string;
+        pin_code: string;
+    }): Promise<any> {
+        return this.post("/api/shiprocket/pickup/add", payload);
+    }
 
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${auth.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+    static async updatePickupLocation(shiprocketOrderId: number, pickupLocation: string): Promise<any> {
+        return this.post("/api/shiprocket/pickup/update", {
+            order_id: [shiprocketOrderId],
+            pickup_location: pickupLocation,
+        });
+    }
 
-            if (!response.ok) throw new Error(`Serviceability check failed: ${response.statusText}`);
+    static async assignAWB(shipmentId: string, courierId: string): Promise<any> {
+        return this.post("/api/shiprocket/awb/assign", {
+            shipment_id: shipmentId,
+            courier_id: courierId,
+        });
+    }
 
-            return await response.json();
-        } catch (error: any) {
-            console.error("ShipRocket API Error:", error.message);
-            throw error;
-        }
+    static async generatePickup(shipmentId: string): Promise<any> {
+        return this.post("/api/shiprocket/pickup/generate", {
+            shipment_id: [shipmentId],
+        });
     }
 }
 

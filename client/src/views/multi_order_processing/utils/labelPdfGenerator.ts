@@ -211,8 +211,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
 
         const rawQty = getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY) || "1";
         const qty = parseInt(rawQty) || 1;
-        const rawUnit = getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.UNITPRICE) || "0";
-        const unitPrice = parseFloat(rawUnit.replace(/[^0-9.]/g, "")) || 0;
+        const unitPrice = typeof item.unitPrice === "number" ? item.unitPrice
+            : parseFloat((getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.UNITPRICE) || "0").replace(/[^0-9.]/g, "")) || 0;
         const calcTotal = qty * unitPrice;
 
         const skuDisplay = cleanDisplay(item.sku).substring(0, 11);

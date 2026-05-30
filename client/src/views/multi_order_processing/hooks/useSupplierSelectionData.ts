@@ -89,6 +89,7 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
         }
     };
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (selectedOrderIds.length > 0) fetchLineItems();
     }, [selectedOrderIds]);

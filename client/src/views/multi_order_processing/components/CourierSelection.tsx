@@ -1,6 +1,7 @@
 // src/views/multi_order_processing/components/CourierSelection.tsx
 import React, { useState, useMemo } from "react";
-import { Dropdown, Button, Loader, Checkbox, AttentionBox } from "@vibe/core";
+import { Dropdown, Button, Loader, Checkbox, Toast } from "@vibe/core";
+import { useToast } from "../hooks/useToast";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
 import ShipRocketService from "../../../services/shiprocketCourier";
@@ -21,6 +22,7 @@ const COURIER_OLI_COLUMN_IDS = [
 
 export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: string[] }) => {
     const { loading, ordersWithLineItems, allSuppliers, boardColumns, refetch } = useCourierSelectionData(selectedOrderIds);
+    const { toast, showToast, hideToast } = useToast();
     const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
     const [selectedPostalCode, setSelectedPostalCode] = useState<any>(null);
     const [selectedCourier, setSelectedCourier] = useState<any>(null);
@@ -32,15 +34,13 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
     const [isCouriersLoading, setIsCouriersLoading] = useState(false);
     const [courierError, setCourierError] = useState<string | null>(null);
 
-    const [rawError, setRawError] = useState<string | null>(null);
-
     // 1. Get postal codes for the selected supplier
     const deliveryPostalCodes = useMemo(() => {
         if (!selectedSupplier) return [];
         const codes = new Set<string>();
         ordersWithLineItems.forEach((o) => {
             const hasSupplier = o.lineItems.some((li: any) => li.supplierId === selectedSupplier.value);
-            if (hasSupplier && o.deliveryCode) codes.add(o.deliveryCode);
+            if (hasSupplier && o.customerPostalCode) codes.add(o.customerPostalCode);
         });
         return Array.from(codes).map((code) => ({ label: code, value: code }));
     }, [selectedSupplier, ordersWithLineItems]);
@@ -51,7 +51,7 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
         const items: any[] = [];
         ordersWithLineItems.forEach((o) => {
             // If postal code is selected, filter by both; otherwise filter by supplier only
-            const postalMatch = !selectedPostalCode || o.deliveryCode === selectedPostalCode.value;
+            const postalMatch = !selectedPostalCode || o.customerPostalCode === selectedPostalCode.value;
             if (postalMatch) {
                 o.lineItems.forEach((li: any) => {
                     if (li.supplierId === selectedSupplier.value) items.push(li);
@@ -99,6 +99,7 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
 
             if (!pickupZip || pickupZip === "-") {
                 setCourierError(`Pincode is missing on Supplier board for: ${selectedSupplier.label}`);
+                showToast(`Pincode is missing on Supplier board for: ${selectedSupplier.label}`, "negative");
                 setIsCouriersLoading(false);
                 return;
             }
@@ -152,16 +153,10 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 ? `Status: ${error.response.status} - ${JSON.stringify(error.response.data)}`
                 : error.message || "An unexpected error occurred";
 
-            setRawError(errorContent);
+            console.error("Courier fetch error:", errorContent);
             setCourierOptions([DEFAULT_COURIER]);
             setCourierError("Failed to fetch couriers. Defaulting to SP Store (Self).");
-            monday.execute("confirm", {
-                message: "Error fetching couriers: " + error.message,
-                description: error,
-                type: "error",
-                confirmButtonText: "OK",
-                excludeCancelButton: true,
-            });
+            showToast("Error fetching couriers: " + error.message, "negative");
         } finally {
             setIsCouriersLoading(false);
         }
@@ -204,18 +199,28 @@ export const CourierSelection = ({ selectedOrderIds }: { selectedOrderIds: strin
                 throw new Error(results.find((res: any) => res.errors).errors[0].message);
             }
             await refetch();
-            monday.execute("confirm", { message: "Couriers updated successfully!", type: "success" });
+            showToast("Couriers updated successfully!", "positive");
             setSelectedLineItemIds(new Set());
         } catch (e: any) {
-            monday.execute("confirm", { message: `Update failed: ${e.message}. Error: ${e}`, type: "error" });
+            showToast(`Update failed: ${e.message}`, "negative");
         } finally {
             setIsUpdating(false);
         }
     };
     if (loading) return <Loader size={40} />;
 
+
     return (
         <div style={{ padding: "24px" }}>
+            <Toast
+                open={toast.open}
+                type={toast.type}
+                onClose={hideToast}
+                autoHideDuration={4000}
+                style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}
+            >
+                {toast.message}
+            </Toast>
             <div
                 style={{
                     display: "flex",

@@ -18,6 +18,8 @@ export const ORDER_ALL_COLUMN_IDS_MAP = {
     ASSIGNEE: "multiple_person_mm37ek4z",
     PAYMENTMETHOD: "color_mm3ba5yb",
     CUSTOMER: "board_relation_mkrwaecz",
+    Shiprocket_Order_ID: "text_mm3fy8xt",
+    Shiprocket_Shipment_ID: "text_mm3fvanv",
 };
 export const ORDER_COLUMN_LABELS_VISIBLE = ["Name", "OrderId", "STATUS", "TOTAL_PRICE", "BILLING_ADDRESS", "CREATEDDATE", "PARENTORDER", "ASSIGNEE"];
 
@@ -86,5 +88,6 @@ export const SHOPS_ALL_COLUMN_IDS_MAP = {
 export const CUSTOMER_ALL_COLUMN_IDS_MAP = {
     PHONE: "phone_mm35nqte",
     EMAIL: "email_mkrtmgvw",
+    POSTAL_CODE: "text_mkt939k3",
 };
 

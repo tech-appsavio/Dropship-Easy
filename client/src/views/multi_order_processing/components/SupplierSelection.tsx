@@ -1,6 +1,6 @@
 // src/views/multi_order_processing/components/SupplierSelection.tsx
 import React, { useState, useMemo } from "react";
-import { Dropdown, Button, Loader, Table, TableHeader, TableHeaderCell, TableBody, TableRow, TableCell, Checkbox } from "@vibe/core";
+import { Dropdown, Button, Loader, Checkbox } from "@vibe/core";
 import { useSupplierSelectionData } from "../hooks/useSupplierSelectionData";
 import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_COLUMN_LABELS_VISIBLE, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 import mondaySdk from "monday-sdk-js";

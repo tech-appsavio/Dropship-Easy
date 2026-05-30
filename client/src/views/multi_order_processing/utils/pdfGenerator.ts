@@ -4,7 +4,7 @@ import autoTable from "jspdf-autotable";
 
 export const generateManifestPDF = async (manifestData: any) => {
     const doc = new jsPDF();
-    const { supplierName, courierName, lineItems, shopDetails, manifestName } = manifestData;
+    const { supplierName, courierName, lineItems, shopDetails } = manifestData;
 
     const pageWidth = doc.internal.pageSize.getWidth(); // 210mm for A4
 

@@ -1,5 +1,5 @@
 // src/views/multi_order_processing/components/IndeterminateCheckbox.tsx
-import React, { useState, useMemo } from "react";
+import React from "react";
 
 // Add the 'export' keyword here
 export const IndeterminateCheckbox = ({ checked, indeterminate, onChange }: any) => {

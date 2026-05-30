@@ -1,7 +1,7 @@
 // src/views/multi_order_processing/hooks/useCourierSelectionData.ts
 import { useState, useEffect, useMemo } from "react";
 import mondaySdk from "monday-sdk-js";
-import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP } from "../constants";
 
 const monday = mondaySdk();
 
@@ -41,8 +41,14 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                             name
                             column_values(ids: [
                                 "${ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE}",
-                                "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}"
-                            ]) { id text }
+                                "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}",
+                                "${ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER}",
+                                "${ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Order_ID}",
+                                "${ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID}"
+                            ]) {
+                                id text value
+                                ... on BoardRelationValue { linked_item_ids }
+                            }
                         }
                     }
                 }
@@ -74,13 +80,40 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
             });
             setBoardColumns(colMap);
 
-            // 3. Filter and Map Data
+            // 3. Fetch customer postal codes
+            const filteredOrders = orderRes.data.boards[0].items_page.items.filter((o: any) => selectedOrderIds.includes(o.id));
+            const customerIds = filteredOrders.reduce((acc: string[], o: any) => {
+                const customerCol = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER);
+                const customerId = getLinkedItemId(customerCol);
+                if (customerId && !acc.includes(customerId)) acc.push(customerId);
+                return acc;
+            }, []);
+
+            const customerPostalMap: Record<string, string> = {};
+            if (customerIds.length > 0) {
+                const customerRes: any = await monday.api(`query {
+                    items(ids: [${customerIds.join(",")}]) {
+                        id
+                        column_values(ids: ["${CUSTOMER_ALL_COLUMN_IDS_MAP.POSTAL_CODE}"]) { id text }
+                    }
+                }`);
+                (customerRes.data?.items || []).forEach((c: any) => {
+                    const postal = c.column_values?.[0]?.text || "";
+                    if (postal) customerPostalMap[c.id] = postal;
+                });
+            }
+
+            // 4. Filter and Map Data
             const allLineItems = liRes.data.boards[0].items_page.items;
-            const orders = orderRes.data.boards[0].items_page.items
-                .filter((o: any) => selectedOrderIds.includes(o.id))
+            const orders = filteredOrders
                 .map((o: any) => {
                     const deliveryCode = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE)?.text || "";
                     const orderId = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.ORDERID)?.text || "";
+                    const shiprocketOrderId = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Order_ID)?.text || "";
+                    const shiprocketShipmentId = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID)?.text || "";
+                    const customerCol = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER);
+                    const customerId = getLinkedItemId(customerCol);
+                    const customerPostalCode = customerId ? customerPostalMap[customerId] || "" : "";
 
                     const items = allLineItems
                         .map((li: any) => {
@@ -105,7 +138,7 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                         })
                         .filter((li: any) => li.linkedOrderId === o.id);
 
-                    return { ...o, deliveryCode, orderId, lineItems: items };
+                    return { ...o, deliveryCode, orderId, shiprocketOrderId, shiprocketShipmentId, customerPostalCode, lineItems: items };
                 });
 
             setOrdersWithLineItems(orders);
@@ -115,7 +148,7 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
         setLoading(false);
     };
 
-    // Single useEffect for initial load and ID changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         fetchData();
     }, [selectedOrderIds]);
