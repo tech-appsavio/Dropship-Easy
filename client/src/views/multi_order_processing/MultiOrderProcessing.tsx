@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { Button } from "@vibe/core";
 import { OrderProcessingPath } from "./components/OrderProcessingPath";
 import { OrderSelection } from "./components/OrderSelection";
 import { SupplierSelection } from "./components/SupplierSelection";
-
 import { CourierSelection } from "./components/CourierSelection";
 import { OrderManifestGeneration } from "./components/OrderManifestGeneration";
 
@@ -26,7 +24,6 @@ export const MultiOrderProcessing: React.FC = () => {
 
     const goNext = () => {
         if (view === "MANIFEST") {
-            // Finish & reset
             setSelectedOrderIds(new Set());
             setView("ORDERS");
         } else {
@@ -45,25 +42,13 @@ export const MultiOrderProcessing: React.FC = () => {
             {/* Active screen — no nav buttons inside */}
             <div style={{ minHeight: 400 }}>
 
-                {view === "ORDERS" && <OrderSelection selectedOrderIds={selectedOrderIds} onSelectionChange={setSelectedOrderIds} />}
-                {view === "SUPPLIERS" && <SupplierSelection selectedOrderIds={Array.from(selectedOrderIds)} />}
-                {view === "COURIERS" && <CourierSelection selectedOrderIds={Array.from(selectedOrderIds)} />}
-                {view === "MANIFEST" && <OrderManifestGeneration selectedOrderIds={Array.from(selectedOrderIds)} />}
+                {view === "ORDERS" && <OrderSelection selectedOrderIds={selectedOrderIds} onSelectionChange={setSelectedOrderIds} onNext={goNext} isNextDisabled={isNextDisabled} />}
+                {view === "SUPPLIERS" && <SupplierSelection selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
+                {view === "COURIERS" && <CourierSelection selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
+                {view === "MANIFEST" && <OrderManifestGeneration selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
             </div>
 
-            {/* Centralized Prev / Next navigation */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24, paddingTop: 16, borderTop: "1px solid #eee" }}>
-                <div>
-                    {config.prevLabel && (
-                        <Button kind={Button.kinds.TERTIARY} onClick={goPrev}>
-                            ← {config.prevLabel}
-                        </Button>
-                    )}
-                </div>
-                <Button kind={Button.kinds.PRIMARY} disabled={isNextDisabled} onClick={goNext}>
-                    {config.nextLabel} →
-                </Button>
-            </div>
+            {/* Nav handled inside each screen component */}
         </div>
     );
 };

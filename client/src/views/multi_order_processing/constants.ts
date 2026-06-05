@@ -6,6 +6,7 @@ export const SUPPLIER_BOARD_ID = 2026772810;
 export const SUPPLIER_PRODUCT_BOARD_ID = 2026788711;
 export const SUPPLIER_MANIFEST_BOARD_ID = 2031231767;
 export const SHOPS_BOARD_ID = 2040921882;
+export const SHIPMENTS_BOARD_ID=2040851662;
 export const ORDER_ALL_COLUMN_IDS_MAP = {
     ORDERID: "text_mkrmx2wg",
     STATUS: "status",
@@ -20,8 +21,9 @@ export const ORDER_ALL_COLUMN_IDS_MAP = {
     CUSTOMER: "board_relation_mkrwaecz",
     Shiprocket_Order_ID: "text_mm3fy8xt",
     Shiprocket_Shipment_ID: "text_mm3fvanv",
+    Shiprocket_AWB_ID: "text_mm3y4kwz",
 };
-export const ORDER_COLUMN_LABELS_VISIBLE = ["Name", "OrderId", "STATUS", "TOTAL_PRICE", "BILLING_ADDRESS", "CREATEDDATE", "PARENTORDER", "ASSIGNEE"];
+export const ORDER_COLUMN_LABELS_VISIBLE = ["Name", "Created Date", "OrderId", "Status", "Total Price", "Billing Address", "Shiprocket Order ID", "Shiprocket Shipment ID", "Shiprocket AWB ID"];
 
 export const ORDERLINEITEMS_ALL_COLUMN_IDS_MAP = {
     QUANTITY: "numeric_mks0z4t6",
@@ -39,7 +41,20 @@ export const ORDERLINEITEMS_ALL_COLUMN_IDS_MAP = {
     SUPPLIERMANIFEST: "board_relation_mks3c0r1",
     COD_STATUS: "numeric_mm3adxqz",
 };
-export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "Quantity", "UnitPrice", "SKU", "Product Code", "SUPPLIER", "PRODUCT", "STATUS"];
+export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "Quantity", "Unit Price", "SKU", "Product Code", "Supplier", "Product", "Status"];
+
+export const SHIPMENTS_ALL_COLUMN_IDS_MAP = {
+
+    Orders: "board_relation_mm3zqm5d",
+    Assigned_Date: "text_mm3zt0b8",
+    Courier_Company_Id: "text_mm3zm9rs",
+    Courier_Name: "text_mm3zncdd",
+    Shipper_Company_Name: "text_mm3zeta6",
+    Shipper_Address: "long_text_mm3z53hc",
+    Pickup_Scheduled_Date: "text_mm3zq70d",
+    Pickup_Generated_Date: "text_mm3zq6jh",
+    };
+
 
 export const PRODUCT_ALL_COLUMN_IDS_MAP = {
     PRODUCTCODE: "text_mks0wx1y",
@@ -54,6 +69,10 @@ export const SUPPLIER_ALL_COLUMN_IDS_MAP = {
     RATING: "text_mkrv6ppp",
     SELFOWNED: "boolean_mkxfqgtj",
     ADDRESS: "long_text_mkrvdvsx",
+    City: "text_mkrv1a29",
+    State: "text_mkrvv8rn",
+    Country: "text_mkrvyc0m",
+    
 };
 
 export const SUPPLIER_PRODUCT_COLUMN_IDS_MAP = {

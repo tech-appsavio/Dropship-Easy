@@ -9,7 +9,19 @@ import {
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
 } from "../constants";
 
-// Map line item labels → column IDs for value lookup
+// Explicit label → order object key map (keys match ORDER_ALL_COLUMN_IDS_MAP entries)
+const ORDER_LABEL_TO_KEY: Record<string, string> = {
+    "Name":                   "name",
+    "Created Date":           "CREATEDDATE",
+    "OrderId":                "ORDERID",
+    "Status":                 "STATUS",
+    "Total Price":            "TOTAL_PRICE",
+    "Billing Address":        "BILLING_ADDRESS",
+    "Parent Order":           "PARENTORDER",
+    "Shiprocket Order ID":    "Shiprocket_Order_ID",
+    "Shiprocket Shipment ID": "Shiprocket_Shipment_ID",
+    "Shiprocket AWB ID":      "Shiprocket_AWB_ID",
+};
 const LI_LABEL_TO_COL_ID: Record<string, string> = {
     Quantity: ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY,
     UnitPrice: ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.UNITPRICE,
@@ -49,26 +61,41 @@ export const ExpandableOrderRow: React.FC<{
     return (
         <>
             {/* Order row */}
-            <tr style={{ borderBottom: "1px solid #dcdcdc", backgroundColor: isExpanded ? "#f0f4ff" : "white" }}>
-                <td style={{ padding: "12px", textAlign: "center" }}>
+            <tr style={{ borderBottom: "1px solid #d0d4e0", backgroundColor: isExpanded ? "#f0f4ff" : "white" }}>
+                <td style={{ padding: "12px 16px", textAlign: "center", border: "1px solid #d0d4e0" }}>
                     <input type="checkbox" checked={isSelected} onChange={() => onSelect(order.id)} />
                 </td>
                 {ORDER_COLUMN_LABELS_VISIBLE.map((label) => {
-                    const key = label.toUpperCase();
+                    const key = ORDER_LABEL_TO_KEY[label] ?? label.toUpperCase();
                     const rawValue = label === "Name" ? order.name : order[key];
-                    const displayValue = typeof rawValue === "object" ? getDisplayValue(rawValue) : rawValue;
+                    
+                    let displayValue: string;
+                    if (rawValue && typeof rawValue === "object") {
+                        displayValue = getDisplayValue(rawValue);
+                    } else if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+                        // Format Created Date as "4 June 2026"
+                        if (label === "Created Date" && typeof rawValue === "string" && rawValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                            const [year, month, day] = rawValue.split("-").map(Number);
+                            const date = new Date(year, month - 1, day);
+                            const monthName = date.toLocaleString("en-US", { month: "long" });
+                            displayValue = `${day} ${monthName} ${year}`;
+                        } else {
+                            displayValue = String(rawValue);
+                        }
+                    } else {
+                        displayValue = "-";
+                    }
 
                     return (
-                        <td key={label} style={{ padding: "12px", cursor: label === "Name" ? "pointer" : "default" }}>
+                        <td key={label} style={{ padding: "12px 16px", textAlign: "center", border: "1px solid #d0d4e0", whiteSpace: label === "BILLING_ADDRESS" ? "normal" : "nowrap", minWidth: 140 }}>
                             {label === "Name" ? (
-                                <div style={{ display: "flex", alignItems: "center" }}>
-                                    <span onClick={() => setIsExpanded(!isExpanded)} style={{ marginRight: 8, fontSize: 11, color: "#676879" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <span onClick={() => setIsExpanded(!isExpanded)} style={{ marginRight: 8, fontSize: 11, color: "#676879", cursor: "pointer" }}>
                                         {isExpanded ? "▼" : "▶"}
                                     </span>
-                                    {/* CLICKABLE LINK FOR ORDER */}
                                     <a
                                         href={getMondayUrl(ORDER_BOARD_ID, order.id)}
-                                        target="_top" // Use _top to break out of the iframe and navigate the main window
+                                        target="_top"
                                         rel="noopener noreferrer"
                                         style={{ color: "#0073ea", textDecoration: "none" }}
                                     >
@@ -85,22 +112,23 @@ export const ExpandableOrderRow: React.FC<{
             {/* Line items sub-table */}
             {isExpanded && (
                 <tr>
-                    {/* Ensure colSpan accounts for the checkbox + all visible columns */}
                     <td colSpan={ORDER_COLUMN_LABELS_VISIBLE.length + 1} style={{ padding: 0, backgroundColor: "#f6f7fb" }}>
-                        <div style={{ borderLeft: "3px solid #0073ea", marginLeft: "48px" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <div style={{ borderLeft: "3px solid #0073ea", marginLeft: "48px", overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
                                 <thead>
-                                    <tr style={{ backgroundColor: "#eef0f5", borderBottom: "1px solid #e0e2e9" }}>
-                                        {/* Explicitly mapping the labels to show the header */}
+                                    <tr style={{ backgroundColor: "#e8eaf2" }}>
                                         {ORDERLINEITEMS_COLUMN_LABELS_VISIBLE.map((label) => (
                                             <th
                                                 key={label}
                                                 style={{
-                                                    padding: "8px 12px",
-                                                    textAlign: "left",
+                                                    padding: "9px 14px",
+                                                    textAlign: "center",
                                                     fontSize: "12px",
-                                                    fontWeight: 600,
-                                                    color: "#676879",
+                                                    fontWeight: 700,
+                                                    color: "#323338",
+                                                    border: "1px solid #c8cbe0",
+                                                    whiteSpace: "nowrap",
+                                                    minWidth: 110,
                                                 }}
                                             >
                                                 {label}
@@ -110,13 +138,13 @@ export const ExpandableOrderRow: React.FC<{
                                 </thead>
                                 <tbody>
                                     {lineItems.map((li) => (
-                                        <tr key={li.id} style={{ borderBottom: "1px solid #e6e9ef" }}>
+                                        <tr key={li.id} style={{ backgroundColor: "#fff" }}>
                                             {ORDERLINEITEMS_COLUMN_LABELS_VISIBLE.map((label) => {
                                                 const colId = LI_LABEL_TO_COL_ID[label];
                                                 const col = li.column_values?.find((cv: any) => cv.id === colId);
 
                                                 return (
-                                                    <td key={label} style={{ padding: "8px 12px", fontSize: "13px" }}>
+                                                    <td key={label} style={{ padding: "8px 14px", fontSize: "13px", textAlign: "center", border: "1px solid #c8cbe0", whiteSpace: "nowrap", minWidth: 110 }}>
                                                         {label === "Name" ? (
                                                             <a
                                                                 href={getMondayUrl(ORDER_ITEM_BOARD_ID, li.id)}
@@ -126,7 +154,6 @@ export const ExpandableOrderRow: React.FC<{
                                                                 {li.name}
                                                             </a>
                                                         ) : (
-                                                            // Call your getDisplayValue helper here
                                                             getDisplayValue(col)
                                                         )}
                                                     </td>

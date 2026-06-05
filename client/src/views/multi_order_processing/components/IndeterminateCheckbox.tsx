@@ -17,7 +17,7 @@ export const IndeterminateCheckbox = ({ checked, indeterminate, onChange }: any)
             ref={ref}
             checked={checked}
             onChange={onChange}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "pointer", width: 16, height: 16, display: "block", margin: "0 auto" }}
         />
     );
 };
