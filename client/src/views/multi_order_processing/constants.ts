@@ -19,6 +19,7 @@ export const ORDER_ALL_COLUMN_IDS_MAP = {
     ASSIGNEE: "multiple_person_mm37ek4z",
     PAYMENTMETHOD: "color_mm3ba5yb",
     CUSTOMER: "board_relation_mkrwaecz",
+    
     Shiprocket_Order_ID: "text_mm3fy8xt",
     Shiprocket_Shipment_ID: "text_mm3fvanv",
     Shiprocket_AWB_ID: "text_mm3y4kwz",
