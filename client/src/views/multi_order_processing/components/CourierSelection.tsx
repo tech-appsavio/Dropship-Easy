@@ -1,67 +1,138 @@
-import React, { useState, useMemo } from "react";
-import { Dropdown, Button, Loader, Checkbox, Toast } from "@vibe/core";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import ReactDOM from "react-dom";
+import { Dropdown, Button, Loader, Toast } from "@vibe/core";
 import { useToast } from "../hooks/useToast";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
-import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 import ShipRocketService from "../../../services/shiprocketCourier";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import mondaySdk from "monday-sdk-js";
+import { btn, TH, TD, filterBar, sectionTitle, paginationBtn, COLOR } from "../styles";
 
 const monday = mondaySdk();
 
-const COURIER_OLI_COLUMN_IDS = [
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER,
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT,
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME,
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIERMANIFEST,
-    ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS,
-];
+const DEFAULT_COURIER = { label: "SP Store (Self)", value: "SP Store (Self)", freight_charge: 0, rating: 0, etd: "-", cod_charges: 0, rto_charges: 0, tag: "Best" };
 
-const thStyle: React.CSSProperties = {
-    padding: "12px 16px",
-    textAlign: "center",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#323338",
-    border: "1px solid #d0d4e0",
-    whiteSpace: "nowrap",
-    minWidth: 140,
-    backgroundColor: "#f1f3f5",
+const TAG_STYLES: Record<string, React.CSSProperties> = {
+    Best:    { background: "#e6f4ea", color: "#137333", border: "1px solid #a8d5b5" },
+    Good:    { background: "#e8f0fe", color: "#1a73e8", border: "1px solid #a8c4f5" },
+    Average: { background: "#fff8e1", color: "#b45309", border: "1px solid #f5d97a" },
+    Poor:    { background: "#fce8e6", color: "#c5221f", border: "1px solid #f5b4b0" },
 };
 
-const tdStyle: React.CSSProperties = {
-    padding: "10px 16px",
-    textAlign: "center",
-    border: "1px solid #d0d4e0",
-    fontSize: 13,
-    whiteSpace: "nowrap",
-    minWidth: 140,
+const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, rto_charges }: any) => {
+    const [tooltip, setTooltip] = React.useState<{ x: number; y: number } | null>(null);
+    const ref = useRef<HTMLDivElement>(null);
+
+    const showTooltip = () => {
+        if (!ref.current) return;
+        const rect = ref.current.getBoundingClientRect();
+        setTooltip({ x: rect.left, y: rect.top });
+    };
+
+    const hasDetails = (freight_charge !== undefined) || (rating && rating > 0) || (etd && etd !== "-") || (cod_charges > 0) || (rto_charges > 0);
+
+    return (
+        <div
+            ref={ref}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "2px 0", width: "100%" }}
+            onMouseEnter={showTooltip}
+            onMouseLeave={() => setTooltip(null)}
+        >
+            <span style={{ fontSize: 13, color: "#323338", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                {freight_charge !== undefined && (
+                    <span style={{ fontSize: 11, color: "#676879", whiteSpace: "nowrap" }}>₹{freight_charge}</span>
+                )}
+                {tag && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>{tag}</span>
+                )}
+            </div>
+            {tooltip && hasDetails && ReactDOM.createPortal(
+                <div style={{
+                    position: "fixed",
+                    top: tooltip.y - 8,
+                    left: tooltip.x,
+                    transform: "translateY(-100%)",
+                    zIndex: 99999,
+                    background: "#fff",
+                    border: "1px solid #e2e4e9",
+                    borderRadius: 8,
+                    padding: "12px 16px",
+                    boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
+                    pointerEvents: "none",
+                    minWidth: 200,
+                }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#323338", marginBottom: 8, borderBottom: "1px solid #f0f0f0", paddingBottom: 6 }}>
+                        {label}
+                        {tag && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>{tag}</span>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        {freight_charge !== undefined && (
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                <span style={{ fontSize: 12, color: "#676879" }}>Freight</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>₹{freight_charge}</span>
+                            </div>
+                        )}
+                        {rating !== undefined && rating > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                <span style={{ fontSize: 12, color: "#676879" }}>Rating</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>⭐ {rating}</span>
+                            </div>
+                        )}
+                        {etd && etd !== "-" && (
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                <span style={{ fontSize: 12, color: "#676879" }}>Est. Delivery</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>{etd}</span>
+                            </div>
+                        )}
+                        {cod_charges > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                <span style={{ fontSize: 12, color: "#676879" }}>COD Charges</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>₹{cod_charges}</span>
+                            </div>
+                        )}
+                        {rto_charges > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                <span style={{ fontSize: 12, color: "#676879" }}>RTO Charges</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#c5221f" }}>₹{rto_charges}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
 };
 
-const navBtnStyle = (disabled: boolean): React.CSSProperties => ({
-    padding: "10px 22px",
-    borderRadius: 6,
-    border: "1px solid #d0d4e0",
-    background: disabled ? "#f4f5f7" : "#fff",
-    color: disabled ? "#aaa" : "#323338",
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 14,
-    fontWeight: 500,
-});
 
-const primaryBtnStyle = (disabled: boolean): React.CSSProperties => ({
-    padding: "10px 22px",
-    borderRadius: 6,
-    background: disabled ? "#c5c7d4" : "#0073ea",
-    color: "#fff",
-    border: "none",
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 14,
-    fontWeight: 600,
-    boxShadow: disabled ? "none" : "0 2px 8px rgba(0,115,234,0.3)",
-    transition: "all 0.2s ease",
-});
+interface RowCourierState {
+    options: any[];
+    loading: boolean;
+    error: string | null;
+    selected: any;
+}
+
+const formatNumeric = (raw: string): string => {
+    if (!raw) return "";
+    const n = parseFloat(raw);
+    return !isNaN(n) ? String(n) : raw;
+};
+
+const getRobustValue = (column_values: any[], colId: string): string => {
+    const cv = column_values?.find((c: any) => c.id === colId);
+    if (!cv) return "";
+    if (cv.display_value) return cv.display_value;
+    if (cv.text) return cv.text;
+    if (cv.value) {
+        try {
+            const parsed = JSON.parse(cv.value);
+            return typeof parsed === "object" ? parsed.value || parsed.text || "" : String(parsed);
+        } catch { return cv.value; }
+    }
+    return "";
+};
 
 export const CourierSelection = ({
     selectedOrderIds,
@@ -72,134 +143,352 @@ export const CourierSelection = ({
     onPrev: () => void;
     onNext: () => void;
 }) => {
-    const { loading, ordersWithLineItems, allSuppliers, boardColumns, refetch } = useCourierSelectionData(selectedOrderIds);
+    const { loading, lineItems, refetch } = useCourierSelectionData(selectedOrderIds);
     const { toast, showToast, hideToast } = useToast();
-    const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
-    const [selectedPostalCode, setSelectedPostalCode] = useState<any>(null);
-    const [selectedCourier, setSelectedCourier] = useState<any>(null);
-    const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
+    const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
     const [isUpdating, setIsUpdating] = useState(false);
-    const [courierOptions, setCourierOptions] = useState<any[]>([]);
-    const [isCouriersLoading, setIsCouriersLoading] = useState(false);
-    const [courierError, setCourierError] = useState<string | null>(null);
+    const [rowCourierMap, setRowCourierMap] = useState<Record<string, RowCourierState>>({});
+    const [selectedOrderFilter, setSelectedOrderFilter] = useState<any>(null);
+    const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<any>(null);
+    const [selectedProductFilter, setSelectedProductFilter] = useState<any>(null);
+    const [selectedCourierFilter, setSelectedCourierFilter] = useState<any>(null);
+    const [selectedSkuFilter, setSelectedSkuFilter] = useState<any>(null);
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState<any>(null);
+    const [selectedPickupPostalFilter, setSelectedPickupPostalFilter] = useState<any>(null);
+    const [selectedDeliveryPostalFilter, setSelectedDeliveryPostalFilter] = useState<any>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [showFilters, setShowFilters] = useState(false);
 
-    const deliveryPostalCodes = useMemo(() => {
-        if (!selectedSupplier) return [];
-        const codes = new Set<string>();
-        ordersWithLineItems.forEach((o) => {
-            const hasSupplier = o.lineItems.some((li: any) => li.supplierId === selectedSupplier.value);
-            if (hasSupplier && o.customerPostalCode) codes.add(o.customerPostalCode);
-        });
-        return Array.from(codes).map((code) => ({ label: code, value: code }));
-    }, [selectedSupplier, ordersWithLineItems]);
+    const resetFilters = () => {
+        setSelectedOrderFilter(null); setSelectedSupplierFilter(null); setSelectedProductFilter(null);
+        setSelectedCourierFilter(null); setSelectedSkuFilter(null); setSelectedStatusFilter(null);
+        setSelectedPickupPostalFilter(null); setSelectedDeliveryPostalFilter(null);
+        setSelectedRowIds(new Set()); setCurrentPage(1);
+    };
 
-    const filteredLineItems = useMemo(() => {
-        if (!selectedSupplier) return [];
-        const items: any[] = [];
-        ordersWithLineItems.forEach((o) => {
-            const postalMatch = !selectedPostalCode || o.customerPostalCode === selectedPostalCode.value;
-            if (postalMatch) {
-                o.lineItems.forEach((li: any) => {
-                    if (li.supplierId === selectedSupplier.value) items.push(li);
-                });
-            }
+    const orderOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        lineItems.forEach((item) => {
+            if (item.linkedOrderId && item.orderName) map.set(item.linkedOrderId, item.orderName);
         });
+        return Array.from(map.entries()).map(([id, name]) => ({ value: id, label: name }));
+    }, [lineItems]);
+
+    const supplierOptions = useMemo(() => {
+        const base = selectedOrderFilter ? lineItems.filter((i) => i.linkedOrderId === selectedOrderFilter.value) : lineItems;
+        const map = new Map<string, string>();
+        base.forEach((i) => { if (i.supplierId && i.supplierName) map.set(i.supplierId, i.supplierName); });
+        return Array.from(map.entries()).map(([id, name]) => ({ value: id, label: name }));
+    }, [lineItems, selectedOrderFilter]);
+
+    const productOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        lineItems.forEach((i) => {
+            const col = i.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT);
+            const name = col?.display_value?.trim();
+            const id = col?.linked_item_ids?.[0];
+            if (id && name) map.set(id, name);
+        });
+        return Array.from(map.entries()).map(([id, name]) => ({ value: id, label: name }));
+    }, [lineItems]);
+
+    const courierFilterOptions = useMemo(() => {
+        const set = new Set<string>();
+        lineItems.forEach((i) => { if (i.courierName?.trim()) set.add(i.courierName.trim()); });
+        return Array.from(set).map((c) => ({ value: c, label: c }));
+    }, [lineItems]);
+
+    const skuOptions = useMemo(() => {
+        const set = new Set<string>();
+        lineItems.forEach((i) => {
+            const sku = i.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU)?.text?.trim();
+            if (sku) set.add(sku);
+        });
+        return Array.from(set).map((s) => ({ value: s, label: s }));
+    }, [lineItems]);
+
+    const statusOptions = useMemo(() => {
+        const set = new Set<string>();
+        lineItems.forEach((i) => {
+            const s = i.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS)?.text?.trim();
+            if (s) set.add(s);
+        });
+        return Array.from(set).map((s) => ({ value: s, label: s }));
+    }, [lineItems]);
+
+    const pickupPostalOptions = useMemo(() => {
+        const set = new Set<string>();
+        lineItems.forEach((i) => { if (i.supplierPostalCode?.trim()) set.add(i.supplierPostalCode.trim()); });
+        return Array.from(set).map((s) => ({ value: s, label: s }));
+    }, [lineItems]);
+
+    const deliveryPostalOptions = useMemo(() => {
+        const set = new Set<string>();
+        lineItems.forEach((i) => { if (i.customerPostalCode?.trim()) set.add(i.customerPostalCode.trim()); });
+        return Array.from(set).map((s) => ({ value: s, label: s }));
+    }, [lineItems]);
+
+    const displayedLineItems = useMemo(() => {
+        let items = lineItems;
+        if (selectedOrderFilter)        items = items.filter((i) => i.linkedOrderId === selectedOrderFilter.value);
+        if (selectedSupplierFilter)     items = items.filter((i) => i.supplierId === selectedSupplierFilter.value);
+        if (selectedProductFilter)      items = items.filter((i) => {
+            const col = i.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT);
+            return col?.linked_item_ids?.[0] === selectedProductFilter.value;
+        });
+        if (selectedCourierFilter)      items = items.filter((i) => i.courierName?.trim() === selectedCourierFilter.value);
+        if (selectedSkuFilter)          items = items.filter((i) => {
+            const sku = i.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU)?.text?.trim();
+            return sku === selectedSkuFilter.value;
+        });
+        if (selectedStatusFilter)       items = items.filter((i) => {
+            const s = i.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS)?.text?.trim();
+            return s === selectedStatusFilter.value;
+        });
+        if (selectedPickupPostalFilter)  items = items.filter((i) => i.supplierPostalCode?.trim() === selectedPickupPostalFilter.value);
+        if (selectedDeliveryPostalFilter) items = items.filter((i) => i.customerPostalCode?.trim() === selectedDeliveryPostalFilter.value);
         return items;
-    }, [selectedSupplier, selectedPostalCode, ordersWithLineItems]);
+    }, [lineItems, selectedOrderFilter, selectedSupplierFilter, selectedProductFilter, selectedCourierFilter,
+        selectedSkuFilter, selectedStatusFilter, selectedPickupPostalFilter, selectedDeliveryPostalFilter]);
 
-    const queryCouriers = async (deliveryZip: string) => {
-        setIsCouriersLoading(true);
-        setCourierError(null);
-        setCourierOptions([]);
-        const DEFAULT_COURIER = { label: "SP Store (Self)", value: "SP Store (Self)" };
-        try {
-            const supplierRes: any = await monday.api(`query {
-                items(ids: [${selectedSupplier.value}]) {
-                    column_values(ids: ["${SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE}"]) { text value }
+    const hasActiveFilters = selectedOrderFilter || selectedSupplierFilter || selectedProductFilter ||
+        selectedCourierFilter || selectedSkuFilter || selectedStatusFilter ||
+        selectedPickupPostalFilter || selectedDeliveryPostalFilter;
+
+    const getSplitOrderId = (item: any): string => {
+        const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
+        return col?.linked_item_ids?.[0] || "";
+    };
+
+    // rowKey = splitOrderId for split items, lineItemId for non-split
+    const getRowKey = (item: any): string => getSplitOrderId(item) || item.id;
+
+    const sortedDisplayedLineItems = useMemo(() => [...displayedLineItems].sort((a, b) => {
+        const oCmp = (a.orderName || "").localeCompare(b.orderName || "");
+        if (oCmp !== 0) return oCmp;
+        const aSplit = getSplitOrderId(a);
+        const bSplit = getSplitOrderId(b);
+        if (aSplit && !bSplit) return -1;
+        if (!aSplit && bSplit) return 1;
+        if (aSplit && bSplit) { const sCmp = aSplit.localeCompare(bSplit); if (sCmp !== 0) return sCmp; }
+        return (a.name || "").localeCompare(b.name || "");
+    }), [displayedLineItems]);
+
+    const totalPages = Math.ceil(sortedDisplayedLineItems.length / pageSize) || 1;
+    const paginatedLineItems = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return sortedDisplayedLineItems.slice(start, start + pageSize);
+    }, [sortedDisplayedLineItems, currentPage, pageSize]);
+
+    // orderSpans: rowSpan by linked order; splitSpans: rowSpan by split group (1 for non-split)
+    const { orderSpans, splitSpans } = useMemo(() => {
+        const orderSpans: Record<string, number> = {};
+        const splitSpans: Record<string, number> = {};
+        let i = 0;
+        while (i < paginatedLineItems.length) {
+            const orderId = paginatedLineItems[i].linkedOrderId;
+            let j = i;
+            while (j < paginatedLineItems.length && paginatedLineItems[j].linkedOrderId === orderId) j++;
+            orderSpans[paginatedLineItems[i].id] = j - i;
+            for (let k = i + 1; k < j; k++) orderSpans[paginatedLineItems[k].id] = 0;
+            let m = i;
+            while (m < j) {
+                const splitId = getSplitOrderId(paginatedLineItems[m]);
+                if (splitId) {
+                    let n = m;
+                    while (n < j && getSplitOrderId(paginatedLineItems[n]) === splitId) n++;
+                    splitSpans[paginatedLineItems[m].id] = n - m;
+                    for (let k = m + 1; k < n; k++) splitSpans[paginatedLineItems[k].id] = 0;
+                    m = n;
+                } else {
+                    splitSpans[paginatedLineItems[m].id] = 1;
+                    m++;
                 }
-            }`);
-            const supplierCol = supplierRes.data?.items?.[0]?.column_values?.[0];
-            let pickupZip = supplierCol?.text || "";
-            if (!pickupZip && supplierCol?.value) {
-                try {
-                    const parsed = JSON.parse(supplierCol.value);
-                    pickupZip = typeof parsed === "object" ? parsed.value || parsed.text : String(parsed);
-                } catch { pickupZip = supplierCol.value; }
             }
-            if (!pickupZip || pickupZip === "-") {
-                setCourierError(`Pincode is missing on Supplier board for: ${selectedSupplier.label}`);
-                showToast(`Pincode is missing on Supplier board for: ${selectedSupplier.label}`, "negative");
-                setIsCouriersLoading(false);
+            i = j;
+        }
+        return { orderSpans, splitSpans };
+    }, [paginatedLineItems]);
+
+    // Auto-fetch couriers once per unique rowKey (one fetch per split order, one per non-split item)
+    useEffect(() => {
+        if (lineItems.length === 0) return;
+        const groups = new Map<string, any[]>();
+        lineItems.forEach((item: any) => {
+            const key = getRowKey(item);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(item);
+        });
+        groups.forEach((items, key) => {
+            if (rowCourierMap[key]) return;
+            fetchCouriersForKey(key, items);
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lineItems]);
+
+    // Auto-populate courier dropdown if already set
+    useEffect(() => {
+        const groups = new Map<string, any[]>();
+        lineItems.forEach((item: any) => {
+            const key = getRowKey(item);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(item);
+        });
+        groups.forEach((items, key) => {
+            const rowState = rowCourierMap[key];
+            if (!rowState || rowState.loading || rowState.selected) return;
+            const first = items[0];
+            const existingCourierName = first.courierName?.trim();
+            const existingCourierId = first.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID)?.text?.trim();
+            if (existingCourierName || existingCourierId) {
+                const matching = rowState.options.find((opt: any) =>
+                    opt.label === existingCourierName || opt.value === existingCourierId
+                );
+                if (matching) {
+                    setRowCourierMap((prev) => ({ ...prev, [key]: { ...prev[key], selected: matching } }));
+                } else if (existingCourierName) {
+                    const opt = { label: existingCourierName, value: existingCourierId || existingCourierName };
+                    setRowCourierMap((prev) => ({
+                        ...prev,
+                        [key]: { ...prev[key], options: [opt, ...prev[key].options], selected: opt },
+                    }));
+                }
+            }
+        });
+    }, [lineItems, rowCourierMap]);
+
+    const fetchCouriersForKey = async (key: string, items: any[]) => {
+        const first = items[0];
+        const pickupZip = first.supplierPostalCode;
+        const deliveryZip = first.customerPostalCode;
+        const totalWeight = items.reduce((sum: number, item: any) =>
+            sum + (parseFloat(getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTWEIGHT) || "0") || 0), 0) || 0.5;
+        const isCOD = items.some((item: any) => {
+            const v = getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS);
+            return v?.toLowerCase() === "yes" || v === "1" || v === "true";
+        });
+        console.log(`[CourierSelection] fetchCouriersForKey key=${key} pickup=${pickupZip} delivery=${deliveryZip} weight=${totalWeight} cod=${isCOD ? 1 : 0}`);
+
+        setRowCourierMap((prev) => ({ ...prev, [key]: { options: [], loading: true, error: null, selected: null } }));
+
+        if (!pickupZip || !deliveryZip) {
+            const error = !pickupZip ? "Supplier postal code missing" : "Customer postal code missing";
+            setRowCourierMap((prev) => ({ ...prev, [key]: { options: [DEFAULT_COURIER], loading: false, error, selected: null } }));
+            return;
+        }
+
+        try {
+            const response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0);
+            const companies: any[] = response?.data?.available_courier_companies || [];
+
+            if (companies.length === 0) {
+                setRowCourierMap((prev) => ({ ...prev, [key]: { options: [DEFAULT_COURIER], loading: false, error: "No couriers found, defaulting.", selected: DEFAULT_COURIER } }));
                 return;
             }
-            const item = filteredLineItems.find((li) => li.supplierId === selectedSupplier.value);
-            if (!item) { setCourierError("No line item context found."); return; }
 
-            const getRobustValue = (colId: string) => {
-                const cv = item.column_values?.find((c: any) => c.id === colId);
-                if (!cv) return null;
-                if (cv.display_value) return cv.display_value;
-                if (cv.text) return cv.text;
-                if (cv.value) {
-                    try {
-                        const parsed = JSON.parse(cv.value);
-                        return typeof parsed === "object" ? parsed.value || parsed.text : String(parsed);
-                    } catch { return cv.value; }
-                }
-                return null;
-            };
-            const weight = parseFloat(getRobustValue(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.TOTALPRODUCTWEIGHT) || "0.5") || 0.5;
-            const codRaw = getRobustValue(ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS);
-            const cod = codRaw?.toLowerCase() === "yes" || codRaw === "1" || codRaw === "true" ? 1 : 0;
+            const charges = companies.map((c) => c.freight_charge || 0);
+            const ratings = companies.map((c) => c.rating || 0);
+            const minCharge = Math.min(...charges), maxCharge = Math.max(...charges);
+            const minRating = Math.min(...ratings), maxRating = Math.max(...ratings);
 
-            const response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, weight, cod);
-            if (response?.data?.available_courier_companies?.length > 0) {
-                setCourierOptions(response.data.available_courier_companies.map((c: any) => ({
-                    label: `${c.courier_name} (₹${c.freight_charge})`,
-                    value: String(c.courier_company_id),
-                })));
-            } else {
-                setCourierOptions([DEFAULT_COURIER]);
-                setCourierError("No serviceability found. Defaulting to SP Store (Self).");
-            }
-        } catch (error: any) {
-            setCourierOptions([DEFAULT_COURIER]);
-            setCourierError("Failed to fetch couriers. Defaulting to SP Store (Self).");
-            showToast("Error fetching couriers: " + error.message, "negative");
-        } finally {
-            setIsCouriersLoading(false);
+            const scored = companies.map((c) => {
+                const normPrice = maxCharge === minCharge ? 1 : (maxCharge - c.freight_charge) / (maxCharge - minCharge);
+                const normRating = maxRating === minRating ? 1 : (c.rating - minRating) / (maxRating - minRating);
+                return { ...c, _score: 0.55 * normPrice + 0.45 * normRating };
+            }).sort((a, b) => b._score - a._score);
+
+            const total = scored.length;
+            const options = scored.map((c, idx) => {
+                const pct = total === 1 ? 0 : idx / (total - 1);
+                const tag = pct <= 0.25 ? "Best" : pct <= 0.5 ? "Good" : pct <= 0.75 ? "Average" : "Poor";
+                return { label: c.courier_name, value: String(c.courier_company_id), freight_charge: c.freight_charge, rating: c.rating, etd: c.etd || "-", cod_charges: c.cod_charges || 0, rto_charges: c.rto_charges || 0, tag };
+            });
+
+            setRowCourierMap((prev) => ({ ...prev, [key]: { options, loading: false, error: null, selected: options.length === 1 ? options[0] : null } }));
+        } catch (e: any) {
+            setRowCourierMap((prev) => ({ ...prev, [key]: { options: [DEFAULT_COURIER], loading: false, error: "Failed to fetch couriers.", selected: DEFAULT_COURIER } }));
         }
     };
 
-    const handlePostalChange = async (val: any) => {
-        setSelectedPostalCode(val);
-        setSelectedCourier(null);
-        if (val && selectedSupplier) await queryCouriers(val.value);
+    const handleSelectBestForAll = () => {
+        setRowCourierMap((prev) => {
+            const next = { ...prev };
+            for (const key of Object.keys(next)) {
+                const state = next[key];
+                if (!state || state.loading || !state.options.length) continue;
+                const best = state.options.find((o: any) => o.tag === "Best") || state.options[0];
+                if (best) next[key] = { ...state, selected: best };
+            }
+            return next;
+        });
+        // Auto-check all rows that have loaded options so user can immediately hit Update Courier
+        const selectableKeys = new Set(
+            lineItems
+                .map((item: any) => getRowKey(item))
+                .filter((key: string) => {
+                    const state = rowCourierMap[key];
+                    return state && !state.loading && state.options.length > 0;
+                })
+        );
+        setSelectedRowIds(selectableKeys);
     };
 
+    const hasBestSelectableRows = useMemo(() =>
+        Object.keys(rowCourierMap).some((k) => { const s = rowCourierMap[k]; return !s.loading && s.options.length > 0; })
+    , [rowCourierMap]);
+
+    const canUpdate = useMemo(() => {
+        if (selectedRowIds.size === 0) return false;
+        return Array.from<string>(selectedRowIds).every((rowId) => {
+            const item = lineItems.find((i: any) => getRowKey(i) === rowId);
+            if (!item) return false;
+            return !!item.supplierName?.trim() && (!!rowCourierMap[rowId]?.selected || !!item.courierName?.trim());
+        });
+    }, [selectedRowIds, rowCourierMap, lineItems]);
+
     const handleUpdateCourier = async () => {
-        if (!selectedCourier || selectedLineItemIds.size === 0) return;
+        if (!canUpdate) return;
         setIsUpdating(true);
         try {
-            const updatePromises = Array.from(selectedLineItemIds).map((itemId: string) => {
-                const columnValues: any = {
-                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID]: selectedCourier.value,
-                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME]: selectedCourier.label,
-                    [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Ready for Manifest Generation" },
-                };
-                return monday.api(`mutation {
-                    change_multiple_column_values(
-                        item_id: ${itemId},
-                        board_id: ${ORDER_ITEM_BOARD_ID},
-                        column_values: "${JSON.stringify(columnValues).replace(/"/g, '\\"')}"
-                    ) { id }
-                }`);
+            // Build groups so all items sharing a rowKey get the same courier
+            const groups = new Map<string, any[]>();
+            lineItems.forEach((item: any) => {
+                const key = getRowKey(item);
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key)!.push(item);
             });
-            const results: any = await Promise.all(updatePromises);
+
+            await Promise.all(
+                Array.from<string>(selectedRowIds).map(async (rowId) => {
+                    const items = groups.get(rowId) || [];
+                    if (items.length === 0) return;
+                    const rowState = rowCourierMap[rowId];
+                    const first = items[0];
+                    const courier = rowState?.selected || (first.courierName
+                        ? { label: first.courierName, value: first.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID)?.text || first.courierName }
+                        : null);
+                    if (!courier) return;
+
+                    const columnValues = {
+                        [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID]: courier.value,
+                        [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME]: courier.label,
+                        [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Courier Selected" },
+                    };
+                    await Promise.all(items.map((item: any) =>
+                        monday.api(`mutation {
+                            change_multiple_column_values(
+                                item_id: ${item.id},
+                                board_id: ${ORDER_ITEM_BOARD_ID},
+                                column_values: "${JSON.stringify(columnValues).replace(/"/g, '\\"')}"
+                            ) { id }
+                        }`)
+                    ));
+                })
+            );
             await refetch();
-            if (results.some((r: any) => r.errors)) throw new Error(results.find((r: any) => r.errors).errors[0].message);
             showToast("Couriers updated successfully!", "positive");
-            setSelectedLineItemIds(new Set());
+            setSelectedRowIds(new Set());
         } catch (e: any) {
             showToast(`Update failed: ${e.message}`, "negative");
         } finally {
@@ -207,7 +496,9 @@ export const CourierSelection = ({
         }
     };
 
-    if (loading) return <Loader size={40} />;
+    if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}><Loader size={40} /></div>;
+
+    const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" };
 
     return (
         <div>
@@ -215,102 +506,258 @@ export const CourierSelection = ({
                 {toast.message}
             </Toast>
 
-            {/* Header row — matches OrderSelection layout */}
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "20px",
-                }}
-            >
-                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Courier Selection</h3>
-                <Button disabled={!selectedCourier || selectedLineItemIds.size === 0 || isUpdating} loading={isUpdating} onClick={handleUpdateCourier}>
-                    Update Courier
-                </Button>
-            </div>
-
-            {/* Dropdowns — matches OrderSelection toolbar style */}
-            <div style={{ display: "flex", gap: 10, marginBottom: "16px", alignItems: "flex-end", flexWrap: "wrap", position: "relative", zIndex: 10 }}>
-                <div style={{ flex: "1 1 180px", minWidth: "160px" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px", color: "#323338" }}>Supplier:</label>
-                    <Dropdown options={allSuppliers} value={selectedSupplier} onChange={(v: any) => { setSelectedSupplier(v); setSelectedPostalCode(null); }} />
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div>
+                    <h3 style={sectionTitle}>Courier Selection</h3>
+                    <p style={{ margin: "3px 0 0", fontSize: 13, color: COLOR.textMuted }}>Assign couriers to each line item</p>
                 </div>
-                <div style={{ flex: "1 1 180px", minWidth: "160px" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px", color: "#323338" }}>Delivery Postal Code:</label>
-                    <Dropdown options={deliveryPostalCodes} value={selectedPostalCode} onChange={handlePostalChange} disabled={!selectedSupplier} />
-                </div>
-                <div style={{ flex: "1 1 180px", minWidth: "160px" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px", color: "#323338" }}>Courier:</label>
-                    <div style={{ position: "relative" }}>
-                        <Dropdown options={courierOptions} value={selectedCourier} onChange={(v: any) => setSelectedCourier(v)} disabled={!selectedPostalCode || isCouriersLoading} placeholder={isCouriersLoading ? "Loading..." : "Select Courier"} />
-                        {isCouriersLoading && <div style={{ position: "absolute", right: "35px", top: "8px" }}><Loader size={20} /></div>}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                            onClick={() => setShowFilters((v) => !v)}
+                            style={{ ...btn(showFilters || !!hasActiveFilters ? "primary" : "secondary"), padding: "9px 16px" }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
+                                <path d="M1.5 2.5A.5.5 0 0 1 2 2h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.146.354l-4.5 4.5V13.5a.5.5 0 0 1-.724.447l-2-1A.5.5 0 0 1 7 12.5V9.354l-4.5-4.5A.5.5 0 0 1 2 4.5v-2z" />
+                            </svg>
+                            Filters{hasActiveFilters ? ` (${[selectedOrderFilter, selectedSupplierFilter, selectedProductFilter, selectedCourierFilter, selectedSkuFilter, selectedStatusFilter, selectedPickupPostalFilter, selectedDeliveryPostalFilter].filter(Boolean).length})` : ""}
+                        </button>
+                        <button
+                            onClick={handleSelectBestForAll}
+                            disabled={!hasBestSelectableRows || isUpdating}
+                            style={{
+                                ...btn("secondary"),
+                                display: "flex", alignItems: "center", gap: 6,
+                                borderColor: hasBestSelectableRows ? "#f59e0b" : undefined,
+                                color: hasBestSelectableRows ? "#92400e" : undefined,
+                                background: hasBestSelectableRows ? "#fffbea" : undefined,
+                            }}
+                        >
+                            ⭐ Select Best for All
+                        </button>
+                        <Button disabled={!canUpdate || isUpdating} loading={isUpdating} onClick={handleUpdateCourier}>
+                            Update Courier ({selectedRowIds.size})
+                        </Button>
                     </div>
-                    {courierError && <p style={{ color: "red", fontSize: "12px", margin: "4px 0 0 0" }}>{courierError}</p>}
+                    {selectedRowIds.size > 0 && !canUpdate && (
+                        <p style={{ margin: 0, fontSize: 12, color: COLOR.danger }}>
+                            {Array.from<string>(selectedRowIds).some((rowId) => !lineItems.find((i: any) => getRowKey(i) === rowId)?.supplierName?.trim())
+                                ? "Supplier and courier must be selected for each checked row"
+                                : "Select a courier for each checked row"}
+                        </p>
+                    )}
                 </div>
             </div>
 
-            {!selectedSupplier && <p style={{ color: "#676879", fontStyle: "italic", fontSize: 13, marginBottom: 12 }}>Please select a supplier to view line items</p>}
-            {selectedSupplier && !selectedPostalCode && <p style={{ color: "#676879", fontStyle: "italic", fontSize: 13, marginBottom: 12 }}>Select a Delivery Postal Code to filter further and assign a courier</p>}
+            {/* Filter panel */}
+            {showFilters && <div style={{ marginBottom: 16 }}>
+                {/* Row 1 */}
+                <div style={{ ...filterBar, marginBottom: 8, zIndex: 22 }}>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Order</label>
+                        <Dropdown placeholder="All Orders" options={orderOptions} value={selectedOrderFilter}
+                            onChange={(val: any) => { setSelectedOrderFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Supplier</label>
+                        <Dropdown placeholder="All Suppliers" options={supplierOptions} value={selectedSupplierFilter}
+                            onChange={(val: any) => { setSelectedSupplierFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Product</label>
+                        <Dropdown placeholder="All Products" options={productOptions} value={selectedProductFilter}
+                            onChange={(val: any) => { setSelectedProductFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Courier</label>
+                        <Dropdown placeholder="All Couriers" options={courierFilterOptions} value={selectedCourierFilter}
+                            onChange={(val: any) => { setSelectedCourierFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                </div>
+                {/* Row 2 */}
+                <div style={{ ...filterBar, marginBottom: 0, zIndex: 20 }}>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>SKU</label>
+                        <Dropdown placeholder="All SKUs" options={skuOptions} value={selectedSkuFilter}
+                            onChange={(val: any) => { setSelectedSkuFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Status</label>
+                        <Dropdown placeholder="All Statuses" options={statusOptions} value={selectedStatusFilter}
+                            onChange={(val: any) => { setSelectedStatusFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Pickup Postal</label>
+                        <Dropdown placeholder="All" options={pickupPostalOptions} value={selectedPickupPostalFilter}
+                            onChange={(val: any) => { setSelectedPickupPostalFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label style={labelStyle}>Delivery Postal</label>
+                        <Dropdown placeholder="All" options={deliveryPostalOptions} value={selectedDeliveryPostalFilter}
+                            onChange={(val: any) => { setSelectedDeliveryPostalFilter(val); setSelectedRowIds(new Set()); setCurrentPage(1); }} />
+                    </div>
+                    {hasActiveFilters && (
+                        <button onClick={resetFilters} style={{ ...btn("ghost"), alignSelf: "flex-end", marginBottom: 2 }}>
+                            ✕ Clear All
+                        </button>
+                    )}
+                </div>
+            </div>}
 
-            {/* Table — matches OrderSelection table structure */}
-            <div style={{ overflowX: "auto", border: "1px solid #d0d4e0", borderRadius: 6 }}>
-                <div style={{ overflowY: "auto", maxHeight: 420 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-                        <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0, zIndex: 5 }}>
+            {/* Table */}
+            <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: 420, border: `1px solid ${COLOR.border}`, borderRadius: 10 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+                    <thead>
+                        <tr>
+                            <th style={{ ...TH, width: 36, minWidth: 36, padding: "9px 4px" }}>
+                                <IndeterminateCheckbox
+                                    checked={paginatedLineItems.length > 0 && [...new Set(paginatedLineItems.map(getRowKey))].every((k) => selectedRowIds.has(k))}
+                                    indeterminate={(() => { const keys = [...new Set(paginatedLineItems.map(getRowKey))]; return keys.some((k) => selectedRowIds.has(k)) && !keys.every((k) => selectedRowIds.has(k)); })()}
+                                    onChange={() => {
+                                        const keys = [...new Set(paginatedLineItems.map(getRowKey))];
+                                        const allSel = keys.every((k) => selectedRowIds.has(k));
+                                        const next = new Set(selectedRowIds);
+                                        keys.forEach((k) => allSel ? next.delete(k) : next.add(k));
+                                        setSelectedRowIds(next);
+                                    }}
+                                />
+                            </th>
+                            <th style={TH}>Order</th>
+                            <th style={TH}>Split Order</th>
+                            {["Name","SKU","Weight","COD","Pickup Postal","Delivery Postal","Supplier","Current Courier","Status"].map(h => <th key={h} style={TH}>{h}</th>)}
+                            <th style={{ ...TH, minWidth: 400 }}>Courier</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedDisplayedLineItems.length > 0 ? paginatedLineItems.map((item, idx) => {
+                            const rowKey = getRowKey(item);
+                            const rowState = rowCourierMap[rowKey];
+                            const splitId = getSplitOrderId(item);
+                            const isSplit = !!splitId;
+                            const splitName = isSplit
+                                ? (item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS)?.display_value || splitId)
+                                : "-";
+                            const skuCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU);
+                            const statusCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS);
+                            const statusText = statusCol?.text || "-";
+                            const orderSpan = orderSpans[item.id];
+                            const splitSpan = splitSpans[item.id];
+
+                            // Border for regular (non-rowspanned) cells — based on this row's position
+                            const nextItem = idx < paginatedLineItems.length - 1 ? paginatedLineItems[idx + 1] : null;
+                            const isLastInOrder = !nextItem || nextItem.linkedOrderId !== item.linkedOrderId;
+                            const rowDivider: React.CSSProperties = isLastInOrder
+                                ? { borderBottom: "2px solid #5c6b8a" }
+                                : { borderBottom: "1px solid #b8bccb" };
+
+                            // Border for split-group rowspanned cells — based on the LAST row of the span
+                            const lastSpanRowIdx = splitSpan > 0 ? idx + splitSpan - 1 : idx;
+                            const nextAfterSpan = lastSpanRowIdx + 1 < paginatedLineItems.length ? paginatedLineItems[lastSpanRowIdx + 1] : null;
+                            const isSpanLastInOrder = !nextAfterSpan || nextAfterSpan.linkedOrderId !== item.linkedOrderId;
+                            const spanDivider: React.CSSProperties = isSpanLastInOrder
+                                ? { borderBottom: "2px solid #5c6b8a" }
+                                : { borderBottom: "1px solid #b8bccb" };
+
+                            return (
+                                <tr key={item.id} style={{ backgroundColor: selectedRowIds.has(rowKey) ? "#f0f7ff" : COLOR.white, transition: "background 0.15s" }}>
+                                    {splitSpan !== 0 && (
+                                        <td style={{ ...TD, ...spanDivider, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                            <input type="checkbox" checked={selectedRowIds.has(rowKey)}
+                                                onChange={() => {
+                                                    const next = new Set(selectedRowIds);
+                                                    next.has(rowKey) ? next.delete(rowKey) : next.add(rowKey);
+                                                    setSelectedRowIds(next);
+                                                }}
+                                                style={{ width: 14, height: 14, cursor: "pointer", display: "block", margin: "0 auto", accentColor: "#0073ea" }} />
+                                        </td>
+                                    )}
+                                    {orderSpan !== 0 && (
+                                        <td style={{ ...TD, borderBottom: "2px solid #5c6b8a", verticalAlign: "middle", fontWeight: 600 }} rowSpan={orderSpan > 1 ? orderSpan : undefined}>
+                                            {item.orderName || "-"}
+                                        </td>
+                                    )}
+                                    {splitSpan !== 0 && (
+                                        <td style={{ ...TD, ...spanDivider, verticalAlign: "middle", fontWeight: isSplit ? 500 : undefined }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                            {splitName}
+                                        </td>
+                                    )}
+                                    <td style={{ ...TD, ...rowDivider }}>{item.name}</td>
+                                    <td style={{ ...TD, ...rowDivider }}>{skuCol?.text || "-"}</td>
+                                    <td style={{ ...TD, ...rowDivider }}>{formatNumeric(getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTWEIGHT)) || "-"}</td>
+                                    <td style={{ ...TD, ...rowDivider }}>{getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS) || "-"}</td>
+                                    <td style={{ ...TD, ...rowDivider }}>{item.supplierPostalCode || "-"}</td>
+                                    <td style={{ ...TD, ...rowDivider }}>{item.customerPostalCode || "-"}</td>
+                                    {splitSpan !== 0 && (
+                                        <td style={{ ...TD, ...spanDivider, verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                            {item.supplierName || "-"}
+                                        </td>
+                                    )}
+                                    {splitSpan !== 0 && (
+                                        <td style={{ ...TD, ...spanDivider, verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                            {item.courierName || "-"}
+                                        </td>
+                                    )}
+                                    <td style={{ ...TD, ...rowDivider }}>
+                                        <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                                            background: statusText === "Courier Selected" ? COLOR.successLight : COLOR.bgHeader,
+                                            color: statusText === "Courier Selected" ? COLOR.success : COLOR.textMuted,
+                                            border: `1px solid ${statusText === "Courier Selected" ? "#a8d5b5" : COLOR.border}` }}>
+                                            {statusText}
+                                        </span>
+                                    </td>
+                                    {splitSpan !== 0 && (
+                                        <td style={{ ...TD, ...spanDivider, minWidth: 400, padding: "6px 10px", verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                            {rowState?.loading ? (
+                                                <Loader size={20} />
+                                            ) : (
+                                                <>
+                                                    <Dropdown
+                                                        placeholder="Select courier..."
+                                                        options={rowState?.options || []}
+                                                        value={rowState?.selected || null}
+                                                        onChange={(val: any) => setRowCourierMap((prev: any) => ({ ...prev, [rowKey]: { ...prev[rowKey], selected: val } }))}
+                                                        menuPosition="fixed" menuPlacement="auto"
+                                                        menuStyles={{ minWidth: 400, width: "max-content", maxWidth: 500 }}
+                                                        optionRenderer={(opt: any) => <CourierOption label={opt.label} tag={opt.tag} freight_charge={opt.freight_charge} rating={opt.rating} etd={opt.etd} cod_charges={opt.cod_charges} rto_charges={opt.rto_charges} />}
+                                                        valueRenderer={(opt: any) => <CourierOption label={opt.label} tag={opt.tag} freight_charge={opt.freight_charge} rating={opt.rating} etd={opt.etd} cod_charges={opt.cod_charges} rto_charges={opt.rto_charges} />}
+                                                    />
+                                                    {rowState?.error && <p style={{ margin: "2px 0 0", fontSize: 11, color: COLOR.danger }}>{rowState.error}</p>}
+                                                </>
+                                            )}
+                                        </td>
+                                    )}
+                                </tr>
+                            );
+                        }) : (
                             <tr>
-                                <th style={{ padding: "12px 16px", width: 50, border: "1px solid #d0d4e0", textAlign: "center", backgroundColor: "#f1f3f5" }}>
-                                    <IndeterminateCheckbox
-                                        checked={filteredLineItems.length > 0 && selectedLineItemIds.size === filteredLineItems.length}
-                                        indeterminate={selectedLineItemIds.size > 0 && selectedLineItemIds.size < filteredLineItems.length}
-                                        onChange={() => setSelectedLineItemIds(
-                                            selectedLineItemIds.size === filteredLineItems.length ? new Set() : new Set(filteredLineItems.map((i) => i.id))
-                                        )}
-                                    />
-                                </th>
-                                <th style={thStyle}>Name</th>
-                                {COURIER_OLI_COLUMN_IDS.map((colId) => (
-                                    <th key={colId} style={thStyle}>{boardColumns[colId] || colId}</th>
-                                ))}
+                                <td colSpan={13} style={{ padding: 40, textAlign: "center", color: COLOR.textMuted, fontSize: 13 }}>
+                                    {hasActiveFilters ? "No line items match the selected filters." : "No line items found for the selected orders."}
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody style={{ display: "table-row-group" }}>
-                            {filteredLineItems.map((item) => (
-                                <tr key={item.id} style={{ backgroundColor: "#fff" }}>
-                                    <td style={{ padding: "12px 16px", width: 50, textAlign: "center", border: "1px solid #d0d4e0", verticalAlign: "middle" }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedLineItemIds.has(item.id)}
-                                            onChange={() => {
-                                                const next = new Set(selectedLineItemIds);
-                                                next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                                                setSelectedLineItemIds(next);
-                                            }}
-                                        />
-                                    </td>
-                                    <td style={tdStyle}>{item.name}</td>
-                                    {COURIER_OLI_COLUMN_IDS.map((colId) => {
-                                        const col = item.column_values?.find((cv: any) => cv.id === colId);
-                                        return <td key={colId} style={tdStyle}>{col?.display_value || col?.text || "-"}</td>;
-                                    })}
-                                </tr>
-                            ))}
-                            {filteredLineItems.length === 0 && (
-                                <tr>
-                                    <td colSpan={COURIER_OLI_COLUMN_IDS.length + 2} style={{ padding: "32px", textAlign: "center", color: "#676879", fontSize: 13, border: "1px solid #d0d4e0" }}>
-                                        No line items to display.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                        )}
+                    </tbody>
+                </table>
             </div>
 
-            {/* Bottom nav — matches OrderSelection bottom bar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 12, paddingBottom: 24, borderTop: "1px solid #eee" }}>
-                <button onClick={onPrev} style={navBtnStyle(false)}>← Back to Suppliers</button>
-                <button onClick={onNext} style={primaryBtnStyle(false)}>Go to Manifest Generation →</button>
+            {/* Pagination */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={paginationBtn(currentPage === 1)}>← Prev</button>
+                    <span style={{ fontSize: 12, fontWeight: 600, padding: "5px 12px", border: `1px solid ${COLOR.border}`, borderRadius: 6, background: COLOR.bg }}>{currentPage} / {totalPages}</span>
+                    <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} style={paginationBtn(currentPage === totalPages)}>Next →</button>
+                    <span style={{ fontSize: 12, color: COLOR.textMuted }}>{sortedDisplayedLineItems.length} record{sortedDisplayedLineItems.length !== 1 ? "s" : ""}</span>
+                </div>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                    style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${COLOR.border}`, fontSize: 13, color: COLOR.text }}>
+                    {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n} / page</option>)}
+                </select>
+            </div>
+
+            {/* Bottom nav */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLOR.borderLight}` }}>
+                <button onClick={onPrev} style={btn("secondary")}>← Back to Suppliers</button>
+                <button onClick={onNext} style={btn("primary")}>Go to Manifest Generation →</button>
             </div>
         </div>
     );

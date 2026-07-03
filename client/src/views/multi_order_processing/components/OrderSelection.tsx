@@ -5,6 +5,7 @@ import mondaySdk from "monday-sdk-js";
 import { useOrderData } from "../hooks/useOrderData";
 import { ORDER_COLUMN_LABELS_VISIBLE, ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
 import { ExpandableOrderRow } from "./ExpandableOrderRow";
+import { btn, TH, filterBar, sectionTitle, paginationBtn, COLOR } from "../styles";
 
 const monday = mondaySdk();
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100].map((n) => ({ value: n, label: String(n) }));
@@ -26,12 +27,14 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
     const [showFilters, setShowFilters] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<any>(null);
     const [selectedDateFilter, setSelectedDateFilter] = useState<any>(null);
-
+    const [customDateStart, setCustomDateStart] = useState("");
+    const [customDateEnd, setCustomDateEnd] = useState("");
     const DATE_FILTER_OPTIONS = [
         { value: "today", label: "Today" },
         { value: "yesterday", label: "Yesterday" },
         { value: "week", label: "This Week" },
         { value: "month", label: "This Month" },
+        { value: "custom", label: "Custom Range" },
     ];
 
     // Line items map: orderId → line item rows
@@ -108,11 +111,11 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
         fetchLineItems();
     }, []);
 
-    // Collect all active unique statuses available across all incoming Order records dynamically
+    // Collect all active unique statuses (excluding "Manifest Generated")
     const statusOptions = useMemo(() => {
         const statuses = new Set<string>();
         orders.forEach((o) => {
-            if (o.STATUS) statuses.add(String(o.STATUS));
+            if (o.STATUS && o.STATUS !== "Manifest Generated") statuses.add(String(o.STATUS));
         });
         return Array.from(statuses).map((status) => ({ value: status, label: status }));
     }, [orders]);
@@ -124,7 +127,14 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
         const today = startOfDay(now);
 
         return orders.filter((o) => {
-            const matchesSearch = o.name.toLowerCase().includes(searchTerm.toLowerCase());
+            // Only show "Confirmed" orders, exclude "Manifest Generated"
+            if (String(o.STATUS) !== "Confirmed" || String(o.STATUS) === "Manifest Generated") return false;
+
+            const term = searchTerm.toLowerCase();
+            const matchesSearch =
+                o.name.toLowerCase().includes(term) ||
+                String(o.BILLING_ADDRESS || "").toLowerCase().includes(term) ||
+                String(o.CUSTOMER || "").toLowerCase().includes(term);
             const matchesStatus = !selectedStatus || String(o.STATUS) === selectedStatus.value;
 
             let matchesDate = true;
@@ -145,15 +155,26 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                         const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 6);
                         matchesDate = orderDate >= weekAgo && orderDate <= today;
                     } else if (selectedDateFilter.value === "month") {
-                        const monthAgo = new Date(today); monthAgo.setMonth(today.getMonth() - 1);
-                        matchesDate = orderDate >= monthAgo && orderDate <= today;
+                        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                        matchesDate = orderDate >= startOfMonth && orderDate <= today;
+                    } else if (selectedDateFilter.value === "custom") {
+                        const parseLocalDate = (s: string) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+                        if (customDateStart && customDateEnd) {
+                            matchesDate = orderDate >= parseLocalDate(customDateStart) && orderDate <= parseLocalDate(customDateEnd);
+                        } else if (customDateStart) {
+                            matchesDate = orderDate >= parseLocalDate(customDateStart);
+                        } else if (customDateEnd) {
+                            matchesDate = orderDate <= parseLocalDate(customDateEnd);
+                        } else {
+                            matchesDate = true;
+                        }
                     }
                 }
             }
 
             return matchesSearch && matchesStatus && matchesDate;
         });
-    }, [orders, searchTerm, selectedStatus, selectedDateFilter]);
+    }, [orders, searchTerm, selectedStatus, selectedDateFilter, customDateStart, customDateEnd]);
 
     const paginatedOrders = useMemo(() => {
         const start = (currentPage - 1) * pageSize;
@@ -171,6 +192,8 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
     const handleClearAllFilters = () => {
         setSelectedStatus(null);
         setSelectedDateFilter(null);
+        setCustomDateStart("");
+        setCustomDateEnd("");
         setSearchTerm("");
         const searchInput = document.getElementById("order-search-input") as HTMLInputElement;
         if (searchInput) searchInput.value = "";
@@ -179,230 +202,152 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
 
     if (loading)
         return (
-            <div style={{ textAlign: "center", padding: 50 }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
                 <Loader size={40} />
             </div>
         );
-    if (error) return <div style={{ color: "red", padding: 20 }}>Error: {error}</div>;
+    if (error) return <div style={{ color: COLOR.danger, padding: 20, fontWeight: 500 }}>Error: {error}</div>;
 
     return (
         <div>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "20px",
-                }}
-            >
-                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Order Selection</h3>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div>
+                    <h3 style={sectionTitle}>Order Selection</h3>
+                    <p style={{ margin: "3px 0 0", fontSize: 13, color: COLOR.textMuted }}>
+                        Select orders to process — only <strong>Confirmed</strong> orders are shown
+                    </p>
+                </div>
+                {selectedOrderIds.size > 0 && (
+                    <span style={{ background: COLOR.primaryLight, color: COLOR.primary, border: `1px solid #a8c4f5`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>
+                        {selectedOrderIds.size} selected
+                    </span>
+                )}
             </div>
-            {/* Top Toolbar controls area */}
-            <div style={{ display: "flex", gap: 10, marginBottom: "16px", alignItems: "center", flexWrap: "wrap", position: "relative", zIndex: 30 }}>
-                <input
-                    id="order-search-input"
-                    type="text"
-                    placeholder="Search orders by name..."
-                    style={{ flex: 1, padding: "8px 12px", borderRadius: 4, border: "1px solid #cccccc", fontSize: "14px" }}
-                    onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                />
 
-                {/* Salesforce-Style Toggleable Filter Action Icon */}
+            {/* Toolbar */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "center", flexWrap: "wrap", position: "relative", zIndex: 30 }}>
+                <div style={{ flex: 1, position: "relative", minWidth: 200 }}>
+                    <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: COLOR.textMuted, fontSize: 14, pointerEvents: "none" }}>🔍</span>
+                    <input
+                        id="order-search-input"
+                        type="text"
+                        placeholder="Search by order name, address or customer name..."
+                        style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 8, border: `1px solid ${COLOR.border}`, fontSize: 13, color: COLOR.text, outline: "none", boxSizing: "border-box", background: COLOR.white }}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    />
+                </div>
                 <button
                     onClick={() => setShowFilters(!showFilters)}
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "8px 14px",
-                        borderRadius: "4px",
-                        border: "1px solid #cccccc",
-                        background: showFilters || selectedStatus || selectedDateFilter ? "#f0f4ff" : "#ffffff",
-                        color: selectedStatus || selectedDateFilter ? "#0073ea" : "#323338",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: 500,
-                        gap: "6px",
-                        transition: "all 0.2s ease",
-                    }}
-                    title="Toggle Filter Panel"
+                    style={{ ...btn(showFilters || selectedStatus || selectedDateFilter ? "primary" : "secondary"), padding: "9px 16px" }}
+                    title="Toggle Filters"
                 >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M1.5 2.5A.5.5 0 0 1 2 2h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.146.354l-4.5 4.5V13.5a.5.5 0 0 1-.724.447l-2-1A.5.5 0 0 1 7 12.5V9.354l-4.5-4.5A.5.5 0 0 1 2 4.5v-2z" />
                     </svg>
                     Filters {(selectedStatus ? 1 : 0) + (selectedDateFilter ? 1 : 0) > 0 ? `(${(selectedStatus ? 1 : 0) + (selectedDateFilter ? 1 : 0)})` : ""}
                 </button>
-
-                <div style={{ width: 120, position: "relative", zIndex: 6, flexShrink: 0 }}>
-                    <Dropdown
-                        placeholder="Page Size"
-                        options={PAGE_SIZE_OPTIONS}
-                        value={PAGE_SIZE_OPTIONS.find((o) => o.value === pageSize)}
-                        onChange={(opt: any) => {
-                            if (opt) {
-                                setPageSize(opt.value);
-                                setCurrentPage(1);
-                            }
-                        }}
-                    />
-                </div>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                    style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${COLOR.border}`, fontSize: 13, color: COLOR.text }}>
+                    {[5, 10, 20, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+                </select>
             </div>
 
-            {/* Collapsible Filter Panel Grid Box */}
+            {/* Filter panel */}
             {showFilters && (
-                <div
-                    style={{
-                        background: "#f8f9fa",
-                        border: "1px solid #e2e4e9",
-                        borderRadius: "4px",
-                        padding: "16px",
-                        marginBottom: "16px",
-                        display: "flex",
-                        alignItems: "flex-end",
-                        gap: "20px",
-                        flexWrap: "wrap",
-                        position: "relative",
-                        zIndex: 20,
-                    }}
-                >
-                    <div style={{ width: "240px" }}>
-                        <label style={{ fontSize: "12px", fontWeight: 600, color: "#676879", display: "block", marginBottom: "6px" }}>Filter by Status:</label>
-                        <Dropdown
-                            placeholder="All Statuses"
-                            options={statusOptions}
-                            value={selectedStatus}
-                            onChange={(opt: any) => {
-                                setSelectedStatus(opt);
-                                setCurrentPage(1);
-                            }}
-                        />
+                <div style={filterBar}>
+                    <div style={{ flex: "1 1 220px", minWidth: 180 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</label>
+                        <Dropdown placeholder="All Statuses" options={statusOptions} value={selectedStatus}
+                            onChange={(opt: any) => { setSelectedStatus(opt); setCurrentPage(1); }} />
                     </div>
-
-                    <div style={{ width: "200px" }}>
-                        <label style={{ fontSize: "12px", fontWeight: 600, color: "#676879", display: "block", marginBottom: "6px" }}>Filter by Created Date:</label>
-                        <Dropdown
-                            placeholder="Select Date"
-                            options={DATE_FILTER_OPTIONS}
-                            value={selectedDateFilter}
-                            onChange={(opt: any) => {
-                                setSelectedDateFilter(opt);
-                                setCurrentPage(1);
-                            }}
-                        />
+                    <div style={{ flex: "1 1 180px", minWidth: 160 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Created Date</label>
+                        <Dropdown placeholder="Select Date" options={DATE_FILTER_OPTIONS} value={selectedDateFilter}
+                            onChange={(opt: any) => { setSelectedDateFilter(opt); setCustomDateStart(""); setCustomDateEnd(""); setCurrentPage(1); }} />
+                        {selectedDateFilter?.value === "custom" && (
+                            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: 10, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>From</label>
+                                    <input
+                                        type="date"
+                                        value={customDateStart}
+                                        max={customDateEnd || undefined}
+                                        onChange={(e) => { setCustomDateStart(e.target.value); setCurrentPage(1); }}
+                                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1.5px solid ${COLOR.border}`, fontSize: 12, color: COLOR.text, outline: "none", boxSizing: "border-box", background: COLOR.white }}
+                                    />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: 10, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>To</label>
+                                    <input
+                                        type="date"
+                                        value={customDateEnd}
+                                        min={customDateStart || undefined}
+                                        onChange={(e) => { setCustomDateEnd(e.target.value); setCurrentPage(1); }}
+                                        style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1.5px solid ${COLOR.border}`, fontSize: 12, color: COLOR.text, outline: "none", boxSizing: "border-box", background: COLOR.white }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
-
                     {(selectedStatus || selectedDateFilter || searchTerm) && (
-                        <button
-                            onClick={handleClearAllFilters}
-                            style={{
-                                border: "none",
-                                background: "none",
-                                color: "#ba3e3a",
-                                cursor: "pointer",
-                                fontSize: "13px",
-                                fontWeight: 500,
-                                padding: "8px 4px",
-                                textDecoration: "underline",
-                            }}
-                        >
-                            Clear Active Filters
+                        <button onClick={handleClearAllFilters} style={btn("ghost")}>
+                            ✕ Clear Filters
                         </button>
                     )}
                 </div>
             )}
 
-            {/* Table: outer wrapper only controls horizontal overflow; inner div controls vertical scroll */}
-            <div style={{ overflowX: "auto", border: "1px solid #d0d4e0", borderRadius: 6 }}>
+            {/* Table */}
+            <div style={{ overflowX: "auto", border: `1px solid ${COLOR.border}`, borderRadius: 10, overflow: "hidden" }}>
                 <div style={{ overflowY: "auto", maxHeight: 420 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-                    <thead style={{ backgroundColor: "#f1f3f5", position: "sticky", top: 0, zIndex: 5 }}>
-                        <tr>
-                            <th style={{ padding: "12px 16px", width: 50, border: "1px solid #d0d4e0", textAlign: "center" }}>
-                                <input
-                                    type="checkbox"
-                                    checked={paginatedOrders.length > 0 && paginatedOrders.every((o) => selectedOrderIds.has(o.id))}
-                                    onChange={(e) => {
-                                        const next = new Set(selectedOrderIds);
-                                        paginatedOrders.forEach((o) => (e.target.checked ? next.add(o.id) : next.delete(o.id)));
-                                        onSelectionChange(next);
-                                    }}
-                                />
-                            </th>
-                            {ORDER_COLUMN_LABELS_VISIBLE.map((label) => (
-                                <th key={label} style={{ padding: "12px 16px", textAlign: "center", fontSize: 13, fontWeight: 600, color: "#323338", border: "1px solid #d0d4e0", whiteSpace: "nowrap", minWidth: 140 }}>
-                                    {label}
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+                        <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
+                            <tr>
+                                <th style={{ ...TH, width: 36, minWidth: 36, padding: "9px 4px" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={paginatedOrders.length > 0 && paginatedOrders.every((o) => selectedOrderIds.has(o.id))}
+                                        onChange={(e) => {
+                                            const next = new Set(selectedOrderIds);
+                                            paginatedOrders.forEach((o) => (e.target.checked ? next.add(o.id) : next.delete(o.id)));
+                                            onSelectionChange(next);
+                                        }}
+                                        style={{ width: 14, height: 14, cursor: "pointer", display: "block", margin: "0 auto", accentColor: "#0073ea" }}
+                                    />
                                 </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody style={{ display: "table-row-group" }}>
-                        {paginatedOrders.map((order) => (
-                            <ExpandableOrderRow
-                                key={order.id}
-                                order={order}
-                                isSelected={selectedOrderIds.has(order.id)}
-                                onSelect={toggle}
-                                lineItems={lineItemsMap[order.id] || []}
-                            />
-                        ))}
-                    </tbody>
-                </table>
+                                {ORDER_COLUMN_LABELS_VISIBLE.map((label) => (
+                                    <th key={label} style={TH}>{label}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginatedOrders.length > 0 ? paginatedOrders.map((order) => (
+                                <ExpandableOrderRow key={order.id} order={order} isSelected={selectedOrderIds.has(order.id)} onSelect={toggle} lineItems={lineItemsMap[order.id] || []} />
+                            )) : (
+                                <tr>
+                                    <td colSpan={ORDER_COLUMN_LABELS_VISIBLE.length + 1} style={{ padding: 40, textAlign: "center", color: COLOR.textMuted, fontSize: 13 }}>
+                                        No confirmed orders found
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* Bottom bar: pagination left, Go to Supplier Selection right */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 12, paddingBottom: 24, borderTop: "1px solid #eee" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <button
-                        onClick={() => setCurrentPage((p) => p - 1)}
-                        disabled={currentPage === 1}
-                        style={{
-                            padding: "6px 14px", borderRadius: 4, border: "1px solid #d0d4e0",
-                            background: currentPage === 1 ? "#f4f5f7" : "#fff",
-                            color: currentPage === 1 ? "#aaa" : "#323338",
-                            cursor: currentPage === 1 ? "not-allowed" : "pointer", fontSize: 13,
-                        }}
-                    >
-                        ← Previous
-                    </button>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#323338", padding: "6px 10px", border: "1px solid #d0d4e0", borderRadius: 4, background: "#f8f9fa" }}>
-                        Page {currentPage} of {totalPages}
+            {/* Bottom bar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLOR.borderLight}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => setCurrentPage((p) => p - 1)} disabled={currentPage === 1} style={paginationBtn(currentPage === 1)}>← Prev</button>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: COLOR.text, padding: "5px 12px", border: `1px solid ${COLOR.border}`, borderRadius: 6, background: COLOR.bg }}>
+                        {currentPage} / {totalPages}
                     </span>
-                    <button
-                        onClick={() => setCurrentPage((p) => p + 1)}
-                        disabled={currentPage === totalPages}
-                        style={{
-                            padding: "6px 14px", borderRadius: 4, border: "1px solid #d0d4e0",
-                            background: currentPage === totalPages ? "#f4f5f7" : "#fff",
-                            color: currentPage === totalPages ? "#aaa" : "#323338",
-                            cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontSize: 13,
-                        }}
-                    >
-                        Next →
-                    </button>
-                    <span style={{ fontSize: 12, color: "#676879", marginLeft: 6 }}>
-                        {filteredOrders.length} record{filteredOrders.length !== 1 ? "s" : ""}
-                    </span>
+                    <button onClick={() => setCurrentPage((p) => p + 1)} disabled={currentPage === totalPages} style={paginationBtn(currentPage === totalPages)}>Next →</button>
+                    <span style={{ fontSize: 12, color: COLOR.textMuted }}>{filteredOrders.length} record{filteredOrders.length !== 1 ? "s" : ""}</span>
                 </div>
-
-                <button
-                    onClick={onNext}
-                    disabled={isNextDisabled}
-                    style={{
-                        padding: "10px 22px", borderRadius: 6,
-                        background: isNextDisabled ? "#c5c7d4" : "#0073ea",
-                        color: "#fff", border: "none",
-                        cursor: isNextDisabled ? "not-allowed" : "pointer",
-                        fontSize: 14, fontWeight: 600,
-                        display: "flex", alignItems: "center", gap: 8,
-                        boxShadow: isNextDisabled ? "none" : "0 2px 8px rgba(0,115,234,0.3)",
-                        transition: "all 0.2s ease",
-                    }}
-                >
-                    Go to Supplier Selection →
+                <button onClick={onNext} disabled={isNextDisabled} style={btn("primary", isNextDisabled)}>
+                    Go to Supplier Selection <span style={{ fontSize: 15 }}>→</span>
                 </button>
             </div>
         </div>

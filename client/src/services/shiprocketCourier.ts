@@ -56,6 +56,10 @@ class ShipRocketService {
         });
     }
 
+    static async createOrder(payload: object): Promise<any> {
+        return this.post("/api/shiprocket/orders/create", payload);
+    }
+
     static async generatePickup(shipmentId: string): Promise<any> {
         return this.post("/api/shiprocket/pickup/generate", {
             shipment_id: [shipmentId],

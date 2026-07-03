@@ -162,7 +162,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.text(method, LX + PAD, y + 9.5);
 
         doc.setFontSize(9.5);
-        doc.text(`COLLECT COD - Rs. ${cleanDisplay(item.totalPrice) || "0.00"}`, LX + PAD, y + 14);
+        doc.text(`COLLECT COD - ${parseFloat(String(item.totalPrice).replace(/[^0-9.]/g, "")) || (item.unitPrice * (parseInt(getRobustValue(item, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY) || "1") || 1)).toFixed(2)}`, LX + PAD, y + 14);
 
         y += PAYMENT_H;
         hRule(y, LX, RX);
@@ -175,7 +175,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.text(cleanDisplay(item.courierName) || "Courier", LX + PAD, y + 5);
 
         doc.setFontSize(7);
-        doc.text(`AWB #: ${cleanDisplay(item.sku) || "N/A"}`, LX + PAD, y + 9.5);
+        doc.text(`AWB #: ${cleanDisplay(item.awbCode) || cleanDisplay(item.sku) || "N/A"}`, LX + PAD, y + 9.5);
 
         // 68 mm wide × 7 mm tall, centred
         drawBarcode(doc, MID, y + 11, 68, 7);
@@ -224,7 +224,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.text(skuDisplay, C.sku + 1.5, y + ROW_H - 1.3);
         doc.text(nameDisplay, C.item + 1.5, y + ROW_H - 1.3);
         doc.text(String(qty), C.qty + 1.5, y + ROW_H - 1.3);
-        doc.text(`Rs. ${unitPrice.toFixed(2)}`, C.price + 1.5, y + ROW_H - 1.3);
+        doc.text(unitPrice.toFixed(2), C.price + 1.5, y + ROW_H - 1.3);
 
         y += ROW_H;
 
@@ -235,7 +235,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(6.5);
         doc.text("TOTAL:", C.sku + 1.5, y + ROW_H - 1.3);
-        doc.text(`Rs. ${calcTotal.toFixed(2)}`, C.price + 1.5, y + ROW_H - 1.3);
+        doc.text(calcTotal.toFixed(2), C.price + 1.5, y + ROW_H - 1.3);
 
         y += ROW_H + 3;
 

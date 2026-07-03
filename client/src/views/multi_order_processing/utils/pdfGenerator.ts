@@ -2,238 +2,263 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+const PURPLE = [91, 107, 138] as [number, number, number];
+const HEADER_BG = [232, 228, 245] as [number, number, number];
+const FOOTER_COLOR = [80, 100, 160] as [number, number, number];
+const BLACK: [number, number, number] = [0, 0, 0];
+
+let manifestCounter = 10;
+
 export const generateManifestPDF = async (manifestData: any) => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const { supplierName, courierName, lineItems, shopDetails } = manifestData;
 
-    const pageWidth = doc.internal.pageSize.getWidth(); // 210mm for A4
+    const pageW = doc.internal.pageSize.getWidth();  // 297mm
+    const pageH = doc.internal.pageSize.getHeight(); // 210mm
+    const margin = 10;          // distance from page edge to outer border
+    const innerW = pageW - margin * 2; // 277mm usable width
+    const pad = 6;              // text padding from border
 
-    // Logo — centered, above heading
-    let headingY = 20; // default Y for "Manifest" if no logo
+    // Table uses a 1mm inset from the border edges so cell lines never overlap the rect
+    const tblLeft = margin + 1;
+    const tblRight = margin + 1;
+    const tblW = innerW - 2; // 275mm
 
-    if (shopDetails.logo) {
-        const logoBase64 = await fetchLogoAsBase64(shopDetails.logo);
-        if (logoBase64) {
-            const logoW = 40;
-            const logoH = 20;
-            const logoX = (pageWidth - logoW) / 2; // centered horizontally
-            const logoY = 10;
-            try {
-                doc.addImage(logoBase64, "PNG", logoX, logoY, logoW, logoH);
-                headingY = logoY + logoH + 8; // push heading below logo
-            } catch (e) {
-                console.warn("addImage failed:", e);
-            }
-        } else {
-            console.warn("fetchLogoAsBase64 returned null");
-        }
-    } else {
-        console.warn("shopDetails.logo is empty — check fetchShopDetails");
-    }
+    // ── TOP HEADER ────────────────────────────────────────────────────────────
+    let y = margin + pad + 6;
 
-    doc.setFontSize(20);
-    doc.text("Manifest", pageWidth / 2, headingY, { align: "center" });
+    // Left: brand text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(...PURPLE);
+    doc.text("Shiprocket", margin + pad, y);
 
+    // Center: title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...BLACK);
+    doc.text("Shiprocket Manifest", pageW / 2, y, { align: "center" });
+
+    // Right: Manifest ID + total shipments
+    const manifestId = `MANIFEST-${String(manifestCounter++).padStart(4, "0")}`;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...BLACK);
+    doc.text(`Manifest ID : ${manifestId}`, pageW - margin - pad, y - 3, { align: "right" });
+    doc.text(`Total shipments to dispatch : ${lineItems.length}`, pageW - margin - pad, y + 4, { align: "right" });
+
+    // Center subtitle
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...BLACK);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageW / 2, y, { align: "center" });
+
+    // Seller / Courier
+    y += 6;
     doc.setFontSize(10);
-    const contentStartY = headingY + 15;
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 10, contentStartY);
-    doc.text(`Seller: ${supplierName}`, 10, contentStartY + 5);
-    doc.text(`Courier: ${courierName}`, 10, contentStartY + 10);
+    doc.setTextColor(...BLACK);
+    doc.setFont("helvetica", "normal");
+    doc.text("Seller:", margin + pad, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(supplierName || "-", margin + pad + doc.getTextWidth("Seller:") + 1, y);
 
-    // Updated table
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.text("Courier:", margin + pad, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(courierName || "-", margin + pad + doc.getTextWidth("Courier:") + 1, y);
+
+    // Thin separator
+    y += 5;
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.3);
+    doc.line(margin + 1, y, pageW - margin - 1, y);
+    y += 2;
+
+    // ── TABLE ─────────────────────────────────────────────────────────────────
+    const COL_SNO = 13;
+    const COL_ORDER = 70;
+    const COL_CHECK = 12;
+    const COL_AWB = 40;
+    const COL_CONTENTS = tblW - COL_SNO - COL_ORDER - COL_CHECK - COL_AWB;
+
     autoTable(doc, {
-        startY: contentStartY + 20,
-        head: [["", "S.no", "Order no", "AWB no", "Contents"]],
+        startY: y,
+        margin: { left: tblLeft, right: tblRight },
+        tableWidth: tblW,
+        head: [["S.no", "Order no", "", "Awb no", "Contents"]],
         body: lineItems.map((item: any, index: number) => [
-            "", // checkbox — drawn below
-            String(index + 1), // S.no
-            item.orderId || "Null", // custom OrderId column
-            item.sku || "Null", // SKU column as AWB
-            `${item.name}, ${item.id}`, // Contents — unchanged
+            String(index + 1),
+            item.orderId || item.orderName || "-",
+            "",
+            item.awbCode || item.shiprocketOrderId || "-",
+            item.sku ? `${item.name} (SKU-${item.sku})` : item.name || "-",
         ]),
-        columnStyles: {
-            0: { cellWidth: 10, halign: "center" }, // checkbox col
-            1: { cellWidth: 12, halign: "center" }, // S.no
+        headStyles: {
+            fillColor: HEADER_BG,
+            textColor: PURPLE,
+            fontStyle: "normal",
+            fontSize: 10,
+            halign: "center",
+            lineWidth: 0.3,
+            lineColor: [200, 195, 220],
         },
+        bodyStyles: {
+            fontSize: 9,
+            textColor: BLACK,
+            halign: "center",
+            lineWidth: 0.2,
+            lineColor: [200, 200, 200],
+        },
+        columnStyles: {
+            0: { cellWidth: COL_SNO, halign: "center" },
+            1: { cellWidth: COL_ORDER, halign: "center" },
+            2: { cellWidth: COL_CHECK, halign: "center" },
+            3: { cellWidth: COL_AWB, halign: "center" },
+            4: { cellWidth: COL_CONTENTS, halign: "center" },
+        },
+        alternateRowStyles: { fillColor: [250, 249, 255] },
         didDrawCell: (data) => {
-            // Draw printable checkbox box in first column, body rows only
-            if (data.column.index === 0 && data.section === "body") {
-                const { x, y, width, height } = data.cell;
+            if (data.column.index === 2 && data.section === "body") {
+                const { x, y: cy, width, height } = data.cell;
                 const boxSize = 4;
                 doc.setDrawColor(0);
-                doc.setLineWidth(0.3);
-                doc.rect(x + (width - boxSize) / 2, y + (height - boxSize) / 2, boxSize, boxSize);
+                doc.setLineWidth(0.4);
+                doc.rect(x + (width - boxSize) / 2, cy + (height - boxSize) / 2, boxSize, boxSize);
             }
         },
     });
 
-    // --- Section below table ---
-    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    // ── BOTTOM SECTION ────────────────────────────────────────────────────────
+    let finalY = (doc as any).lastAutoTable.finalY + 6;
 
-    // Dotted line helper
-    const drawDottedLine = (y: number) => {
-        doc.setLineDashPattern([1, 2], 0);
-        doc.setLineWidth(0.3);
-        doc.setDrawColor(100);
-        doc.line(10, y, pageWidth - 10, y);
-        doc.setLineDashPattern([], 0); // reset to solid
+    const drawDash = (dy: number) => {
+        doc.setLineDashPattern([1.5, 2], 0);
+        doc.setLineWidth(0.4);
+        doc.setDrawColor(120);
+        doc.line(margin + 1, dy, pageW - margin - 1, dy);
+        doc.setLineDashPattern([], 0);
     };
 
-    // Underline field helper — label + blank line
-    const drawField = (label: string, x: number, y: number, lineWidth: number = 50) => {
+    drawDash(finalY);
+    finalY += 7;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...BLACK);
+    doc.text(`To Be Filled By ${courierName || "Courier"} Logistics Executive`, pageW / 2, finalY, { align: "center" });
+    finalY += 5;
+
+    drawDash(finalY);
+    finalY += 10;
+
+    const drawField = (label: string, x: number, fy: number, lineLen = 55) => {
         doc.setFont("helvetica", "normal");
-        doc.text(label, x, y);
-        const labelWidth = doc.getTextWidth(label);
+        doc.setFontSize(10);
+        doc.setTextColor(...BLACK);
+        doc.text(label, x, fy);
+        const lw = doc.getTextWidth(label);
         doc.setDrawColor(0);
         doc.setLineWidth(0.3);
-        doc.line(x + labelWidth + 2, y, x + labelWidth + 2 + lineWidth, y);
+        doc.line(x + lw + 2, fy, x + lw + 2 + lineLen, fy);
     };
 
-    // 1. Dotted line + heading + dotted line
-    drawDottedLine(finalY);
+    const drawFieldWithValue = (label: string, value: string, x: number, fy: number, lineLen = 55) => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(...BLACK);
+        doc.text(label, x, fy);
+        const lw = doc.getTextWidth(label);
+        doc.text(value, x + lw + 2, fy);
+        const vw = doc.getTextWidth(value);
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.3);
+        // underline under the value
+        doc.line(x + lw + 2, fy + 0.5, x + lw + 2 + vw + 2, fy + 0.5);
+        // rest of the line
+        if (x + lw + 2 + vw + 6 < x + lw + 2 + lineLen) {
+            doc.line(x + lw + 2 + vw + 6, fy + 0.5, x + lw + 2 + lineLen, fy + 0.5);
+        }
+    };
 
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    const headingText = `To Be Filled By ${courierName || "Courier"} Executive`;
-    doc.text(headingText, pageWidth / 2, finalY + 8, { align: "center" });
+    const col1X = margin + pad;
+    const col2X = pageW / 2 + 10;
+    const rowGap = 14;
 
-    drawDottedLine(finalY + 12);
+    drawField("Pick up time :", col1X, finalY, 55);
+    drawField("Total items picked:", col2X, finalY, 45);
+    finalY += rowGap;
 
-    // 2. Fields — two columns
-    doc.setFontSize(10);
-    const col1X = 10;
-    const col2X = pageWidth / 2 + 10;
-    let rowY = finalY + 24;
-    const rowGap = 16;
+    drawField("FE Name:", col1X, finalY, 55);
+    drawFieldWithValue("Seller Name:", supplierName || "", col2X, finalY, 55);
+    finalY += rowGap;
 
-    drawField("Pick up time :", col1X, rowY, 50);
-    drawField("Total items picked:", col2X, rowY, 45);
+    drawField("FE Signature:", col1X, finalY, 55);
+    drawField("Seller Signature:", col2X, finalY, 45);
+    finalY += rowGap;
 
-    rowY += rowGap;
-    drawField("FE Name:", col1X, rowY, 50);
+    drawField("FE Phone:", col1X, finalY, 55);
 
-    // Seller Name — populated, no underline
+    // ── FOOTER ────────────────────────────────────────────────────────────────
+    finalY += rowGap + 4;
+
     doc.setFont("helvetica", "normal");
-    doc.text(`Seller Name: ${supplierName || ""}`, col2X, rowY);
-
-    rowY += rowGap;
-    drawField("FE Signature:", col1X, rowY, 50);
-    drawField("Seller Signature:", col2X, rowY, 45);
-
-    rowY += rowGap;
-    drawField("FE Phone:", col1X, rowY, 50);
-
-    // 3. Shipment From (footer)
-    // 3. Footer
-    rowY += rowGap + 8;
-
-    // Line 1: Full address concatenated, skip blanks
-    const addressParts = [shopDetails.street, shopDetails.city, shopDetails.state, shopDetails.country, shopDetails.postalCode].filter(Boolean);
-    const fullAddress = addressParts.join(", ");
-
     doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    // splitTextToSize handles long addresses wrapping
-    const addressLines = doc.splitTextToSize(fullAddress, pageWidth - 20);
-    doc.text(addressLines, pageWidth / 2, rowY, { align: "center" });
-    rowY += addressLines.length * 5;
+    doc.setTextColor(...FOOTER_COLOR);
 
-    // Line 2: Contact | Email | Phone | Website — bold labels, normal values
-    // Write each label+value segment inline, tracking X position
-    doc.setFontSize(9);
-    const contactSegments = [
-        { label: "Contact: ", value: shopDetails.contactName },
-        { label: "Email: ", value: shopDetails.email },
-        { label: "Phone: ", value: shopDetails.phone },
-        { label: "Website: ", value: shopDetails.website },
-    ].filter((s) => !!s.value);
-    if (contactSegments.length > 0) {
-        rowY += 2;
-
-        // Calculate total line width to center it
-        let totalW = 0;
-        contactSegments.forEach((seg, i) => {
-            doc.setFont("helvetica", "bold");
-            totalW += doc.getTextWidth(seg.label);
-            doc.setFont("helvetica", "normal");
-            totalW += doc.getTextWidth(seg.value);
-            if (i < contactSegments.length - 1) totalW += 6; // gap between segments
-        });
-
-        let cx = (pageWidth - totalW) / 2; // start X for centered line
-
-        contactSegments.forEach((seg, i) => {
-            doc.setFont("helvetica", "bold");
-            doc.text(seg.label, cx, rowY);
-            cx += doc.getTextWidth(seg.label);
-            doc.setFont("helvetica", "normal");
-            doc.text(seg.value, cx, rowY);
-            cx += doc.getTextWidth(seg.value) + (i < contactSegments.length - 1 ? 6 : 0);
-        });
+    const addrParts = [shopDetails.street, shopDetails.city, shopDetails.state, shopDetails.country, shopDetails.postalCode].filter(Boolean);
+    if (addrParts.length > 0) {
+        const addrLines = doc.splitTextToSize(addrParts.join(", "), innerW - pad * 2);
+        doc.text(addrLines, pageW / 2, finalY, { align: "center" });
+        finalY += addrLines.length * 5;
     }
 
-    // System generated note
-    rowY += 10;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(120);
-    doc.text("This is a system generated document", pageWidth / 2, rowY, { align: "center" });
-    doc.setTextColor(0);
-    /*
-    const writeSegment = (label: string, value: string, x: number, y: number): number => {
-        if (!value) return x; // skip entirely if blank
+    if (shopDetails.supplierAddress) {
+        const suppLines = doc.splitTextToSize(shopDetails.supplierAddress, innerW - pad * 2);
+        doc.text(suppLines, pageW / 2, finalY, { align: "center" });
+        finalY += suppLines.length * 5;
+    }
+
+    if (shopDetails.phone) {
+        const label = "Contact : ";
         doc.setFont("helvetica", "bold");
-        doc.text(label, x, y);
-        const labelW = doc.getTextWidth(label);
+        const lw = doc.getTextWidth(label);
         doc.setFont("helvetica", "normal");
-        doc.text(value, x + labelW, y);
-        return x + labelW + doc.getTextWidth(value) + 4; // next X with spacing
-    };
+        const vw = doc.getTextWidth(shopDetails.phone);
+        const cx = (pageW - lw - vw) / 2;
+        doc.setFont("helvetica", "bold");
+        doc.text(label, cx, finalY);
+        doc.setFont("helvetica", "normal");
+        doc.text(shopDetails.phone, cx + lw, finalY);
+        finalY += 6;
+    }
 
-    let cx = 10;
-    rowY += 2;
-    cx = writeSegment("Contact: ", shopDetails.contactName, cx, rowY);
-    cx = writeSegment("Email: ", shopDetails.email, cx, rowY);
-    cx = writeSegment("Phone: ", shopDetails.phone, cx, rowY);
-    cx = writeSegment("Website: ", shopDetails.website, cx, rowY);
-
-    // Line 3: System generated note — centered
-    rowY += 10;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(120);
-    doc.text("This is a system generated document", pageWidth / 2, rowY, { align: "center" });
-    doc.setTextColor(0); // reset
-    */
+    doc.setFontSize(9);
+    doc.setTextColor(...BLACK);
+    doc.text("This is a system generated document", pageW / 2, finalY, { align: "center" });
+
+    // ── OUTER BORDER drawn LAST so it renders on top of any table overflow ────
+    doc.setDrawColor(...BLACK);
+    doc.setLineWidth(0.6);
+    doc.rect(margin, margin, innerW, pageH - margin * 2);
+
     return doc.output("blob");
 };
 
 const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
     try {
-
-        const response = await fetch(url, {
-            credentials: "include", // sends Monday session cookies for protected URLs
-        });
-
-        if (!response.ok) {
-            console.warn(`Logo fetch failed: HTTP ${response.status}`);
-            return null;
-        }
-
+        const response = await fetch(url, { credentials: "include" });
+        if (!response.ok) return null;
         const blob = await response.blob();
-
         return new Promise((resolve) => {
             const reader = new FileReader();
-            reader.onload = () => {
-                resolve(reader.result as string);
-            };
-            reader.onerror = () => {
-                resolve(null);
-            };
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
             reader.readAsDataURL(blob);
         });
-    } catch (e) {
+    } catch {
         return null;
     }
 };
-

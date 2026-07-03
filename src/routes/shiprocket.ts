@@ -106,4 +106,19 @@ router.post("/api/shiprocket/pickup/generate", async (req, res) => {
     }
 });
 
+// ── Create order (adhoc) ─────────────────────────────────────────────────────
+router.post("/api/shiprocket/orders/create", async (req, res) => {
+    try {
+        const token = await getShiprocketToken();
+        const response = await fetch(`${SR_BASE}/orders/create/adhoc`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(req.body),
+        });
+        res.json(await response.json());
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export default router;

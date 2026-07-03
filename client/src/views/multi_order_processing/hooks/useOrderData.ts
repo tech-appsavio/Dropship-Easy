@@ -13,6 +13,7 @@ export const useOrderData = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      console.log("[useOrderData] ── Fetching orders from board:", ORDER_BOARD_ID);
       try {
           const res: any = await monday.api(`query {
           boards(ids: ${ORDER_BOARD_ID}) {
@@ -32,37 +33,35 @@ export const useOrderData = () => {
           }
         }`);
 
-          // Safety check for undefined response or internal GraphQL errors
           if (!res) {
               throw new Error("No response received from Monday API.");
           }
-
           if (res.errors) {
-              console.error("GraphQL Errors detected:", res.errors);
+              console.error("[useOrderData] GraphQL errors:", res.errors);
               throw new Error(res.errors[0].message);
           }
-
           if (!res.data || !res.data.boards || res.data.boards.length === 0) {
               throw new Error("No board data found. Verify the ORDER_BOARD_ID is correct.");
           }
 
           const items = res.data.boards[0].items_page.items;
+          console.log("[useOrderData] Total items fetched:", items.length);
 
-          // Map the API response to friendly keys
           const mappedOrders = items.map((item: any) => {
               const orderObj: Order = { id: item.id, name: item.name };
-
               Object.entries(ORDER_ALL_COLUMN_IDS_MAP).forEach(([friendlyKey, columnId]) => {
                   const colValue = item.column_values.find((cv: any) => cv.id === columnId);
-                  // Use display_value for complex types, otherwise fall back to text
                   orderObj[friendlyKey] = colValue?.display_value || colValue?.text || "";
               });
-
               return orderObj;
           });
 
+          const confirmed = mappedOrders.filter((o: Order) => String(o.STATUS) === "Confirmed");
+          console.log("[useOrderData] Confirmed orders:", confirmed.length, "of", mappedOrders.length);
           setOrders(mappedOrders);
+          console.log("[useOrderData] ── Done");
       } catch (err: any) {
+          console.error("[useOrderData] Fetch failed:", err.message);
           setError("Failed to fetch orders: " + err.message + err);
       } finally {
           setLoading(false);

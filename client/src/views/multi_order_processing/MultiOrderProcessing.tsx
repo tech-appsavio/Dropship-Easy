@@ -9,10 +9,10 @@ type View = "ORDERS" | "SUPPLIERS" | "COURIERS" | "MANIFEST";
 const FLOW: View[] = ["ORDERS", "SUPPLIERS", "COURIERS", "MANIFEST"];
 
 const NAV_CONFIG: Record<View, { prevLabel?: string; nextLabel: string }> = {
-    ORDERS: { nextLabel: "Go to Supplier Selection" },
-    SUPPLIERS: { prevLabel: "Back to Orders", nextLabel: "Go to Courier Selection" },
-    COURIERS: { prevLabel: "Back to Suppliers", nextLabel: "Go to Manifest Generation" },
-    MANIFEST: { prevLabel: "Back to Couriers", nextLabel: "Finish & Reset" },
+    ORDERS:    { nextLabel: "Go to Supplier Selection" },
+    SUPPLIERS: { prevLabel: "Back to Orders",    nextLabel: "Go to Courier Selection" },
+    COURIERS:  { prevLabel: "Back to Suppliers", nextLabel: "Go to Manifest Generation" },
+    MANIFEST:  { prevLabel: "Back to Couriers",  nextLabel: "Finish & Reset" },
 };
 
 export const MultiOrderProcessing: React.FC = () => {
@@ -20,7 +20,6 @@ export const MultiOrderProcessing: React.FC = () => {
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
 
     const currentIndex = FLOW.indexOf(view);
-    const config = NAV_CONFIG[view];
 
     const goNext = () => {
         if (view === "MANIFEST") {
@@ -35,20 +34,14 @@ export const MultiOrderProcessing: React.FC = () => {
     const isNextDisabled = view === "ORDERS" && selectedOrderIds.size === 0;
 
     return (
-        <div style={{ padding: 24, maxWidth: 1200, margin: "auto" }}>
-            {/* Constant header — always visible */}
+        <div style={{ padding: "14px 38px", width: "100%", boxSizing: "border-box", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
             <OrderProcessingPath activeView={view} />
-
-            {/* Active screen — no nav buttons inside */}
-            <div style={{ minHeight: 400 }}>
-
-                {view === "ORDERS" && <OrderSelection selectedOrderIds={selectedOrderIds} onSelectionChange={setSelectedOrderIds} onNext={goNext} isNextDisabled={isNextDisabled} />}
+            <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e6e8ef", boxShadow: "0 1px 8px rgba(0,0,0,0.05)", padding: "20px 24px", minHeight: 400 }}>
+                {view === "ORDERS"    && <OrderSelection selectedOrderIds={selectedOrderIds} onSelectionChange={setSelectedOrderIds} onNext={goNext} isNextDisabled={isNextDisabled} />}
                 {view === "SUPPLIERS" && <SupplierSelection selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
-                {view === "COURIERS" && <CourierSelection selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
-                {view === "MANIFEST" && <OrderManifestGeneration selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
+                {view === "COURIERS"  && <CourierSelection selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
+                {view === "MANIFEST"  && <OrderManifestGeneration selectedOrderIds={Array.from(selectedOrderIds)} onPrev={goPrev} onNext={goNext} />}
             </div>
-
-            {/* Nav handled inside each screen component */}
         </div>
     );
 };

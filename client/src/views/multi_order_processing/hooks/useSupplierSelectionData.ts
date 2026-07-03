@@ -8,6 +8,7 @@ import {
     SUPPLIER_PRODUCT_BOARD_ID,
     SUPPLIER_PRODUCT_COLUMN_IDS_MAP,
     SUPPLIER_ALL_COLUMN_IDS_MAP,
+    PRODUCT_ALL_COLUMN_IDS_MAP,
 } from "../constants";
 
 
@@ -20,8 +21,8 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
     const [loading, setLoading] = useState(true);
 
     const fetchLineItems = async () => {
+        console.log("[useSupplierSelectionData] ── Fetching line items for orders:", selectedOrderIds);
         setLoading(true);
-        // Query all line items from the board
         const query = `query {
             boards(ids: ${ORDER_ITEM_BOARD_ID}) {
                 items_page(limit: 500) {
@@ -29,32 +30,11 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                         id
                         name
                         column_values {
-                            column {
-                                title
-                                type
-                                id
-                            }
-                            id
-                            type
-                            text
-                            value
-                            # For mirror columns
-                            ... on MirrorValue {
-                                display_value
-                                id
-                                text
-                                value
-                            }
-                            # For connect board columns
-                            ... on BoardRelationValue {
-                                linked_item_ids
-                                display_value
-                            }
-                            # Formula
-                            ... on FormulaValue {
-                                value
-                                display_value
-                            }
+                            column { title type id }
+                            id type text value
+                            ... on MirrorValue { display_value id text value }
+                            ... on BoardRelationValue { linked_item_ids display_value }
+                            ... on FormulaValue { value display_value }
                         }
                     }
                 }
@@ -64,26 +44,63 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
         try {
             const res: any = await monday.api(query);
             const allItems = res.data.boards[0].items_page.items;
+            console.log("[useSupplierSelectionData] Total line items on board:", allItems.length);
 
             const filteredItems = allItems
                 .map((item: any) => {
                     const orderCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
                     const productCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT);
-
+                    const skuCol = item.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU);
                     return {
                         id: item.id,
                         name: item.name,
-                        linkedOrderId: orderCol?.linked_item_ids?.[0], // Get the Order ID this item belongs to
+                        linkedOrderId: orderCol?.linked_item_ids?.[0],
+                        orderName: orderCol?.display_value || "",
                         productId: productCol?.linked_item_ids?.[0],
                         productName: productCol?.display_value,
+                        sku: skuCol?.text?.trim() || "",
+                        category: "",
                         column_values: item.column_values,
                     };
                 })
-                .filter((item: any) => selectedOrderIds.includes(item.linkedOrderId)); // LOCAL FILTERING
+                .filter((item: any) => selectedOrderIds.includes(item.linkedOrderId));
 
-            setLineItems(filteredItems);
+            console.log("[useSupplierSelectionData] Line items matching selected orders:", filteredItems.length);
+
+            const uniqueProductIds = [...new Set(filteredItems.map((i: any) => i.productId).filter(Boolean))];
+            console.log("[useSupplierSelectionData] Unique product IDs:", uniqueProductIds);
+
+            const categoryMap: Record<string, string> = {};
+            if (uniqueProductIds.length > 0) {
+                const prodRes: any = await monday.api(`query {
+                    items(ids: [${uniqueProductIds.join(",")}]) {
+                        id
+                        column_values(ids: ["${PRODUCT_ALL_COLUMN_IDS_MAP.CATEGORY}"]) {
+                            id text
+                            ... on StatusValue { label }
+                        }
+                    }
+                }`);
+                (prodRes.data?.items || []).forEach((p: any) => {
+                    const catCol = p.column_values.find((cv: any) => cv.id === PRODUCT_ALL_COLUMN_IDS_MAP.CATEGORY);
+                    categoryMap[p.id] = catCol?.label?.trim() || catCol?.text?.trim() || "";
+                });
+                console.log("[useSupplierSelectionData] Category map built:", categoryMap);
+            }
+
+            const itemsWithCategory = filteredItems
+                .map((item: any) => ({ ...item, category: categoryMap[item.productId] || "" }))
+                .sort((a: any, b: any) => {
+                    const orderCmp = (a.orderName || "").localeCompare(b.orderName || "");
+                    return orderCmp !== 0 ? orderCmp : (a.name || "").localeCompare(b.name || "");
+                });
+
+            setLineItems(itemsWithCategory);
+            console.log("[useSupplierSelectionData] Line items set. Pre-fetching suppliers for products...");
+            uniqueProductIds.forEach((pid: any) => fetchSuppliersForProduct(pid));
+            console.log("[useSupplierSelectionData] ── Done");
         } catch (e) {
-            console.error("Error fetching line items:", e);
+            console.error("[useSupplierSelectionData] Error fetching line items:", e);
         } finally {
             setLoading(false);
         }
@@ -138,23 +155,22 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
             .sort((a, b) => b.finalScore - a.finalScore); // Sort best to worst
     };
 
-    const fetchSuppliersForProduct = async (productId: string) => {
-        if (suppliersMap[productId]) return;
+    const fetchSuppliersForProduct = async (productId: string, forceRefresh = false) => {
+        if (suppliersMap[productId] && !forceRefresh) {
+            console.log("[useSupplierSelectionData] Suppliers already cached for product:", productId);
+            return;
+        }
+        console.log("[useSupplierSelectionData] Fetching suppliers for product:", productId);
 
-        // 1. Query the cross-reference SupplierProduct board to extract suppliers matching this product
         const relationQuery = `query {
             boards(ids: ${SUPPLIER_PRODUCT_BOARD_ID}) {
                 items_page(limit: 500) {
                     items {
+                        id
                         column_values {
-                            id
-                            ... on BoardRelationValue {
-                                linked_item_ids
-                                display_value
-                            }
-                            ... on MirrorValue {
-                                display_value
-                            }
+                            id text
+                            ... on BoardRelationValue { linked_item_ids display_value }
+                            ... on MirrorValue { display_value }
                         }
                     }
                 }
@@ -168,68 +184,64 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
             }
 
             const allSupplierProductItems = relRes.data.boards[0].items_page.items;
+            console.log("[useSupplierSelectionData] Total supplier-product rows:", allSupplierProductItems.length);
 
-            // Map and filter relations that match the currently selected productId
             const productRelations = allSupplierProductItems
                 .map((item: any) => {
                     const productCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT);
                     const supplierCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.SUPPLIER);
                     const weightageCol = item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.PRODUCT_WEIGHTAGE);
-
                     const price = parseFloat(weightageCol?.text || weightageCol?.display_value || "0");
-
+                    const availableQty = parseFloat(item.column_values.find((c: any) => c.id === SUPPLIER_PRODUCT_COLUMN_IDS_MAP.AVAILABLEQUANTITY)?.text || "0");
                     return {
+                        supplierProductItemId: item.id,
                         linkedProductId: productCol?.linked_item_ids?.[0],
                         label: supplierCol?.display_value || "Unknown Supplier",
                         supplierId: supplierCol?.linked_item_ids?.[0],
                         price,
+                        availableQty,
                     };
                 })
                 .filter((item: any) => item.linkedProductId === productId && item.supplierId);
 
+            console.log("[useSupplierSelectionData] Matching supplier relations for product", productId, "->", productRelations.length);
+
             if (productRelations.length === 0) {
+                console.warn("[useSupplierSelectionData] No suppliers found for product:", productId);
                 setSuppliersMap((prev) => ({ ...prev, [productId]: [] }));
                 return;
             }
 
-            // Extract unique Supplier IDs to build an isolated batch query
             const supplierIdsToQuery = Array.from(new Set(productRelations.map((r) => r.supplierId)));
+            console.log("[useSupplierSelectionData] Querying supplier board for IDs:", supplierIdsToQuery);
 
-            // 2. Query the source Supplier board records directly to safely extract structural configurations
             const supplierBoardQuery = `query {
                 items(ids: [${supplierIdsToQuery.join(",")}]) {
                     id
                     column_values(ids: ["${SUPPLIER_ALL_COLUMN_IDS_MAP.RATING}", "${SUPPLIER_ALL_COLUMN_IDS_MAP.SELFOWNED}"]) {
-                        id
-                        text
-                        value
+                        id text value
                     }
                 }
             }`;
 
             const suppRes: any = await monday.api(supplierBoardQuery);
             const sourceSupplierItems = suppRes.data?.items || [];
+            console.log("[useSupplierSelectionData] Supplier board items fetched:", sourceSupplierItems.length);
 
-            // 3. Build a map of verified source columns by Supplier ID
             const sourceSuppliersMap: Record<string, any> = {};
             sourceSupplierItems.forEach((sItem: any) => {
                 const ratingCol = sItem.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.RATING);
                 const selfOwnedCol = sItem.column_values.find((c: any) => c.id === SUPPLIER_ALL_COLUMN_IDS_MAP.SELFOWNED);
-
                 const rating = parseFloat(ratingCol?.text || "0");
-
-                // Safely handle both Boolean primitives or text statuses ("checked", "true", or raw state)
                 const selfValueRaw = selfOwnedCol?.value ? JSON.parse(selfOwnedCol.value) : null;
                 const isSelf =
                     selfOwnedCol?.text?.toLowerCase() === "yes" ||
                     selfOwnedCol?.text?.toLowerCase() === "true" ||
                     selfValueRaw === true ||
                     (selfValueRaw && (selfValueRaw.checked === true || String(selfValueRaw.checked) === "true"));
-
                 sourceSuppliersMap[String(sItem.id)] = { rating, isSelf };
             });
 
-            // 4. Combine the relational pricing definitions with the deep supplier source properties
             const combinedSuppliers = productRelations.map((relation) => {
                 const sourceData = sourceSuppliersMap[String(relation.supplierId)] || { rating: 0, isSelf: false };
                 return {
@@ -238,18 +250,46 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                     price: relation.price,
                     rating: sourceData.rating,
                     isSelf: sourceData.isSelf,
+                    availableQty: relation.availableQty,
+                    supplierProductItemId: relation.supplierProductItemId,
                 };
             });
 
+            const sorted = sortSuppliersByWeightedScore(combinedSuppliers)
+                .sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0));
 
-            // 5. Apply the baseline sorting, floating self-owned items to the top index positions
-            const sortedSuppliers = sortSuppliersByWeightedScore(combinedSuppliers)
-                .sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0))
-                .map((item: any) => ({ label: item.label, value: item.value }));
+            const total = sorted.length;
+            const sortedSuppliers = sorted.map((item: any, idx: number) => {
+                let tag = "";
+                if (total === 1) {
+                    tag = "Best";
+                } else {
+                    const pct = idx / (total - 1);
+                    if (pct <= 0.25) tag = "Best";
+                    else if (pct <= 0.5) tag = "Good";
+                    else if (pct <= 0.75) tag = "Average";
+                    else tag = "Poor";
+                }
+                if (item.isSelf) tag = "Best";
+                return {
+                    label: item.label,
+                    value: item.value,
+                    availableQty: item.availableQty,
+                    supplierProductItemId: item.supplierProductItemId,
+                    price: item.price,
+                    rating: item.rating,
+                    isSelf: item.isSelf,
+                    finalScore: item.finalScore,
+                    tag,
+                };
+            });
 
+            console.log("[useSupplierSelectionData] Ranked suppliers for product", productId, ":",
+                sortedSuppliers.map((s: any) => `${s.label} (${s.tag}, score:${s.finalScore?.toFixed(2)}, qty:${s.availableQty})`));
 
             setSuppliersMap((prev) => ({ ...prev, [productId]: sortedSuppliers }));
-        } catch (e) {
+        } catch (e: any) {
+            console.error("[useSupplierSelectionData] Error fetching suppliers for product", productId, ":", e.message);
             monday.execute("confirm", {
                 message: "Error fetching suppliers by direct batch lookup: " + e.message,
                 description: e,
