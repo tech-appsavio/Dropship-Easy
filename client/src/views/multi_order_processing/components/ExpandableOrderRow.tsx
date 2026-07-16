@@ -24,20 +24,20 @@ const ORDER_LABEL_TO_KEY: Record<string, string> = {
 };
 
 const LI_LABEL_TO_COL_ID: Record<string, string> = {
-    Quantity:       ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY,
-    UnitPrice:      ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.UNITPRICE,
-    SKU:            ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU,
-    ListPrice:      ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.LISTPRICE,
-    "Product Code": ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTCODE,
-    SUPPLIER:       ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
-    PRODUCT:        ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCT,
-    STATUS:         ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS,
+    SKU:               ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SKU,
+    Qty:               ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY,
+    Weight:            ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTWEIGHT,
+    COD:               ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS,
+    "Current Supplier": ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER,
+    "Split Order":     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS,
+    Status:            ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS,
 };
 
 const statusStyle = (val: string): React.CSSProperties => {
-    if (val === "Confirmed")          return { background: COLOR.successLight, color: COLOR.success,  border: "1px solid #a8d5b5" };
-    if (val === "Manifest Generated") return { background: COLOR.primaryLight, color: COLOR.primary,  border: "1px solid #a8c4f5" };
-    if (val === "Shipped")            return { background: "#e0f7fa",          color: "#00796b",       border: "1px solid #80cbc4" };
+    if (val === "Confirmed")           return { background: COLOR.successLight, color: COLOR.success, border: "1px solid #a8d5b5" };
+    if (val === "Supplier Selected")   return { background: "#e8f0fe",          color: "#1a73e8",     border: "1px solid #a8c4f5" };
+    if (val === "Manifest Generated")  return { background: COLOR.primaryLight, color: COLOR.primary, border: "1px solid #a8c4f5" };
+    if (val === "Shipped")             return { background: "#e0f7fa",          color: "#00796b",     border: "1px solid #80cbc4" };
     return { background: COLOR.bgHeader, color: COLOR.textMuted, border: `1px solid ${COLOR.border}` };
 };
 
@@ -128,6 +128,7 @@ export const ExpandableOrderRow: React.FC<{
                                             {ORDERLINEITEMS_COLUMN_LABELS_VISIBLE.map((label) => {
                                                 const colId = LI_LABEL_TO_COL_ID[label];
                                                 const col = li.column_values?.find((cv: any) => cv.id === colId);
+                                                const val = getDisplayValue(col);
                                                 return (
                                                     <td key={label} style={{ ...TD, fontSize: 12 }}>
                                                         {label === "Name" ? (
@@ -135,7 +136,11 @@ export const ExpandableOrderRow: React.FC<{
                                                                 style={{ color: COLOR.text, textDecoration: "none", fontWeight: 500 }}>
                                                                 {li.name}
                                                             </a>
-                                                        ) : getDisplayValue(col)}
+                                                        ) : label === "Status" ? (
+                                                            <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, ...statusStyle(val) }}>
+                                                                {val}
+                                                            </span>
+                                                        ) : val}
                                                     </td>
                                                 );
                                             })}

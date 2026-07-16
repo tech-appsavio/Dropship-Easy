@@ -261,8 +261,9 @@ export const CourierSelection = ({
         return col?.linked_item_ids?.[0] || "";
     };
 
-    // rowKey = splitOrderId for split items, lineItemId for non-split
-    const getRowKey = (item: any): string => getSplitOrderId(item) || item.id;
+    // rowKey = splitOrderId for split items, parentOrderId for non-split
+    // Non-split items in the same order share one courier dropdown and one checkbox.
+    const getRowKey = (item: any): string => getSplitOrderId(item) || item.linkedOrderId || item.id;
 
     const sortedDisplayedLineItems = useMemo(() => [...displayedLineItems].sort((a, b) => {
         const oCmp = (a.orderName || "").localeCompare(b.orderName || "");
@@ -281,10 +282,13 @@ export const CourierSelection = ({
         return sortedDisplayedLineItems.slice(start, start + pageSize);
     }, [sortedDisplayedLineItems, currentPage, pageSize]);
 
-    // orderSpans: rowSpan by linked order; splitSpans: rowSpan by split group (1 for non-split)
-    const { orderSpans, splitSpans } = useMemo(() => {
+    // orderSpans: rowSpan by linked order
+    // sharedSpans: rowSpan for all shared columns — groups split items by split-group and
+    //   groups ALL consecutive non-split items in the same order together, so columns like
+    //   COD, Postal, Supplier, Status, and the Courier dropdown each render only once.
+    const { orderSpans, sharedSpans } = useMemo(() => {
         const orderSpans: Record<string, number> = {};
-        const splitSpans: Record<string, number> = {};
+        const sharedSpans: Record<string, number> = {};
         let i = 0;
         while (i < paginatedLineItems.length) {
             const orderId = paginatedLineItems[i].linkedOrderId;
@@ -298,17 +302,21 @@ export const CourierSelection = ({
                 if (splitId) {
                     let n = m;
                     while (n < j && getSplitOrderId(paginatedLineItems[n]) === splitId) n++;
-                    splitSpans[paginatedLineItems[m].id] = n - m;
-                    for (let k = m + 1; k < n; k++) splitSpans[paginatedLineItems[k].id] = 0;
+                    sharedSpans[paginatedLineItems[m].id] = n - m;
+                    for (let k = m + 1; k < n; k++) sharedSpans[paginatedLineItems[k].id] = 0;
                     m = n;
                 } else {
-                    splitSpans[paginatedLineItems[m].id] = 1;
-                    m++;
+                    // Group all consecutive non-split items in this order under one shared span.
+                    let n = m;
+                    while (n < j && !getSplitOrderId(paginatedLineItems[n])) n++;
+                    sharedSpans[paginatedLineItems[m].id] = n - m;
+                    for (let k = m + 1; k < n; k++) sharedSpans[paginatedLineItems[k].id] = 0;
+                    m = n;
                 }
             }
             i = j;
         }
-        return { orderSpans, splitSpans };
+        return { orderSpans, sharedSpans };
     }, [paginatedLineItems]);
 
     // Auto-fetch couriers once per unique rowKey (one fetch per split order, one per non-split item)
@@ -360,6 +368,7 @@ export const CourierSelection = ({
 
     const fetchCouriersForKey = async (key: string, items: any[]) => {
         const first = items[0];
+        const srShipmentId: string = first.srShipmentId || "";
         const pickupZip = first.supplierPostalCode;
         const deliveryZip = first.customerPostalCode;
         const totalWeight = items.reduce((sum: number, item: any) =>
@@ -368,7 +377,7 @@ export const CourierSelection = ({
             const v = getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS);
             return v?.toLowerCase() === "yes" || v === "1" || v === "true";
         });
-        console.log(`[CourierSelection] fetchCouriersForKey key=${key} pickup=${pickupZip} delivery=${deliveryZip} weight=${totalWeight} cod=${isCOD ? 1 : 0}`);
+        console.log(`[CourierSelection] fetchCouriersForKey key=${key} pickup=${pickupZip} delivery=${deliveryZip} weight=${totalWeight} cod=${isCOD ? 1 : 0} srShipmentId=${srShipmentId}`);
 
         setRowCourierMap((prev) => ({ ...prev, [key]: { options: [], loading: true, error: null, selected: null } }));
 
@@ -379,11 +388,22 @@ export const CourierSelection = ({
         }
 
         try {
-            const response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0);
+            // Prefer shipment-based serviceability (matches exactly what AWB assignment validates).
+            // Fall back to pincode-based if the shipment ID is stale/cancelled and returns no results.
+            let response: any;
+            if (srShipmentId) {
+                response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0, srShipmentId);
+                if (!(response?.data?.available_courier_companies?.length)) {
+                    console.log(`[CourierSelection] Shipment serviceability empty for ${srShipmentId}, falling back to pincode check`);
+                    response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0);
+                }
+            } else {
+                response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0);
+            }
             const companies: any[] = response?.data?.available_courier_companies || [];
 
             if (companies.length === 0) {
-                setRowCourierMap((prev) => ({ ...prev, [key]: { options: [DEFAULT_COURIER], loading: false, error: "No couriers found, defaulting.", selected: DEFAULT_COURIER } }));
+                setRowCourierMap((prev) => ({ ...prev, [key]: { options: [DEFAULT_COURIER], loading: false, error: "No couriers found for this route.", selected: DEFAULT_COURIER } }));
                 return;
             }
 
@@ -630,7 +650,7 @@ export const CourierSelection = ({
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedDisplayedLineItems.length > 0 ? paginatedLineItems.map((item, idx) => {
+                        {sortedDisplayedLineItems.length > 0 ? paginatedLineItems.map((item) => {
                             const rowKey = getRowKey(item);
                             const rowState = rowCourierMap[rowKey];
                             const splitId = getSplitOrderId(item);
@@ -642,27 +662,13 @@ export const CourierSelection = ({
                             const statusCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS);
                             const statusText = statusCol?.text || "-";
                             const orderSpan = orderSpans[item.id];
-                            const splitSpan = splitSpans[item.id];
-
-                            // Border for regular (non-rowspanned) cells — based on this row's position
-                            const nextItem = idx < paginatedLineItems.length - 1 ? paginatedLineItems[idx + 1] : null;
-                            const isLastInOrder = !nextItem || nextItem.linkedOrderId !== item.linkedOrderId;
-                            const rowDivider: React.CSSProperties = isLastInOrder
-                                ? { borderBottom: "2px solid #5c6b8a" }
-                                : { borderBottom: "1px solid #b8bccb" };
-
-                            // Border for split-group rowspanned cells — based on the LAST row of the span
-                            const lastSpanRowIdx = splitSpan > 0 ? idx + splitSpan - 1 : idx;
-                            const nextAfterSpan = lastSpanRowIdx + 1 < paginatedLineItems.length ? paginatedLineItems[lastSpanRowIdx + 1] : null;
-                            const isSpanLastInOrder = !nextAfterSpan || nextAfterSpan.linkedOrderId !== item.linkedOrderId;
-                            const spanDivider: React.CSSProperties = isSpanLastInOrder
-                                ? { borderBottom: "2px solid #5c6b8a" }
-                                : { borderBottom: "1px solid #b8bccb" };
+                            const sharedSpan = sharedSpans[item.id]; // used for all shared cols
 
                             return (
                                 <tr key={item.id} style={{ backgroundColor: selectedRowIds.has(rowKey) ? "#f0f7ff" : COLOR.white, transition: "background 0.15s" }}>
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, ...spanDivider, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {/* Checkbox — shared span (one per split-group OR per non-split order) */}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             <input type="checkbox" checked={selectedRowIds.has(rowKey)}
                                                 onChange={() => {
                                                     const next = new Set(selectedRowIds);
@@ -672,42 +678,61 @@ export const CourierSelection = ({
                                                 style={{ width: 14, height: 14, cursor: "pointer", display: "block", margin: "0 auto", accentColor: "#0073ea" }} />
                                         </td>
                                     )}
+                                    {/* Order — order-group span */}
                                     {orderSpan !== 0 && (
-                                        <td style={{ ...TD, borderBottom: "2px solid #5c6b8a", verticalAlign: "middle", fontWeight: 600 }} rowSpan={orderSpan > 1 ? orderSpan : undefined}>
+                                        <td style={{ ...TD, verticalAlign: "middle", fontWeight: 600 }} rowSpan={orderSpan > 1 ? orderSpan : undefined}>
                                             {item.orderName || "-"}
                                         </td>
                                     )}
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, ...spanDivider, verticalAlign: "middle", fontWeight: isSplit ? 500 : undefined }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {/* Split Order — shared span */}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle", fontWeight: isSplit ? 500 : undefined }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {splitName}
                                         </td>
                                     )}
-                                    <td style={{ ...TD, ...rowDivider }}>{item.name}</td>
-                                    <td style={{ ...TD, ...rowDivider }}>{skuCol?.text || "-"}</td>
-                                    <td style={{ ...TD, ...rowDivider }}>{formatNumeric(getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTWEIGHT)) || "-"}</td>
-                                    <td style={{ ...TD, ...rowDivider }}>{getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS) || "-"}</td>
-                                    <td style={{ ...TD, ...rowDivider }}>{item.supplierPostalCode || "-"}</td>
-                                    <td style={{ ...TD, ...rowDivider }}>{item.customerPostalCode || "-"}</td>
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, ...spanDivider, verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {/* Per-item columns — always one row each */}
+                                    <td style={{ ...TD, textAlign: "left" }}>{item.name}</td>
+                                    <td style={TD}>{skuCol?.text || "-"}</td>
+                                    <td style={TD}>{formatNumeric(getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTWEIGHT)) || "-"}</td>
+                                    {/* Shared columns — rowspanned for both split groups and non-split orders */}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
+                                            {getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS) || "-"}
+                                        </td>
+                                    )}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
+                                            {item.supplierPostalCode || "-"}
+                                        </td>
+                                    )}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
+                                            {item.customerPostalCode || "-"}
+                                        </td>
+                                    )}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {item.supplierName || "-"}
                                         </td>
                                     )}
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, ...spanDivider, verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {item.courierName || "-"}
                                         </td>
                                     )}
-                                    <td style={{ ...TD, ...rowDivider }}>
-                                        <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                            background: statusText === "Courier Selected" ? COLOR.successLight : COLOR.bgHeader,
-                                            color: statusText === "Courier Selected" ? COLOR.success : COLOR.textMuted,
-                                            border: `1px solid ${statusText === "Courier Selected" ? "#a8d5b5" : COLOR.border}` }}>
-                                            {statusText}
-                                        </span>
-                                    </td>
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, ...spanDivider, minWidth: 400, padding: "6px 10px", verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
+                                            <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                                                background: statusText === "Courier Selected" ? COLOR.successLight : COLOR.bgHeader,
+                                                color: statusText === "Courier Selected" ? COLOR.success : COLOR.textMuted,
+                                                border: `1px solid ${statusText === "Courier Selected" ? "#a8d5b5" : COLOR.border}` }}>
+                                                {statusText}
+                                            </span>
+                                        </td>
+                                    )}
+                                    {/* Courier dropdown — one per group */}
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, minWidth: 400, padding: "6px 10px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {rowState?.loading ? (
                                                 <Loader size={20} />
                                             ) : (

@@ -48,7 +48,8 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                             id name
                             column_values(ids: [
                                 "${ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER}",
-                                "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}"
+                                "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}",
+                                "${ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID}"
                             ]) {
                                 id text value
                                 ... on BoardRelationValue { linked_item_ids }
@@ -62,6 +63,13 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                 (o: any) => selectedOrderIds.includes(o.id)
             );
             console.log("[useCourierSelectionData] STEP 1: Matched orders:", filteredOrders.length);
+
+            // Build parent-order → srShipmentId map
+            const parentSRMap: Record<string, string> = {};
+            filteredOrders.forEach((o: any) => {
+                const col = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID);
+                parentSRMap[o.id] = col?.text?.trim() || "";
+            });
 
             // 2. Customer postal codes
             console.log("[useCourierSelectionData] STEP 2: Extracting customer IDs...");
@@ -162,11 +170,37 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                 console.log("[useCourierSelectionData] STEP 4: Supplier postal map:", supplierPostalMap);
             }
 
+            // 5. Fetch split-order Shiprocket shipment IDs
+            const splitOrderIds = [...new Set(
+                enriched.flatMap((li: any) => {
+                    const col = li.column_values.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
+                    return col?.linked_item_ids || [];
+                })
+            )] as string[];
+            const splitSRMap: Record<string, string> = {};
+            if (splitOrderIds.length > 0) {
+                const splitRes: any = await monday.api(`query {
+                    items(ids: [${splitOrderIds.join(",")}]) {
+                        id
+                        column_values(ids: ["${ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID}"]) { id text }
+                    }
+                }`);
+                (splitRes.data?.items || []).forEach((so: any) => {
+                    splitSRMap[so.id] = so.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID)?.text?.trim() || "";
+                });
+                console.log("[useCourierSelectionData] STEP 5: Split order SR shipment map:", splitSRMap);
+            }
+
             const final = enriched
-                .map((li: any) => ({
-                    ...li,
-                    supplierPostalCode: li.supplierId ? supplierPostalMap[li.supplierId] || "" : "",
-                }))
+                .map((li: any) => {
+                    const splitOrderId = li.column_values.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS)?.linked_item_ids?.[0] || "";
+                    const srShipmentId = (splitOrderId ? splitSRMap[splitOrderId] : "") || parentSRMap[li.linkedOrderId] || "";
+                    return {
+                        ...li,
+                        supplierPostalCode: li.supplierId ? supplierPostalMap[li.supplierId] || "" : "",
+                        srShipmentId,
+                    };
+                })
                 .sort((a: any, b: any) => {
                     const orderCmp = (a.orderName || "").localeCompare(b.orderName || "");
                     return orderCmp !== 0 ? orderCmp : (a.name || "").localeCompare(b.name || "");

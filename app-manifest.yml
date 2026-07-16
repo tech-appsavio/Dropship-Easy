@@ -12,3 +12,8 @@ app:
       build:
         source: customUrl
         suffix: "/api/monday"
+    - type: AppFeatureItemView
+      name: Order Tracking
+      build:
+        source: customUrl
+        suffix: "/order_tracking"

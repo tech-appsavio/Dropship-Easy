@@ -34,10 +34,15 @@ function getShiprocketToken() {
 }
 // ── Serviceability ────────────────────────────────────────────────────────────
 router.get("/api/shiprocket/serviceability", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { pickup_postcode, delivery_postcode, weight, cod } = req.query;
+    const { pickup_postcode, delivery_postcode, weight, cod, shipment_id } = req.query;
     try {
         const token = yield getShiprocketToken();
-        const url = `${SR_BASE}/courier/serviceability/?pickup_postcode=${pickup_postcode}&delivery_postcode=${delivery_postcode}&weight=${weight}&cod=${cod}`;
+        // When a shipment_id is provided, use it so Shiprocket validates against the exact
+        // same shipment parameters it will use during AWB assignment (avoids "courier not
+        // available" mismatch caused by pickup-location pincode differences).
+        const url = shipment_id
+            ? `${SR_BASE}/courier/serviceability/?shipment_id=${shipment_id}&cod=${cod !== null && cod !== void 0 ? cod : 0}`
+            : `${SR_BASE}/courier/serviceability/?pickup_postcode=${pickup_postcode}&delivery_postcode=${delivery_postcode}&weight=${weight}&cod=${cod}`;
         const response = yield fetch(url, {
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         });
@@ -94,10 +99,11 @@ router.post("/api/shiprocket/pickup/update", (req, res) => __awaiter(void 0, voi
 router.post("/api/shiprocket/awb/assign", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const token = yield getShiprocketToken();
+        // Shiprocket requires shipment_id and courier_id as numbers, not strings
         const response = yield fetch(`${SR_BASE}/courier/assign/awb`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify(req.body),
+            body: JSON.stringify(Object.assign(Object.assign({}, req.body), { shipment_id: Number(req.body.shipment_id), courier_id: Number(req.body.courier_id) })),
         });
         res.json(yield response.json());
     }
@@ -125,6 +131,51 @@ router.post("/api/shiprocket/orders/create", (req, res) => __awaiter(void 0, voi
     try {
         const token = yield getShiprocketToken();
         const response = yield fetch(`${SR_BASE}/orders/create/adhoc`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(req.body),
+        });
+        res.json(yield response.json());
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+// ── Track by Shipment ID (primary) ───────────────────────────────────────────
+router.get("/api/shiprocket/track/shipment/:shipmentId", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const token = yield getShiprocketToken();
+        const response = yield fetch(`${SR_BASE}/courier/track/shipment/${req.params.shipmentId}`, {
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+        res.json(yield response.json());
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+// ── Track by Order ID (fallback) ──────────────────────────────────────────────
+router.get("/api/shiprocket/track/order", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { order_id, channel_id } = req.query;
+    try {
+        const token = yield getShiprocketToken();
+        const url = channel_id
+            ? `${SR_BASE}/courier/track?order_id=${order_id}&channel_id=${channel_id}`
+            : `${SR_BASE}/courier/track?order_id=${order_id}`;
+        const response = yield fetch(url, {
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+        res.json(yield response.json());
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}));
+// ── Cancel shipment AWBs ──────────────────────────────────────────────────────
+router.post("/api/shiprocket/shipment/cancel-awbs", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const token = yield getShiprocketToken();
+        const response = yield fetch(`${SR_BASE}/orders/cancel/shipment/awbs`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify(req.body),

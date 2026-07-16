@@ -11,7 +11,7 @@ let manifestCounter = 10;
 
 export const generateManifestPDF = async (manifestData: any) => {
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-    const { supplierName, courierName, lineItems, shopDetails } = manifestData;
+    const { supplierName, courierName, lineItems, supplierAddress, supplierPhone } = manifestData;
 
     const pageW = doc.internal.pageSize.getWidth();  // 297mm
     const pageH = doc.internal.pageSize.getHeight(); // 210mm
@@ -207,30 +207,23 @@ export const generateManifestPDF = async (manifestData: any) => {
     doc.setFontSize(9);
     doc.setTextColor(...FOOTER_COLOR);
 
-    const addrParts = [shopDetails.street, shopDetails.city, shopDetails.state, shopDetails.country, shopDetails.postalCode].filter(Boolean);
-    if (addrParts.length > 0) {
-        const addrLines = doc.splitTextToSize(addrParts.join(", "), innerW - pad * 2);
+    if (supplierAddress) {
+        const addrLines = doc.splitTextToSize(supplierAddress, innerW - pad * 2);
         doc.text(addrLines, pageW / 2, finalY, { align: "center" });
         finalY += addrLines.length * 5;
     }
 
-    if (shopDetails.supplierAddress) {
-        const suppLines = doc.splitTextToSize(shopDetails.supplierAddress, innerW - pad * 2);
-        doc.text(suppLines, pageW / 2, finalY, { align: "center" });
-        finalY += suppLines.length * 5;
-    }
-
-    if (shopDetails.phone) {
+    if (supplierPhone) {
         const label = "Contact : ";
         doc.setFont("helvetica", "bold");
         const lw = doc.getTextWidth(label);
         doc.setFont("helvetica", "normal");
-        const vw = doc.getTextWidth(shopDetails.phone);
+        const vw = doc.getTextWidth(supplierPhone);
         const cx = (pageW - lw - vw) / 2;
         doc.setFont("helvetica", "bold");
         doc.text(label, cx, finalY);
         doc.setFont("helvetica", "normal");
-        doc.text(shopDetails.phone, cx + lw, finalY);
+        doc.text(supplierPhone, cx + lw, finalY);
         finalY += 6;
     }
 

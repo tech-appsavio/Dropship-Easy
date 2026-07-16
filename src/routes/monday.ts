@@ -9,7 +9,10 @@ router.post('/api/monday/reverse_string', authenticationMiddleware, transformati
 
 // New UI view routes
 router.get('/multi_order_processing', (req, res) => {
-  // Assuming the build is served from 'client/build'
+  res.sendFile('index.html', { root: 'client/build/' });
+});
+
+router.get('/order_tracking', (req, res) => {
   res.sendFile('index.html', { root: 'client/build/' });
 });
 

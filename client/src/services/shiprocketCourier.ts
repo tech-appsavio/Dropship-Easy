@@ -9,13 +9,20 @@ class ShipRocketService {
         return response.json();
     }
 
-    static async checkCourierServiceability(pickupPincode: string, deliveryPincode: string, weight: number = 0.5, cod: number = 0) {
+    static async checkCourierServiceability(
+        pickupPincode: string,
+        deliveryPincode: string,
+        weight: number = 0.5,
+        cod: number = 0,
+        shipmentId?: string,
+    ) {
         const params = new URLSearchParams({
             pickup_postcode: pickupPincode,
             delivery_postcode: deliveryPincode,
             weight: String(weight),
             cod: String(cod),
         });
+        if (shipmentId) params.set("shipment_id", shipmentId);
         const response = await fetch(`/api/shiprocket/serviceability?${params}`);
         if (!response.ok) throw new Error(`Serviceability check failed: ${response.statusText}`);
         return response.json();
@@ -64,6 +71,22 @@ class ShipRocketService {
         return this.post("/api/shiprocket/pickup/generate", {
             shipment_id: [shipmentId],
         });
+    }
+
+    static async cancelShipmentByAwbs(awbs: string[]): Promise<any> {
+        return this.post("/api/shiprocket/shipment/cancel-awbs", { awbs });
+    }
+
+    static async trackShipment(shipmentId: string): Promise<any> {
+        const response = await fetch(`/api/shiprocket/track/shipment/${encodeURIComponent(shipmentId)}`);
+        if (!response.ok) throw new Error(`Tracking request failed: ${response.statusText}`);
+        return response.json();
+    }
+
+    static async trackByOrderId(orderId: string): Promise<any> {
+        const response = await fetch(`/api/shiprocket/track/order?order_id=${encodeURIComponent(orderId)}`);
+        if (!response.ok) throw new Error(`Tracking request failed: ${response.statusText}`);
+        return response.json();
     }
 }
 

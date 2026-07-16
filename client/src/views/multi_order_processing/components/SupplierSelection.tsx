@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo } from "react";
 import { Dropdown, Button, Loader, Toast } from "@vibe/core";
 import { useSupplierSelectionData } from "../hooks/useSupplierSelectionData";
-import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_PRODUCT_BOARD_ID, SUPPLIER_PRODUCT_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP, PRODUCT_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_PRODUCT_BOARD_ID, SUPPLIER_PRODUCT_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP, PRODUCT_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
 import ShipRocketService from "../../../services/shiprocketCourier";
 import mondaySdk from "monday-sdk-js";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
@@ -83,19 +83,22 @@ export const SupplierSelection = ({
     }, [lineItems]);
     const [globalSupplier, setGlobalSupplier] = useState<any>(null);
 
+    const getSplitOrderId = (item: any): string => {
+        const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
+        return col?.linked_item_ids?.[0] || "";
+    };
+
     // Auto-select supplier when only one exists for a line item's product
     React.useEffect(() => {
         setRowSupplierMap((prev) => {
             const next = { ...prev };
             lineItems.forEach((item) => {
                 if (next[item.id]) return; // already has a selection
-                
-                // Check if supplier is already populated in the database
+
                 const supplierCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER);
                 const existingSupplierName = supplierCol?.display_value?.trim() || supplierCol?.text?.trim();
-                
+
                 if (existingSupplierName) {
-                    // Find matching supplier in the options
                     const suppliers = suppliersMap[item.productId] || [];
                     const matchingSupplier = suppliers.find((s: any) => s.label === existingSupplierName);
                     if (matchingSupplier) {
@@ -103,8 +106,7 @@ export const SupplierSelection = ({
                         return;
                     }
                 }
-                
-                // Otherwise, auto-select if only one supplier exists
+
                 const suppliers = suppliersMap[item.productId];
                 if (suppliers && suppliers.length === 1) {
                     next[item.id] = suppliers[0];
@@ -191,14 +193,9 @@ export const SupplierSelection = ({
         return sortedFilteredLineItems.slice(start, start + pageSize);
     }, [sortedFilteredLineItems, currentPage, pageSize]);
 
-    const getSplitOrderId = (item: any): string => {
-        const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
-        return col?.linked_item_ids?.[0] || "";
-    };
-
-    const { orderSpans, splitSpans } = useMemo(() => {
+    const { orderSpans, sharedSpans } = useMemo(() => {
         const orderSpans: Record<string, number> = {};
-        const splitSpans: Record<string, number> = {};
+        const sharedSpans: Record<string, number> = {};
         let i = 0;
         while (i < paginatedLineItems.length) {
             const orderId = paginatedLineItems[i].linkedOrderId;
@@ -212,17 +209,20 @@ export const SupplierSelection = ({
                 if (splitId) {
                     let n = m;
                     while (n < j && getSplitOrderId(paginatedLineItems[n]) === splitId) n++;
-                    splitSpans[paginatedLineItems[m].id] = n - m;
-                    for (let k = m + 1; k < n; k++) splitSpans[paginatedLineItems[k].id] = 0;
+                    sharedSpans[paginatedLineItems[m].id] = n - m;
+                    for (let k = m + 1; k < n; k++) sharedSpans[paginatedLineItems[k].id] = 0;
                     m = n;
                 } else {
-                    splitSpans[paginatedLineItems[m].id] = 1;
-                    m++;
+                    let n = m;
+                    while (n < j && !getSplitOrderId(paginatedLineItems[n])) n++;
+                    sharedSpans[paginatedLineItems[m].id] = n - m;
+                    for (let k = m + 1; k < n; k++) sharedSpans[paginatedLineItems[k].id] = 0;
+                    m = n;
                 }
             }
             i = j;
         }
-        return { orderSpans, splitSpans };
+        return { orderSpans, sharedSpans };
     }, [paginatedLineItems]);
 
     const resetPage = () => setCurrentPage(1);
@@ -242,7 +242,7 @@ export const SupplierSelection = ({
         setSelectedLineItemIds(next);
     };
 
-    // Effective supplier for a row: global overrides inline
+    // Effective supplier for a row: global overrides inline (keyed by item id)
     const getEffectiveSupplier = (itemId: string) => globalSupplier || rowSupplierMap[itemId] || null;
 
     const handleSelectBestForAll = () => {
@@ -432,8 +432,86 @@ export const SupplierSelection = ({
                 groupsPerOrder[orderId].push(key);
             });
 
+            // ── Pickup location: ensure every supplier has a registered location in Shiprocket ──
+            const uniqueSupplierIds = [...new Set(Object.keys(srGroups).map((k) => srGroups[k].supplierId).filter(Boolean))] as string[];
+            const supplierDetailsMap: Record<string, { name: string; email: string; phone: string; address: string; city: string; state: string; country: string; pin_code: string }> = {};
+            if (uniqueSupplierIds.length > 0) {
+                const suppRes: any = await monday.api(`query {
+                    items(ids: [${uniqueSupplierIds.join(",")}]) {
+                        id name
+                        column_values(ids: [
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.EMAIL}",
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.PHONE}",
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.ADDRESS}",
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.City}",
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.State}",
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.Country}",
+                            "${SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE}"
+                        ]) { id text }
+                    }
+                }`);
+                (suppRes.data?.items || []).forEach((s: any) => {
+                    const getCol = (id: string) => s.column_values.find((cv: any) => cv.id === id)?.text?.trim() || "";
+                    const rawPhone = getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.PHONE);
+                    supplierDetailsMap[s.id] = {
+                        name: s.name || "",
+                        email: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.EMAIL),
+                        phone: rawPhone.replace(/\D/g, "").slice(-10),
+                        address: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.ADDRESS),
+                        city: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.City),
+                        state: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.State),
+                        country: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.Country) || "India",
+                        pin_code: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE),
+                    };
+                });
+                console.log("[SR Create] Supplier details fetched:", Object.keys(supplierDetailsMap).length);
+            }
+
+            // Fetch all registered Shiprocket pickup locations once
+            const registeredPickups = new Set<string>();
+            try {
+                const pickupRes = await ShipRocketService.getPickupLocations();
+                (pickupRes?.data?.shipping_address || []).forEach((loc: any) => {
+                    if (loc.pickup_location) registeredPickups.add(loc.pickup_location);
+                });
+                console.log("[SR Create] Registered pickup locations:", [...registeredPickups]);
+            } catch (e: any) {
+                console.warn("[SR Create] Could not fetch pickup locations:", e.message);
+            }
+
+            // Create any missing pickup locations before order creation
+            for (const key of Object.keys(srGroups)) {
+                const group = srGroups[key];
+                const pickupName = group.supplierLabel;
+                if (registeredPickups.has(pickupName)) {
+                    console.log("[SR Create] Pickup location already exists:", pickupName);
+                    continue;
+                }
+                const sd = supplierDetailsMap[group.supplierId] || { name: pickupName, email: "", phone: "", address: "", city: "", state: "", country: "India", pin_code: "" };
+                try {
+                    await ShipRocketService.addPickupAddress({
+                        pickup_location: pickupName,
+                        name: sd.name || pickupName,
+                        email: sd.email,
+                        phone: sd.phone,
+                        address: sd.address,
+                        city: sd.city,
+                        state: sd.state,
+                        country: sd.country,
+                        pin_code: sd.pin_code,
+                    });
+                    registeredPickups.add(pickupName);
+                    console.log("[SR Create] Created pickup location:", pickupName);
+                } catch (e: any) {
+                    console.warn("[SR Create] Failed to create pickup location for", pickupName, ":", e.message);
+                }
+            }
+            // ── End pickup location setup ─────────────────────────────────────────────────────
+
             // Collect split order IDs per parent order so we can update the parent after all groups run
             const createdSplitOrders: Record<string, string[]> = {};
+            // Sequential counter per parent order for "-S1", "-S2" naming
+            const splitOrderCounters: Record<string, number> = {};
 
             for (const group of Object.values(srGroups)) {
                 try {
@@ -523,12 +601,35 @@ export const SupplierSelection = ({
 
                     if (isSplit) {
                         // Create a new order in the Orders board for this supplier group
-                        const splitOrderName = `${order.name} - ${group.supplierLabel}`;
+                        splitOrderCounters[group.orderId] = (splitOrderCounters[group.orderId] || 0) + 1;
+                        const splitOrderName = `${order.name}-S${splitOrderCounters[group.orderId]}`;
+
+                        // Build full address string (billing = shipping since shipping_is_billing:true)
+                        const fullAddress = [billingStreet, billingCity, billingState, billingPincode, billingCountry]
+                            .filter(Boolean).join(", ");
+
+                        // Today's date for CREATEDDATE column
+                        const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+                        // Read discount proportionally from parent order
+                        const parentDiscountRaw = parseFloat(getOCol(ORDER_ALL_COLUMN_IDS_MAP.DISCOUNT)?.text || "0") || 0;
+                        const parentTotal = parseFloat(getOCol(ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE)?.text || "0") || 0;
+                        const splitDiscount = parentTotal > 0 && parentDiscountRaw > 0
+                            ? parseFloat(((totalValue / parentTotal) * parentDiscountRaw).toFixed(2))
+                            : 0;
+
                         const newOrderColValues: any = {
-                            [ORDER_ALL_COLUMN_IDS_MAP.PARENTORDER]: { item_ids: [String(group.orderId)] },
-                            [ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE]: String(totalValue),
-                            [ORDER_ALL_COLUMN_IDS_MAP.BILLING_ADDRESS]: billingStreet,
+                            [ORDER_ALL_COLUMN_IDS_MAP.PARENTORDER]:     { item_ids: [String(group.orderId)] },
+                            [ORDER_ALL_COLUMN_IDS_MAP.CREATEDDATE]:     { date: todayStr },
+                            [ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE]:     String(totalValue.toFixed(2)),
+                            [ORDER_ALL_COLUMN_IDS_MAP.BILLING_ADDRESS]: fullAddress,
+                            [ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE]:   billingPincode,
+                            [ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD]:   { label: isCOD ? "COD" : "Prepaid" },
+                            [ORDER_ALL_COLUMN_IDS_MAP.STATUS]:          { label: "Confirmed" },
                         };
+                        // Only set columns whose IDs have been configured
+                        if (ORDER_ALL_COLUMN_IDS_MAP.DISCOUNT) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.DISCOUNT] = String(splitDiscount);
+                        if (ORDER_ALL_COLUMN_IDS_MAP.SHIPPING_ADDRESS) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.SHIPPING_ADDRESS] = fullAddress;
                         if (customerId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER] = { item_ids: [customerId] };
                         if (srOrderId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Order_ID] = srOrderId;
                         if (srShipmentId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID] = srShipmentId;
@@ -812,7 +913,7 @@ export const SupplierSelection = ({
                             const splitOrderCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
                             const statusText = statusCol?.text || "-";
                             const orderSpan = orderSpans[item.id];
-                            const splitSpan = splitSpans[item.id];
+                            const sharedSpan = sharedSpans[item.id];
                             return (
                                 <tr key={item.id} style={{ backgroundColor: selectedLineItemIds.has(item.id) ? "#f0f7ff" : COLOR.white, transition: "background 0.15s" }}>
                                     <td style={{ ...TD, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }}>
@@ -828,13 +929,13 @@ export const SupplierSelection = ({
                                     <td style={TD}>{item.sku || "-"}</td>
                                     <td style={TD}>{item.category || "-"}</td>
                                     <td style={TD}>{qtyCol?.text || "-"}</td>
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {currentSupplierCol?.display_value || currentSupplierCol?.text || "-"}
                                         </td>
                                     )}
-                                    {splitSpan !== 0 && (
-                                        <td style={{ ...TD, verticalAlign: "middle", fontWeight: splitId ? 500 : undefined }} rowSpan={splitSpan > 1 ? splitSpan : undefined}>
+                                    {sharedSpan !== 0 && (
+                                        <td style={{ ...TD, verticalAlign: "middle", fontWeight: splitId ? 500 : undefined }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {splitOrderCol?.display_value || "-"}
                                         </td>
                                     )}

@@ -17,6 +17,9 @@ export const ORDER_ALL_COLUMN_IDS_MAP = {
     ORDERID: "text_mkrmx2wg",
     STATUS: "status",
     TOTAL_PRICE: "numeric_mkrnbtwf",
+    // NOTE: Add the real column IDs below once confirmed in the Monday board schema
+    DISCOUNT: "numeric_mkrnpg8r",           // numeric discount column on Order board — fill in the column ID
+    SHIPPING_ADDRESS: "long_text_mkrngwce",   // shipping/delivery address column on Order board — fill in the column ID
     BILLING_ADDRESS: "long_text_mkrnfk2r",
     DELIVERY_CODE: "text_mm365x5d",
     SUPPLIER_MANIFEST: "board_relation_mm36hqmm",
@@ -52,7 +55,7 @@ export const ORDERLINEITEMS_ALL_COLUMN_IDS_MAP = {
     Shipped: "color_mm4mbc34",
     shiprocket_Shipment_response: "long_text_mm4fsgmm",
 };
-export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "Quantity", "Unit Price", "SKU", "Product Code", "Supplier", "Product", "Status"];
+export const ORDERLINEITEMS_COLUMN_LABELS_VISIBLE = ["Name", "SKU", "Qty", "Weight", "COD", "Current Supplier", "Split Order", "Status"];
 
 
 export const CHILDORDERS_COLUMN_IDS_MAP = {
