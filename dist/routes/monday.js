@@ -29,9 +29,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const router = (0, express_1.Router)();
 const transformationController = __importStar(require("../controllers/monday-controller"));
+const invocable_actions_1 = require("../controllers/invocable-actions");
+const whatsapp_webhook_1 = require("../controllers/whatsapp-webhook");
 const authentication_1 = __importDefault(require("../middlewares/authentication"));
 router.post('/api/monday/execute_action', authentication_1.default, transformationController.executeAction);
 router.post('/api/monday/reverse_string', authentication_1.default, transformationController.reverseString);
+router.post('/api/monday/action_send_message', authentication_1.default, invocable_actions_1.InvocableActions.actionSendMessage);
+router.post('/api/monday/get_columns_options', invocable_actions_1.InvocableActions.getColumnsDropdownOptions);
+router.get('/api/monday/get_columns_options', invocable_actions_1.InvocableActions.getColumnsDropdownOptions);
 // New UI view routes
 router.get('/multi_order_processing', (req, res) => {
     res.sendFile('index.html', { root: 'client/build/' });
@@ -39,4 +44,7 @@ router.get('/multi_order_processing', (req, res) => {
 router.get('/order_tracking', (req, res) => {
     res.sendFile('index.html', { root: 'client/build/' });
 });
+// WhatsApp incoming message webhook
+router.get('/api/whatsapp/webhook', whatsapp_webhook_1.WhatsappWebhook.verify);
+router.post('/api/whatsapp/webhook', whatsapp_webhook_1.WhatsappWebhook.receive);
 exports.default = router;

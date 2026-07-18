@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const api_1 = require("@mondaydotcomorg/api");
+const graphql_request_1 = require("graphql-request");
 const queries_graphql_1 = require("../queries.graphql");
 class MondayService {
     static getMe(shortLiveToken) {
@@ -20,27 +21,243 @@ class MondayService {
                 return me;
             }
             catch (err) {
-                console.log(err);
+                // Error getting user info
             }
         });
     }
     static getColumnValue(token, itemId, columnId) {
-        var _a, _b, _c, _d;
+        var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const mondayClient = new api_1.ApiClient({ token: token });
                 const params = { itemId: [itemId], columnId: [columnId] };
                 const response = yield mondayClient.request(queries_graphql_1.getColumnValueQuery, params);
-                return (_d = (_c = (_b = (_a = response === null || response === void 0 ? void 0 : response.items) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.column_values) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.value;
+                const col = ((_c = (_b = (_a = response === null || response === void 0 ? void 0 : response.items) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.column_values) === null || _c === void 0 ? void 0 : _c[0]);
+                // Handle mirror/lookup columns which use display_value
+                return (col === null || col === void 0 ? void 0 : col.display_value) || (col === null || col === void 0 ? void 0 : col.text) || (col === null || col === void 0 ? void 0 : col.value) || null;
             }
             catch (err) {
-                console.log(err);
+                throw err;
             }
+        });
+    }
+    static getBoardIdByIntegration(token, integrationId) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const mondayClient = new api_1.ApiClient({ token });
+                const response = yield mondayClient.request(queries_graphql_1.getAllBoardsQuery, {});
+                const boards = (response === null || response === void 0 ? void 0 : response.boards) || [];
+                // Return columns from the most recently used board
+                return ((_a = boards === null || boards === void 0 ? void 0 : boards[0]) === null || _a === void 0 ? void 0 : _a.id) || null;
+            }
+            catch (err) {
+                return null;
+            }
+        });
+    }
+    static getBoardColumns(token, boardId) {
+        var _a, _b;
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
+                    headers: { Authorization: token }
+                });
+                const response = yield client.request(queries_graphql_1.getBoardColumnsQuery, { boardId: [boardId] });
+                return ((_b = (_a = response === null || response === void 0 ? void 0 : response.boards) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.columns) || [];
+            }
+            catch (err) {
+                return [];
+            }
+        });
+    }
+    static changeMultipleColumnValues(token, boardId, itemId, columnValues) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                console.log('📝 changeMultipleColumnValues called');
+                console.log('   Board ID:', boardId);
+                console.log('   Item ID:', itemId);
+                console.log('   Column Values:', JSON.stringify(columnValues, null, 2));
+                const mondayClient = new api_1.ApiClient({ token: token });
+                const query = `mutation change_multiple_column_values($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+                change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
+                    id
+                }
+            }`;
+                const variables = {
+                    boardId: boardId,
+                    itemId: itemId,
+                    columnValues: JSON.stringify(columnValues)
+                };
+                console.log('🚀 Sending mutation to Monday API...');
+                const response = yield mondayClient.request(query, variables);
+                console.log('✅ Monday API response:', response);
+                return response;
+            }
+            catch (err) {
+                console.error('❌ changeMultipleColumnValues error:', err.message);
+                throw err;
+            }
+        });
+    }
+    static findItemByColumnValue(token, boardId, columnId, value) {
+        var _a, _b;
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
+                    headers: { Authorization: token }
+                });
+                const query = `query ($boardId: ID!, $columnId: String!, $value: String!) {
+                items_page_by_column_values(
+                    limit: 1,
+                    board_id: $boardId,
+                    columns: [{ column_id: $columnId, column_values: [$value] }]
+                ) {
+                    items {
+                        id
+                        name
+                    }
+                }
+            }`;
+                const response = yield client.request(query, { boardId, columnId, value });
+                return ((_b = (_a = response === null || response === void 0 ? void 0 : response.items_page_by_column_values) === null || _a === void 0 ? void 0 : _a.items) === null || _b === void 0 ? void 0 : _b[0]) || null;
+            }
+            catch (err) {
+                return null;
+            }
+        });
+    }
+    static createItem(token, boardId, itemName, columnValues) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                console.log('🔑 Creating item with token:', (token === null || token === void 0 ? void 0 : token.substring(0, 20)) + '...');
+                console.log('📋 Board ID:', boardId, 'Item Name:', itemName);
+                const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
+                    headers: { Authorization: token }
+                });
+                const query = `mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
+                create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues) {
+                    id
+                }
+            }`;
+                const response = yield client.request(query, {
+                    boardId,
+                    itemName,
+                    columnValues: JSON.stringify(columnValues)
+                });
+                return (response === null || response === void 0 ? void 0 : response.create_item) || null;
+            }
+            catch (err) {
+                console.error('❌ Create item error:', err.message);
+                throw err;
+            }
+        });
+    }
+    // Gathers the values needed to fill the WhatsApp order-confirmation template:
+    //   orderName  = the order item's name        ({{1}})
+    //   totalPrice = the "Total Price" column      ({{2}})
+    //   products   = connected line-item names     ({{3}})
+    static getOrderWhatsappParams(token, itemId) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
+                headers: { Authorization: token }
+            });
+            const LINE_ITEMS_BOARD_ID = process.env.LINE_ITEMS_BOARD_ID || '2028904077';
+            let orderName = '';
+            let totalPrice = '';
+            let products = '';
+            try {
+                const query = `query ($itemId: [ID!]) {
+                items(ids: $itemId) {
+                    id
+                    name
+                    column_values {
+                        id
+                        text
+                        type
+                        column { title }
+                        ... on BoardRelationValue { linked_items { id name board { id } } }
+                        ... on MirrorValue { display_value }
+                    }
+                }
+            }`;
+                const resp = yield client.request(query, { itemId: [itemId] });
+                const item = (_a = resp === null || resp === void 0 ? void 0 : resp.items) === null || _a === void 0 ? void 0 : _a[0];
+                if (item) {
+                    orderName = item.name || '';
+                    const cols = item.column_values || [];
+                    const byTitle = (t) => cols.find((c) => { var _a; return (((_a = c.column) === null || _a === void 0 ? void 0 : _a.title) || '').trim().toLowerCase() === t.toLowerCase(); });
+                    const priceCol = byTitle('Total Price') || byTitle('TotalPrice');
+                    totalPrice = priceCol ? (priceCol.display_value || priceCol.text || '') : '';
+                    // Prefer a two-way connection column on the order that links to line items.
+                    const relCol = cols.find((c) => c.type === 'board_relation' &&
+                        (c.linked_items || []).some((li) => { var _a; return String((_a = li.board) === null || _a === void 0 ? void 0 : _a.id) === String(LINE_ITEMS_BOARD_ID); }));
+                    if (relCol) {
+                        products = (relCol.linked_items || []).map((li) => li.name).filter(Boolean).join(', ');
+                    }
+                }
+            }
+            catch (err) {
+                console.error('❌ getOrderWhatsappParams error:', err.message);
+            }
+            // Fallback: no two-way connection on the order — scan the line-items board for
+            // items connected back to this order via their "Order" relation column.
+            if (!products) {
+                try {
+                    products = yield MondayService.getConnectedLineItemNames(token, itemId, LINE_ITEMS_BOARD_ID);
+                }
+                catch (err) {
+                    console.error('❌ getConnectedLineItemNames error:', err.message);
+                }
+            }
+            return { orderName, totalPrice, products };
+        });
+    }
+    static getConnectedLineItemNames(token, itemId, lineItemsBoardId) {
+        var _a, _b;
+        return __awaiter(this, void 0, void 0, function* () {
+            const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
+                headers: { Authorization: token }
+            });
+            const names = [];
+            let cursor = null;
+            let guard = 0;
+            do {
+                const query = `query ($boardId: ID!, $cursor: String) {
+                boards(ids: [$boardId]) {
+                    items_page(limit: 100, cursor: $cursor) {
+                        cursor
+                        items {
+                            name
+                            column_values {
+                                column { type }
+                                ... on BoardRelationValue { linked_item_ids }
+                            }
+                        }
+                    }
+                }
+            }`;
+                const resp = yield client.request(query, { boardId: lineItemsBoardId, cursor });
+                const page = (_b = (_a = resp === null || resp === void 0 ? void 0 : resp.boards) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.items_page;
+                const items = (page === null || page === void 0 ? void 0 : page.items) || [];
+                for (const li of items) {
+                    const linked = (li.column_values || [])
+                        .filter((c) => { var _a; return ((_a = c.column) === null || _a === void 0 ? void 0 : _a.type) === 'board_relation' && Array.isArray(c.linked_item_ids); })
+                        .flatMap((c) => c.linked_item_ids.map(String));
+                    if (linked.includes(String(itemId))) {
+                        names.push(li.name);
+                    }
+                }
+                cursor = (page === null || page === void 0 ? void 0 : page.cursor) || null;
+            } while (cursor && ++guard < 50);
+            return names.join(', ');
         });
     }
     static changeColumnValue(token, boardId, itemId, columnId, value) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                console.log(`🔄 changeColumnValue: columnId=${columnId}, value=${value}`);
                 const mondayClient = new api_1.ApiClient({ token: token });
                 const changeStatusColumn = yield mondayClient.operations.changeColumnValueOp({
                     boardId: boardId,
@@ -48,10 +265,12 @@ class MondayService {
                     columnId: columnId,
                     value: value,
                 });
+                console.log(`✅ changeColumnValue success:`, changeStatusColumn);
                 return changeStatusColumn;
             }
             catch (err) {
-                console.log(err);
+                console.error(`❌ changeColumnValue error for column ${columnId}:`, err.message);
+                throw err;
             }
         });
     }

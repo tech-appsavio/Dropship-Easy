@@ -13,6 +13,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const shipment_cancel_controller_1 = require("../controllers/shipment-cancel-controller");
+const webhook_authentication_1 = require("../middlewares/webhook-authentication");
 const router = express_1.default.Router();
 const SHIPROCKET_LOGIN_URL = "https://apiv2.shiprocket.in/v1/external/auth/login";
 const SR_BASE = "https://apiv2.shiprocket.in/v1/external";
@@ -186,4 +188,9 @@ router.post("/api/shiprocket/shipment/cancel-awbs", (req, res) => __awaiter(void
         res.status(500).json({ error: error.message });
     }
 }));
+// ── Shipment cancellation webhook (Monday-triggered) ──────────────────────────
+// Server-to-server webhook: cancels the Shiprocket shipment when a Shipments-board
+// item's status is set to "Cancel". Distinct from the UI-driven /shipment/cancel-awbs
+// proxy above, which the Multi-Order UI calls directly.
+router.post("/api/shiprocket/webhook/cancel_shipment", webhook_authentication_1.webhookAuthenticationMiddleware, shipment_cancel_controller_1.ShipmentCancelController.onStatusChange);
 exports.default = router;
