@@ -41,6 +41,40 @@ class MondayService {
         }
     }
 
+    // Returns the subset of the given board IDs that DON'T exist for this token (deleted
+    // boards / stale config). Empty array means every board is valid. Used to fail fast
+    // with a clear message instead of a deep InvalidBoardIdException.
+    static async findMissingBoards(token: string, boardIds: (string | number)[]): Promise<string[]> {
+        const ids = boardIds.map((b) => String(b)).filter(Boolean);
+        if (!ids.length) return [];
+        try {
+            const client = new GraphQLClient('https://api.monday.com/v2', {
+                headers: { Authorization: token }
+            });
+            const resp: any = await client.request(
+                `query ($ids: [ID!]) { boards(ids: $ids) { id } }`, { ids }
+            );
+            const existing = new Set((resp?.boards ?? []).map((b: any) => String(b.id)));
+            return ids.filter((id) => !existing.has(id));
+        } catch (err) {
+            return []; // on query failure, don't block — let the downstream call surface it
+        }
+    }
+
+    // Quick liveness check for an OAuth token. Returns false if monday rejects it (e.g.
+    // the token was revoked when the app was uninstalled). Used to detect a stale token
+    // and prompt reconnection instead of failing deep inside a mutation.
+    static async isTokenValid(token: string): Promise<boolean> {
+        if (!token) return false;
+        try {
+            const client = new GraphQLClient('https://api.monday.com/v2', { headers: { Authorization: token } });
+            const resp: any = await client.request(`query { me { id } }`);
+            return !!resp?.me?.id;
+        } catch {
+            return false;
+        }
+    }
+
     static async getBoardColumns(token: string, boardId: string | number) {
         try {
             const client = new GraphQLClient('https://api.monday.com/v2', {
@@ -116,8 +150,10 @@ class MondayService {
             const client = new GraphQLClient('https://api.monday.com/v2', {
                 headers: { Authorization: token }
             });
+            // create_labels_if_missing lets status/dropdown values (e.g. Source "Shopify",
+            // Order Type "Order") populate on freshly-provisioned boards without pre-seeding labels.
             const query = `mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
-                create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues) {
+                create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
                     id
                 }
             }`;
@@ -137,11 +173,15 @@ class MondayService {
     //   orderName  = the order item's name        ({{1}})
     //   totalPrice = the "Total Price" column      ({{2}})
     //   products   = connected line-item names     ({{3}})
-    static async getOrderWhatsappParams(token: string, itemId: string | number) {
+    static async getOrderWhatsappParams(token: string, itemId: string | number, lineItemsBoardId?: string) {
         const client = new GraphQLClient('https://api.monday.com/v2', {
             headers: { Authorization: token }
         });
-        const LINE_ITEMS_BOARD_ID = process.env.LINE_ITEMS_BOARD_ID || '2028904077';
+        // Use the caller account's provisioned line-items board. Multi-tenant: no env /
+        // hardcoded fallback — using the wrong board would either read another tenant's data
+        // or make "products" come back empty. If it's missing, skip the connection scan
+        // (the board-scan fallback below still works off the order's own line-item links).
+        const LINE_ITEMS_BOARD_ID = lineItemsBoardId || '';
 
         let orderName = '';
         let totalPrice = '';
@@ -187,8 +227,9 @@ class MondayService {
         }
 
         // Fallback: no two-way connection on the order — scan the line-items board for
-        // items connected back to this order via their "Order" relation column.
-        if (!products) {
+        // items connected back to this order via their "Order" relation column. Requires the
+        // account's line-items board id (no env fallback); skip if it wasn't provided.
+        if (!products && LINE_ITEMS_BOARD_ID) {
             try {
                 products = await MondayService.getConnectedLineItemNames(token, itemId, LINE_ITEMS_BOARD_ID);
             } catch (err: any) {

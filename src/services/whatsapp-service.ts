@@ -1,18 +1,38 @@
+import { getAccountSettings } from './account-store';
+
 const WHATSAPP_API_URL = 'https://graph.facebook.com/v21.0';
+
+// Resolves WhatsApp credentials for an account STRICTLY from that account's saved Settings.
+// This is a multi-tenant marketplace app: credentials must NEVER fall back to the app's own
+// env vars, or one tenant would silently send through the developer's WhatsApp account. An
+// account that hasn't configured WhatsApp gets empty values here and a clear error at the
+// call site telling them to fill in Account Settings.
+async function waConfig(accountId?: string) {
+    const s = accountId ? await getAccountSettings(accountId) : null;
+    return {
+        accessToken: s?.whatsappAccessToken,
+        phoneId: s?.whatsappPhoneId,
+        businessAccountId: s?.whatsappBusinessAccountId,
+        templateLanguage: s?.whatsappTemplateLanguage || 'en',
+    };
+}
 
 export class WhatsappService {
     static async getTemplateContent(
         templateName: string,
-        businessAccountId?: string
+        accountId?: string
     ): Promise<{ text: string; language: string; buttons: { index: number; type: string; text: string }[] }> {
-        const wabaId = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-        const url = `${WHATSAPP_API_URL}/${wabaId}/message_templates?name=${templateName}`;
-        const fallbackLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
+        const cfg = await waConfig(accountId);
+        if (!cfg.businessAccountId || !cfg.accessToken) {
+            throw new Error("WhatsApp is not configured for this account. Add the Access Token and Business Account ID in Account Settings → WhatsApp.");
+        }
+        const url = `${WHATSAPP_API_URL}/${cfg.businessAccountId}/message_templates?name=${templateName}`;
+        const fallbackLanguage = cfg.templateLanguage;
 
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                'Authorization': `Bearer ${cfg.accessToken}`,
                 'Content-Type': 'application/json'
             }
         });
@@ -50,9 +70,20 @@ export class WhatsappService {
         languageCode: string = 'en',
         fromPhone?: string,
         bodyParams?: string[],
-        buttons?: { index: number; payload: string }[]
+        buttons?: { index: number; payload: string }[],
+        accountId?: string
     ) {
-        const phoneId = fromPhone || process.env.WHATSAPP_PHONE_ID;
+        const cfg = await waConfig(accountId);
+        // Prefer the recipe-provided sender, fall back to the account's saved Phone Number ID.
+        // Treat blank/whitespace as "not set" so we don't send an undefined id to Meta (which
+        // returns the confusing "Object with ID 'undefined' does not exist" error).
+        const phoneId = (typeof fromPhone === 'string' && fromPhone.trim()) ? fromPhone.trim() : cfg.phoneId;
+        if (!phoneId) {
+            throw new Error("WhatsApp Phone Number ID is not configured. Add it in Account Settings → WhatsApp → 'Phone Number ID'.");
+        }
+        if (!cfg.accessToken) {
+            throw new Error("WhatsApp Access Token is not configured. Add it in Account Settings → WhatsApp → 'Access Token'.");
+        }
         const url = `${WHATSAPP_API_URL}/${phoneId}/messages`;
 
         const payload: any = {
@@ -93,7 +124,7 @@ export class WhatsappService {
         const postPayload = () => fetch(url, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                'Authorization': `Bearer ${cfg.accessToken}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload)
@@ -110,7 +141,7 @@ export class WhatsappService {
             if (isLanguageError) {
                 let correctedLanguage: string | undefined;
                 try {
-                    const { language } = await WhatsappService.getTemplateContent(templateName);
+                    const { language } = await WhatsappService.getTemplateContent(templateName, accountId);
                     correctedLanguage = language;
                 } catch { /* fall through to en_US guess below */ }
 

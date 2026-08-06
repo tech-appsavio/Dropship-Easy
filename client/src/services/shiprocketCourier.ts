@@ -1,10 +1,30 @@
+import mondaySdk from "monday-sdk-js";
+
+const monday = mondaySdk();
+
 class ShipRocketService {
+    // monday session token → lets the backend resolve this account's Shiprocket credentials.
+    private static async authHeaders(): Promise<Record<string, string>> {
+        try {
+            const res: any = await monday.get("sessionToken");
+            return res?.data ? { Authorization: res.data } : {};
+        } catch {
+            return {};
+        }
+    }
+
     private static async post(path: string, body: object) {
         const response = await fetch(path, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(await this.authHeaders()) },
             body: JSON.stringify(body),
         });
+        if (!response.ok) throw new Error(`${path} failed: ${response.statusText}`);
+        return response.json();
+    }
+
+    private static async get(path: string) {
+        const response = await fetch(path, { headers: await this.authHeaders() });
         if (!response.ok) throw new Error(`${path} failed: ${response.statusText}`);
         return response.json();
     }
@@ -23,15 +43,11 @@ class ShipRocketService {
             cod: String(cod),
         });
         if (shipmentId) params.set("shipment_id", shipmentId);
-        const response = await fetch(`/api/shiprocket/serviceability?${params}`);
-        if (!response.ok) throw new Error(`Serviceability check failed: ${response.statusText}`);
-        return response.json();
+        return this.get(`/api/shiprocket/serviceability?${params}`);
     }
 
     static async getPickupLocations(): Promise<any> {
-        const response = await fetch("/api/shiprocket/pickup-locations");
-        if (!response.ok) throw new Error(`Failed to fetch pickup locations: ${response.statusText}`);
-        return response.json();
+        return this.get("/api/shiprocket/pickup-locations");
     }
 
     static async addPickupAddress(payload: {
@@ -78,15 +94,11 @@ class ShipRocketService {
     }
 
     static async trackShipment(shipmentId: string): Promise<any> {
-        const response = await fetch(`/api/shiprocket/track/shipment/${encodeURIComponent(shipmentId)}`);
-        if (!response.ok) throw new Error(`Tracking request failed: ${response.statusText}`);
-        return response.json();
+        return this.get(`/api/shiprocket/track/shipment/${encodeURIComponent(shipmentId)}`);
     }
 
     static async trackByOrderId(orderId: string): Promise<any> {
-        const response = await fetch(`/api/shiprocket/track/order?order_id=${encodeURIComponent(orderId)}`);
-        if (!response.ok) throw new Error(`Tracking request failed: ${response.statusText}`);
-        return response.json();
+        return this.get(`/api/shiprocket/track/order?order_id=${encodeURIComponent(orderId)}`);
     }
 }
 

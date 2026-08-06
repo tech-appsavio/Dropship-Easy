@@ -1,6 +1,6 @@
 // src/views/multi_order_processing/utils/labelPdfGenerator.ts
 import { jsPDF } from "jspdf";
-import { ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../columns";
 
 export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
     // Standard 4×6 inch shipping label  (101.6 mm × 152.4 mm)
@@ -15,21 +15,6 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         const cv = item.column_values?.find((c: any) => c.id === colId);
         if (!cv) return "";
         return cv.display_value || cv.text || "";
-    };
-
-    // Compact representational barcode (Code-128 style)
-    const drawBarcode = (pdf: jsPDF, centerX: number, startY: number, width: number, height: number) => {
-        const startX = centerX - width / 2;
-        pdf.setDrawColor(0);
-        let x = startX;
-        let i = 0;
-        while (x < startX + width) {
-            const bw = i % 7 === 0 ? 0.65 : i % 3 === 0 ? 0.4 : 0.22;
-            pdf.setLineWidth(bw);
-            pdf.line(x, startY, x, startY + height);
-            x += bw + (i % 5 === 0 ? 0.7 : 0.35);
-            i++;
-        }
     };
 
     const hRule = (y: number, lx: number, rx: number) => {
@@ -55,9 +40,9 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         //   Budget: 152.4 - 8 - 6(footer zone) = 138.4 mm
         //   Total below: 34+19+15+17 + 3×5 + 3.5+14.5 = 118 mm  → ~20 mm whitespace
         const HEADER_H = 34; // deliver-to / shipped-by
-        const ORDER_H = 19; // order # + barcode
+        const ORDER_H = 9; // order #
         const PAYMENT_H = 15; // weight / COD
-        const COURIER_H = 17; // courier + AWB barcode
+        const COURIER_H = 12; // courier + AWB
         const ROW_H = 5; // each table row (3 rows = 15 mm)
 
         // Outer border
@@ -143,9 +128,6 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         doc.setFontSize(10);
         doc.text(`ORDER #: ${cleanDisplay(item.orderId) || "N/A"}`, LX + PAD, y + 5.5);
 
-        // 70 mm wide × 10 mm tall, centred
-        drawBarcode(doc, MID, y + 7.5, 70, 10);
-
         y += ORDER_H;
         hRule(y, LX, RX);
 
@@ -176,9 +158,6 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
 
         doc.setFontSize(7);
         doc.text(`AWB #: ${cleanDisplay(item.awbCode) || cleanDisplay(item.sku) || "N/A"}`, LX + PAD, y + 9.5);
-
-        // 68 mm wide × 7 mm tall, centred
-        drawBarcode(doc, MID, y + 11, 68, 7);
 
         y += COURIER_H;
         hRule(y, LX, RX);
@@ -240,20 +219,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         y += ROW_H + 3;
 
         // ═════════════════════════════════════════════════════════════
-        // SECTION 6 — INVOICE METADATA
-        // ═════════════════════════════════════════════════════════════
-        const now = new Date();
-        const dStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-        const tStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(5.8);
-        doc.text(`Invoice No.: ${cleanDisplay(item.orderId) || "N/A"} | Invoice Date: ${dStr} at ${tStr}`, LX + 1, y);
-
-        y += 4;
-
-        // ═════════════════════════════════════════════════════════════
-        // SECTION 7 — TERMS & CONDITIONS
+        // SECTION 6 — TERMS & CONDITIONS
         // ═════════════════════════════════════════════════════════════
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(6);

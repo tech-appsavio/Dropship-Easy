@@ -8,43 +8,36 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const verify_monday_jwt_1 = require("../utils/verify-monday-jwt");
 function authenticationMiddleware(req, res, next) {
     var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            console.log('🔐 Authentication middleware called');
             const authorization = (_a = req.headers.authorization) !== null && _a !== void 0 ? _a : (_b = req.query) === null || _b === void 0 ? void 0 : _b.token;
             if (typeof authorization !== "string") {
-                console.log('❌ No authorization token found');
                 res
                     .status(401)
                     .json({ error: "not authenticated, no credentials in request" });
                 return;
             }
-            if (typeof process.env.MONDAY_SIGNING_SECRET !== "string") {
-                console.log('❌ Missing MONDAY_SIGNING_SECRET');
-                res.status(500).json({ error: "Missing MONDAY_SIGNING_SECRET (should be in .env file)" });
-                return;
-            }
-            console.log('🔑 Verifying JWT token...');
-            const { accountId, userId, backToUrl, shortLivedToken } = jsonwebtoken_1.default.verify(authorization, process.env.MONDAY_SIGNING_SECRET);
-            console.log('✅ JWT verified successfully');
-            console.log('👤 User ID:', userId);
-            console.log('🏢 Account ID:', accountId);
-            console.log('🎫 Has shortLivedToken:', !!shortLivedToken);
+            // monday issues TWO differently-signed JWT types that both land here — a
+            // traditional board/item-view context token (Signing Secret) and a token from
+            // monday.get("sessionToken") used by Account Settings / the Shiprocket proxy
+            // (OAuth Client Secret). verifyMondayJwt tries both so either type verifies
+            // correctly; see src/utils/verify-monday-jwt.ts for why this matters.
+            const decoded = (0, verify_monday_jwt_1.verifyMondayJwt)(authorization);
+            const { accountId, userId, backToUrl, shortLivedToken } = (0, verify_monday_jwt_1.sessionFromDecoded)(decoded);
             req.session = { accountId, userId, backToUrl, shortLivedToken };
             next();
         }
         catch (err) {
-            console.error('❌ Authentication error:', err.message);
-            res
-                .status(401)
-                .json({ error: "authentication error, could not verify credentials" });
+            // Don't leak internal JWT error detail (invalid signature, missing secret, etc.)
+            // to the client — log server-side, return a generic 401.
+            console.error("Authentication failed:", err === null || err === void 0 ? void 0 : err.message);
+            return res.status(401).json({
+                error: "authentication error, could not verify credentials",
+            });
         }
     });
 }

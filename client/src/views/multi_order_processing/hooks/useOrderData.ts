@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import mondaySdk from "monday-sdk-js";
 import { Order } from '../types';
-import { ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP } from '../constants';
+import { ORDER_ALL_COLUMN_IDS_MAP } from '../columns';
+import { ORDER_BOARD_ID } from '../boardIds';
 
 const monday = mondaySdk();
 
@@ -15,36 +16,51 @@ export const useOrderData = () => {
     const fetchData = async () => {
       console.log("[useOrderData] ── Fetching orders from board:", ORDER_BOARD_ID);
       try {
-          const res: any = await monday.api(`query {
-          boards(ids: ${ORDER_BOARD_ID}) {
-            items_page(limit: 100) {
-              items {
-                id
-                name
-                column_values {
-                  id
-                  text
-                  ... on BoardRelationValue { display_value linked_item_ids }
-                  ... on MirrorValue { display_value }
-                  ... on FormulaValue { display_value }
+          // Paginate through the whole board — a single items_page(limit: 100) call
+          // silently truncated to the first 100 orders, so any confirmed order beyond
+          // that page never reached the UI at all (this was the actual root cause of
+          // "confirmed order not shown": the board has grown past 100 items).
+          const items: any[] = [];
+          let cursor: string | null = null;
+          let firstPage = true;
+
+          while (firstPage || cursor) {
+              firstPage = false;
+              const res: any = await monday.api(`query ($cursor: String) {
+              boards(ids: ${ORDER_BOARD_ID}) {
+                items_page(limit: 100, cursor: $cursor) {
+                  cursor
+                  items {
+                    id
+                    name
+                    column_values {
+                      id
+                      text
+                      ... on BoardRelationValue { display_value linked_item_ids }
+                      ... on MirrorValue { display_value }
+                      ... on FormulaValue { display_value }
+                    }
+                  }
                 }
               }
-            }
-          }
-        }`);
+            }`, { variables: { cursor } });
 
-          if (!res) {
-              throw new Error("No response received from Monday API.");
-          }
-          if (res.errors) {
-              console.error("[useOrderData] GraphQL errors:", res.errors);
-              throw new Error(res.errors[0].message);
-          }
-          if (!res.data || !res.data.boards || res.data.boards.length === 0) {
-              throw new Error("No board data found. Verify the ORDER_BOARD_ID is correct.");
+              if (!res) {
+                  throw new Error("No response received from Monday API.");
+              }
+              if (res.errors) {
+                  console.error("[useOrderData] GraphQL errors:", res.errors);
+                  throw new Error(res.errors[0].message);
+              }
+              if (!res.data || !res.data.boards || res.data.boards.length === 0) {
+                  throw new Error("No board data found. Verify the ORDER_BOARD_ID is correct.");
+              }
+
+              const page = res.data.boards[0].items_page;
+              items.push(...page.items);
+              cursor = page.cursor || null;
           }
 
-          const items = res.data.boards[0].items_page.items;
           console.log("[useOrderData] Total items fetched:", items.length);
 
           const mappedOrders = items.map((item: any) => {
@@ -56,7 +72,14 @@ export const useOrderData = () => {
               return orderObj;
           });
 
-          const confirmed = mappedOrders.filter((o: Order) => String(o.STATUS) === "Confirmed");
+          // Diagnostics: the exact raw status text(s) seen, so a hidden order can be
+          // traced to either a column-resolution problem (all blank) or a label
+          // mismatch (unexpected text) at a glance in the console.
+          const statusColId = ORDER_ALL_COLUMN_IDS_MAP.STATUS;
+          const distinctStatuses = Array.from(new Set(mappedOrders.map((o: Order) => JSON.stringify(o.STATUS))));
+          console.log(`[useOrderData] Status column id resolved to: "${statusColId}" (empty means the "Status" title didn't resolve — check console for an [initColumnIds] warning)`);
+          console.log("[useOrderData] Distinct raw STATUS values across fetched orders:", distinctStatuses);
+          const confirmed = mappedOrders.filter((o: Order) => String(o.STATUS || "").trim().toLowerCase() === "confirmed");
           console.log("[useOrderData] Confirmed orders:", confirmed.length, "of", mappedOrders.length);
           setOrders(mappedOrders);
           console.log("[useOrderData] ── Done");

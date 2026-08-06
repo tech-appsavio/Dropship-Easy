@@ -2,3 +2,12 @@ client/build
 client/node_modules
 node_modules
 package-lock.json
+.env
+.env.*
+!.env.example
+# Local dev-mode SecureStorage emulation — holds real tokens/settings once used.
+local-secure-storage.db.json
+# Build artifact tarballs and client env (no secrets, but should not be tracked)
+code.tar.gz
+client/code.tar.gz
+client/.env

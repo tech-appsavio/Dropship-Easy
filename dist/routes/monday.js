@@ -35,8 +35,8 @@ const authentication_1 = __importDefault(require("../middlewares/authentication"
 router.post('/api/monday/execute_action', authentication_1.default, transformationController.executeAction);
 router.post('/api/monday/reverse_string', authentication_1.default, transformationController.reverseString);
 router.post('/api/monday/action_send_message', authentication_1.default, invocable_actions_1.InvocableActions.actionSendMessage);
-router.post('/api/monday/get_columns_options', invocable_actions_1.InvocableActions.getColumnsDropdownOptions);
-router.get('/api/monday/get_columns_options', invocable_actions_1.InvocableActions.getColumnsDropdownOptions);
+router.post('/api/monday/get_columns_options', authentication_1.default, invocable_actions_1.InvocableActions.getColumnsDropdownOptions);
+router.get('/api/monday/get_columns_options', authentication_1.default, invocable_actions_1.InvocableActions.getColumnsDropdownOptions);
 // New UI view routes
 router.get('/multi_order_processing', (req, res) => {
     res.sendFile('index.html', { root: 'client/build/' });

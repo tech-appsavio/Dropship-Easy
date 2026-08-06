@@ -8,45 +8,75 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.webhookAuthenticationMiddleware = void 0;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-function webhookAuthenticationMiddleware(req, res, next) {
+exports.webhookAuthenticationMiddleware = exports.webhookTokenAuthMiddleware = void 0;
+const account_store_1 = require("../services/account-store");
+const verify_monday_jwt_1 = require("../utils/verify-monday-jwt");
+// Auth for a per-account webhook URL that carries an unguessable token in its path
+// (/…/:token) — the same pattern as the Shopify order webhook. The token maps to a
+// monday account; its stored OAuth token is loaded into req.session. No account ID is
+// exposed in the URL, so it can't be spoofed by guessing an account.
+function webhookTokenAuthMiddleware(req, res, next) {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+        // monday's setup challenge carries no token context — let it through so the
+        // controller can echo it back and the webhook verifies on save.
+        if ((_a = req.body) === null || _a === void 0 ? void 0 : _a.challenge)
+            return next();
         try {
-            const authorization = req.headers.authorization;
-            if (!authorization) {
-                // For webhooks, Monday might not send auth header during verification
-                // Allow the request to proceed
-                req.session = {
-                    accountId: '',
-                    userId: '',
-                    backToUrl: undefined,
-                    shortLivedToken: process.env.MONDAY_API_TOKEN
-                };
-                next();
+            const token = req.params.token;
+            const accountId = token ? yield (0, account_store_1.getAccountByWebhookToken)(token) : null;
+            if (!accountId) {
+                res.status(404).json({ error: "Unknown webhook token" });
                 return;
             }
-            if (typeof process.env.MONDAY_SIGNING_SECRET !== "string") {
-                res.status(500).json({ error: "Missing MONDAY_SIGNING_SECRET" });
-                return;
-            }
-            const { accountId, userId, backToUrl, shortLivedToken } = jsonwebtoken_1.default.verify(authorization, process.env.MONDAY_SIGNING_SECRET);
-            req.session = { accountId, userId, backToUrl, shortLivedToken };
+            const mondayToken = yield (0, account_store_1.resolveMondayToken)(accountId);
+            req.session = {
+                accountId: String(accountId),
+                userId: "",
+                backToUrl: undefined,
+                shortLivedToken: mondayToken !== null && mondayToken !== void 0 ? mondayToken : undefined,
+            };
             next();
         }
         catch (err) {
-            // If JWT verification fails, use API token as fallback
+            res.status(500).json({ error: "authentication failed" });
+        }
+    });
+}
+exports.webhookTokenAuthMiddleware = webhookTokenAuthMiddleware;
+// Auth for session-less webhooks (e.g. monday board webhooks). If the request carries
+// a valid monday JWT, its account-scoped shortLivedToken is used. Otherwise the account
+// is taken from an `?account=<id>` param (or `accountId` in the body) — set on the webhook
+// URL at configuration time — and its stored OAuth token is resolved (falling back to
+// MONDAY_API_TOKEN during the single-tenant transition).
+function webhookAuthenticationMiddleware(req, res, next) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const resolveByAccount = () => __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const accountId = req.query.account || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.accountId) || '';
+            const token = yield (0, account_store_1.resolveMondayToken)(accountId);
             req.session = {
-                accountId: '',
+                accountId: String(accountId),
                 userId: '',
                 backToUrl: undefined,
-                shortLivedToken: process.env.MONDAY_API_TOKEN
+                shortLivedToken: token !== null && token !== void 0 ? token : undefined
             };
             next();
+        });
+        try {
+            const authorization = req.headers.authorization;
+            if (!authorization) {
+                yield resolveByAccount();
+                return;
+            }
+            const decoded = (0, verify_monday_jwt_1.verifyMondayJwt)(authorization);
+            req.session = (0, verify_monday_jwt_1.sessionFromDecoded)(decoded);
+            next();
+        }
+        catch (err) {
+            // JWT missing/invalid — fall back to account-based token resolution.
+            yield resolveByAccount();
         }
     });
 }

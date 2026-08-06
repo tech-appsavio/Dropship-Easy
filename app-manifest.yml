@@ -17,3 +17,8 @@ app:
       build:
         source: customUrl
         suffix: "/order_tracking"
+    - type: AppFeatureBoardView
+      name: Account Settings
+      build:
+        source: customUrl
+        suffix: "/settings"

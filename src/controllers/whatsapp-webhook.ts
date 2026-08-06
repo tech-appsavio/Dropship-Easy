@@ -1,16 +1,22 @@
 import { Request, Response } from 'express';
 import MondayService from '../services/monday-service';
+import { getAccountSettings } from '../services/account-store';
 
 export class WhatsappWebhook {
 
-    // Step 1: Meta calls this to verify your webhook URL
-    static verify(req: Request, res: Response) {
+    // Step 1: Meta calls this to verify your webhook URL. The customer configures the
+    // callback URL with `?account=<their monday account id>`, so we verify STRICTLY against
+    // that account's own saved verify token — never the app's env (multi-tenant isolation).
+    static async verify(req: Request, res: Response) {
         const mode = req.query['hub.mode'];
         const token = req.query['hub.verify_token'];
         const challenge = req.query['hub.challenge'];
-        const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
 
-        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+        const accountId = req.query.account as string;
+        const settings = accountId ? await getAccountSettings(accountId) : null;
+        const VERIFY_TOKEN = settings?.whatsappWebhookVerifyToken;
+
+        if (mode === 'subscribe' && VERIFY_TOKEN && token === VERIFY_TOKEN) {
             return res.status(200).send(challenge);
         }
         return res.status(403).send('Forbidden');
@@ -111,12 +117,15 @@ export class WhatsappWebhook {
         return null;
     }
 
-    // Updates a specific order's status using the long-lived API token (webhooks have
-    // no user session, and delayed replies outlive any short-lived token).
+    // Updates a specific order's status using the account-scoped token captured when the
+    // message was sent (looked up by order/item id) — no hardcoded token.
     static async updateOrderStatus(itemId: string, boardId: string, statusColumnId: string, status: string) {
         try {
-            const token = process.env.MONDAY_API_TOKEN;
-            if (!token || !itemId || !boardId) return;
+            const token = pendingByItem.get(String(itemId));
+            if (!token || !itemId || !boardId) {
+                console.log(`⚠️ No stored token for order ${itemId} — cannot update status`);
+                return;
+            }
             await MondayService.changeColumnValue(
                 token,
                 boardId,
@@ -136,9 +145,8 @@ export class WhatsappWebhook {
                 return;
             }
 
-            const { boardId, itemId, statusColumnId } = mapping;
-            // Prefer the long-lived token so delayed replies still succeed.
-            const token = process.env.MONDAY_API_TOKEN || mapping.token;
+            // Uses the account-scoped token captured at send time (dynamic, not hardcoded).
+            const { token, boardId, itemId, statusColumnId } = mapping;
 
             await MondayService.changeColumnValue(
                 token,
@@ -156,10 +164,15 @@ export class WhatsappWebhook {
     }
 }
 
-// In-memory store: phone → { token, boardId, itemId, statusColumnId }
+// In-memory store: phone → { token, boardId, itemId, statusColumnId } (fallback for typed replies)
 export const pendingResponses = new Map<string, {
     token: string;
     boardId: string;
     itemId: string;
     statusColumnId: string;
 }>();
+
+// In-memory store: itemId → account-scoped token captured at send time. Used by the
+// button-payload reply path so status updates run against the correct account
+// without any hardcoded token.
+export const pendingByItem = new Map<string, string>();

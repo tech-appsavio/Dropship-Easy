@@ -2,14 +2,17 @@
 import { useState, useEffect } from "react";
 import mondaySdk from "monday-sdk-js";
 import {
-    ORDER_ITEM_BOARD_ID,
-    ORDER_BOARD_ID,
-    SUPPLIER_BOARD_ID,
     ORDER_ALL_COLUMN_IDS_MAP,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
     CUSTOMER_ALL_COLUMN_IDS_MAP,
     SUPPLIER_ALL_COLUMN_IDS_MAP,
-} from "../constants";
+} from "../columns";
+import {
+    ORDER_ITEM_BOARD_ID,
+    ORDER_BOARD_ID,
+    SUPPLIER_BOARD_ID,
+} from "../boardIds";
+import { fetchAllBoardItems } from "../utils/fetchAllItems";
 
 const monday = mondaySdk();
 
@@ -41,25 +44,19 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
         try {
             // 1. Orders
             console.log("[useCourierSelectionData] STEP 1: Fetching orders from board:", ORDER_BOARD_ID);
-            const orderRes: any = await monday.api(`query {
-                boards(ids: ${ORDER_BOARD_ID}) {
-                    items_page(limit: 500) {
-                        items {
-                            id name
-                            column_values(ids: [
-                                "${ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER}",
-                                "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}",
-                                "${ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID}"
-                            ]) {
-                                id text value
-                                ... on BoardRelationValue { linked_item_ids }
-                            }
-                        }
-                    }
+            const allOrders = await fetchAllBoardItems(ORDER_BOARD_ID, `
+                id name
+                column_values(ids: [
+                    "${ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER}",
+                    "${ORDER_ALL_COLUMN_IDS_MAP.ORDERID}",
+                    "${ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID}"
+                ]) {
+                    id text value
+                    ... on BoardRelationValue { linked_item_ids }
                 }
-            }`);
+            `);
 
-            const filteredOrders = orderRes.data.boards[0].items_page.items.filter(
+            const filteredOrders = allOrders.filter(
                 (o: any) => selectedOrderIds.includes(o.id)
             );
             console.log("[useCourierSelectionData] STEP 1: Matched orders:", filteredOrders.length);
@@ -105,22 +102,14 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
 
             // 3. Line items
             console.log("[useCourierSelectionData] STEP 3: Fetching line items from board:", ORDER_ITEM_BOARD_ID);
-            const liRes: any = await monday.api(`query {
-                boards(ids: ${ORDER_ITEM_BOARD_ID}) {
-                    items_page(limit: 500) {
-                        items {
-                            id name
-                            column_values {
-                                id text value
-                                ... on BoardRelationValue { linked_item_ids display_value }
-                                ... on MirrorValue { display_value }
-                            }
-                        }
-                    }
+            const allLI = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
+                id name
+                column_values {
+                    id text value
+                    ... on BoardRelationValue { linked_item_ids display_value }
+                    ... on MirrorValue { display_value }
                 }
-            }`);
-
-            const allLI = liRes.data.boards[0].items_page.items;
+            `);
             console.log("[useCourierSelectionData] STEP 3: Total line items on board:", allLI.length);
 
             const enriched = allLI

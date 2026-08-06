@@ -10,18 +10,38 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WhatsappService = void 0;
+const account_store_1 = require("./account-store");
 const WHATSAPP_API_URL = 'https://graph.facebook.com/v21.0';
+// Resolves WhatsApp credentials for an account STRICTLY from that account's saved Settings.
+// This is a multi-tenant marketplace app: credentials must NEVER fall back to the app's own
+// env vars, or one tenant would silently send through the developer's WhatsApp account. An
+// account that hasn't configured WhatsApp gets empty values here and a clear error at the
+// call site telling them to fill in Account Settings.
+function waConfig(accountId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const s = accountId ? yield (0, account_store_1.getAccountSettings)(accountId) : null;
+        return {
+            accessToken: s === null || s === void 0 ? void 0 : s.whatsappAccessToken,
+            phoneId: s === null || s === void 0 ? void 0 : s.whatsappPhoneId,
+            businessAccountId: s === null || s === void 0 ? void 0 : s.whatsappBusinessAccountId,
+            templateLanguage: (s === null || s === void 0 ? void 0 : s.whatsappTemplateLanguage) || 'en',
+        };
+    });
+}
 class WhatsappService {
-    static getTemplateContent(templateName, businessAccountId) {
+    static getTemplateContent(templateName, accountId) {
         var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
-            const wabaId = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-            const url = `${WHATSAPP_API_URL}/${wabaId}/message_templates?name=${templateName}`;
-            const fallbackLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
+            const cfg = yield waConfig(accountId);
+            if (!cfg.businessAccountId || !cfg.accessToken) {
+                throw new Error("WhatsApp is not configured for this account. Add the Access Token and Business Account ID in Account Settings → WhatsApp.");
+            }
+            const url = `${WHATSAPP_API_URL}/${cfg.businessAccountId}/message_templates?name=${templateName}`;
+            const fallbackLanguage = cfg.templateLanguage;
             const response = yield fetch(url, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                    'Authorization': `Bearer ${cfg.accessToken}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -50,10 +70,20 @@ class WhatsappService {
             return { text: templateName, language: fallbackLanguage, buttons: [] };
         });
     }
-    static sendTemplate(toPhone, templateName, languageCode = 'en', fromPhone, bodyParams, buttons) {
+    static sendTemplate(toPhone, templateName, languageCode = 'en', fromPhone, bodyParams, buttons, accountId) {
         var _a, _b, _c;
         return __awaiter(this, void 0, void 0, function* () {
-            const phoneId = fromPhone || process.env.WHATSAPP_PHONE_ID;
+            const cfg = yield waConfig(accountId);
+            // Prefer the recipe-provided sender, fall back to the account's saved Phone Number ID.
+            // Treat blank/whitespace as "not set" so we don't send an undefined id to Meta (which
+            // returns the confusing "Object with ID 'undefined' does not exist" error).
+            const phoneId = (typeof fromPhone === 'string' && fromPhone.trim()) ? fromPhone.trim() : cfg.phoneId;
+            if (!phoneId) {
+                throw new Error("WhatsApp Phone Number ID is not configured. Add it in Account Settings → WhatsApp → 'Phone Number ID'.");
+            }
+            if (!cfg.accessToken) {
+                throw new Error("WhatsApp Access Token is not configured. Add it in Account Settings → WhatsApp → 'Access Token'.");
+            }
             const url = `${WHATSAPP_API_URL}/${phoneId}/messages`;
             const payload = {
                 messaging_product: 'whatsapp',
@@ -90,7 +120,7 @@ class WhatsappService {
             const postPayload = () => fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                    'Authorization': `Bearer ${cfg.accessToken}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
@@ -105,7 +135,7 @@ class WhatsappService {
                 if (isLanguageError) {
                     let correctedLanguage;
                     try {
-                        const { language } = yield WhatsappService.getTemplateContent(templateName);
+                        const { language } = yield WhatsappService.getTemplateContent(templateName, accountId);
                         correctedLanguage = language;
                     }
                     catch ( /* fall through to en_US guess below */_d) { /* fall through to en_US guess below */ }

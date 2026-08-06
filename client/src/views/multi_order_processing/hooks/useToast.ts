@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 
-type ToastType = "positive" | "negative";
+type ToastType = "positive" | "negative" | "warning";
 
 export const useToast = () => {
     const [toast, setToast] = useState<{ open: boolean; message: string; type: ToastType }>({

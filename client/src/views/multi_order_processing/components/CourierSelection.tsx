@@ -3,21 +3,24 @@ import ReactDOM from "react-dom";
 import { Dropdown, Button, Loader, Toast } from "@vibe/core";
 import { useToast } from "../hooks/useToast";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
-import { ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_COLUMNS, titleMapOf } from "../columns";
+import { ORDER_ITEM_BOARD_ID } from "../boardIds";
+import { logError } from "../utils/logError";
 import ShipRocketService from "../../../services/shiprocketCourier";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import mondaySdk from "monday-sdk-js";
-import { btn, TH, TD, filterBar, sectionTitle, paginationBtn, COLOR } from "../styles";
+import { btn, TH, TD, filterBar, sectionTitle, paginationBtn, COLOR, badge } from "../styles";
+import { Btn } from "./Btn";
 
 const monday = mondaySdk();
 
 const DEFAULT_COURIER = { label: "SP Store (Self)", value: "SP Store (Self)", freight_charge: 0, rating: 0, etd: "-", cod_charges: 0, rto_charges: 0, tag: "Best" };
 
 const TAG_STYLES: Record<string, React.CSSProperties> = {
-    Best:    { background: "#e6f4ea", color: "#137333", border: "1px solid #a8d5b5" },
-    Good:    { background: "#e8f0fe", color: "#1a73e8", border: "1px solid #a8c4f5" },
-    Average: { background: "#fff8e1", color: "#b45309", border: "1px solid #f5d97a" },
-    Poor:    { background: "#fce8e6", color: "#c5221f", border: "1px solid #f5b4b0" },
+    Best:    { background: "var(--ds-success-light)", color: "var(--ds-success)", border: "1px solid var(--ds-success-bd)" },
+    Good:    { background: "var(--ds-primary-light)", color: "var(--ds-primary)", border: "1px solid var(--ds-info-bd)" },
+    Average: { background: "var(--ds-warning-light)", color: "var(--ds-warning)", border: "1px solid var(--ds-warning-bd)" },
+    Poor:    { background: "var(--ds-danger-light)",  color: "var(--ds-danger)",  border: "1px solid var(--ds-danger-bd)" },
 };
 
 const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, rto_charges }: any) => {
@@ -39,10 +42,10 @@ const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, r
             onMouseEnter={showTooltip}
             onMouseLeave={() => setTooltip(null)}
         >
-            <span style={{ fontSize: 13, color: "#323338", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+            <span style={{ fontSize: 13, color: "var(--ds-text)", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                 {freight_charge !== undefined && (
-                    <span style={{ fontSize: 11, color: "#676879", whiteSpace: "nowrap" }}>₹{freight_charge}</span>
+                    <span style={{ fontSize: 11, color: "var(--ds-text-muted)", whiteSpace: "nowrap" }}>₹{freight_charge}</span>
                 )}
                 {tag && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>{tag}</span>
@@ -55,47 +58,47 @@ const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, r
                     left: tooltip.x,
                     transform: "translateY(-100%)",
                     zIndex: 99999,
-                    background: "#fff",
-                    border: "1px solid #e2e4e9",
+                    background: "var(--ds-surface)",
+                    border: "1px solid var(--ds-border-light)",
                     borderRadius: 8,
                     padding: "12px 16px",
                     boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
                     pointerEvents: "none",
                     minWidth: 200,
                 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#323338", marginBottom: 8, borderBottom: "1px solid #f0f0f0", paddingBottom: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ds-text)", marginBottom: 8, borderBottom: "1px solid var(--ds-border-light)", paddingBottom: 6 }}>
                         {label}
                         {tag && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>{tag}</span>}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                         {freight_charge !== undefined && (
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                <span style={{ fontSize: 12, color: "#676879" }}>Freight</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>₹{freight_charge}</span>
+                                <span style={{ fontSize: 12, color: "var(--ds-text-muted)" }}>Freight</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-text)" }}>₹{freight_charge}</span>
                             </div>
                         )}
                         {rating !== undefined && rating > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                <span style={{ fontSize: 12, color: "#676879" }}>Rating</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>⭐ {rating}</span>
+                                <span style={{ fontSize: 12, color: "var(--ds-text-muted)" }}>Rating</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-text)" }}>⭐ {rating}</span>
                             </div>
                         )}
                         {etd && etd !== "-" && (
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                <span style={{ fontSize: 12, color: "#676879" }}>Est. Delivery</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>{etd}</span>
+                                <span style={{ fontSize: 12, color: "var(--ds-text-muted)" }}>Est. Delivery</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-text)" }}>{etd}</span>
                             </div>
                         )}
                         {cod_charges > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                <span style={{ fontSize: 12, color: "#676879" }}>COD Charges</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#323338" }}>₹{cod_charges}</span>
+                                <span style={{ fontSize: 12, color: "var(--ds-text-muted)" }}>COD Charges</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-text)" }}>₹{cod_charges}</span>
                             </div>
                         )}
                         {rto_charges > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                <span style={{ fontSize: 12, color: "#676879" }}>RTO Charges</span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#c5221f" }}>₹{rto_charges}</span>
+                                <span style={{ fontSize: 12, color: "var(--ds-text-muted)" }}>RTO Charges</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-danger)" }}>₹{rto_charges}</span>
                             </div>
                         )}
                     </div>
@@ -260,20 +263,31 @@ export const CourierSelection = ({
         const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
         return col?.linked_item_ids?.[0] || "";
     };
+    // Human split name (e.g. "ORD-0001-S2") — used to order splits S1, S2, S3… correctly.
+    const getSplitOrderName = (item: any): string => {
+        const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
+        return col?.display_value || "";
+    };
 
     // rowKey = splitOrderId for split items, parentOrderId for non-split
     // Non-split items in the same order share one courier dropdown and one checkbox.
     const getRowKey = (item: any): string => getSplitOrderId(item) || item.linkedOrderId || item.id;
 
     const sortedDisplayedLineItems = useMemo(() => [...displayedLineItems].sort((a, b) => {
-        const oCmp = (a.orderName || "").localeCompare(b.orderName || "");
+        const oCmp = (a.orderName || "").localeCompare(b.orderName || "", undefined, { numeric: true });
         if (oCmp !== 0) return oCmp;
-        const aSplit = getSplitOrderId(a);
-        const bSplit = getSplitOrderId(b);
-        if (aSplit && !bSplit) return -1;
-        if (!aSplit && bSplit) return 1;
-        if (aSplit && bSplit) { const sCmp = aSplit.localeCompare(bSplit); if (sCmp !== 0) return sCmp; }
-        return (a.name || "").localeCompare(b.name || "");
+        const aHasSplit = !!getSplitOrderId(a);
+        const bHasSplit = !!getSplitOrderId(b);
+        if (aHasSplit && !bHasSplit) return -1;
+        if (!aHasSplit && bHasSplit) return 1;
+        if (aHasSplit && bHasSplit) {
+            // Order splits by their name (ORD-0001-S1, -S2, …) numerically, not by item id.
+            const aName = getSplitOrderName(a) || getSplitOrderId(a);
+            const bName = getSplitOrderName(b) || getSplitOrderId(b);
+            const sCmp = aName.localeCompare(bName, undefined, { numeric: true });
+            if (sCmp !== 0) return sCmp;
+        }
+        return (a.name || "").localeCompare(b.name || "", undefined, { numeric: true });
     }), [displayedLineItems]);
 
     const totalPages = Math.ceil(sortedDisplayedLineItems.length / pageSize) || 1;
@@ -490,11 +504,29 @@ export const CourierSelection = ({
                         : null);
                     if (!courier) return;
 
-                    const columnValues = {
-                        [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERID]: courier.value,
-                        [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COURIERNAME]: courier.label,
-                        [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Courier Selected" },
+                    // Build column_values only from columns that actually resolved on the
+                    // board. If any is missing (its title in columns.ts doesn't match the
+                    // real board), fail with a clear message naming the exact column title
+                    // instead of monday's cryptic InvalidColumnIdException / column_id:"".
+                    const liTitles = titleMapOf(ORDERLINEITEMS_COLUMNS);
+                    const wanted: Record<string, any> = {
+                        COURIERID: courier.value,
+                        COURIERNAME: courier.label,
+                        STATUS: { label: "Courier Selected" },
                     };
+                    const columnValues: Record<string, any> = {};
+                    const missing: string[] = [];
+                    for (const key of Object.keys(wanted)) {
+                        const colId = ORDERLINEITEMS_ALL_COLUMN_IDS_MAP[key];
+                        if (colId) columnValues[colId] = wanted[key];
+                        else missing.push(liTitles[key] || key);
+                    }
+                    if (missing.length) {
+                        throw new Error(
+                            `These columns weren't found on the Order Line Items board — ` +
+                            `check the exact column title(s): "${missing.join('", "')}"`
+                        );
+                    }
                     await Promise.all(items.map((item: any) =>
                         monday.api(`mutation {
                             change_multiple_column_values(
@@ -508,15 +540,28 @@ export const CourierSelection = ({
             );
             await refetch();
             showToast("Couriers updated successfully!", "positive");
+            monday.execute("valueCreatedForUser"); // monday activation signal
             setSelectedRowIds(new Set());
         } catch (e: any) {
             showToast(`Update failed: ${e.message}`, "negative");
+            logError({
+                stage: "Courier Selection", severity: "Error",
+                message: `Courier update failed: ${e.message}`,
+                technicalDetails: String(e?.stack || e),
+                suggestedSolution: "Re-check the selected orders and courier assignment, then try updating again.",
+                retry: true,
+            });
         } finally {
             setIsUpdating(false);
         }
     };
 
-    if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}><Loader size={40} /></div>;
+    if (loading) return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center", alignItems: "center", minHeight: 400, color: COLOR.textMuted }}>
+            <Loader size={38} />
+            <span style={{ fontSize: 13 }}>Loading shipments & courier options…</span>
+        </div>
+    );
 
     const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" };
 
@@ -549,15 +594,15 @@ export const CourierSelection = ({
                             style={{
                                 ...btn("secondary"),
                                 display: "flex", alignItems: "center", gap: 6,
-                                borderColor: hasBestSelectableRows ? "#f59e0b" : undefined,
-                                color: hasBestSelectableRows ? "#92400e" : undefined,
-                                background: hasBestSelectableRows ? "#fffbea" : undefined,
+                                borderColor: hasBestSelectableRows ? "var(--ds-warning)" : undefined,
+                                color: hasBestSelectableRows ? "var(--ds-warning)" : undefined,
+                                background: hasBestSelectableRows ? "var(--ds-warning-light)" : undefined,
                             }}
                         >
                             ⭐ Select Best for All
                         </button>
                         <Button disabled={!canUpdate || isUpdating} loading={isUpdating} onClick={handleUpdateCourier}>
-                            Update Courier ({selectedRowIds.size})
+                            Update Courier{selectedRowIds.size > 0 ? ` (${selectedRowIds.size})` : ""}
                         </Button>
                     </div>
                     {selectedRowIds.size > 0 && !canUpdate && (
@@ -645,7 +690,7 @@ export const CourierSelection = ({
                             </th>
                             <th style={TH}>Order</th>
                             <th style={TH}>Split Order</th>
-                            {["Name","SKU","Weight","COD","Pickup Postal","Delivery Postal","Supplier","Current Courier","Status"].map(h => <th key={h} style={TH}>{h}</th>)}
+                            {["Product Name","SKU","Weight","COD","Pickup Postal","Delivery Postal","Supplier","Current Courier","Status"].map(h => <th key={h} style={TH}>{h}</th>)}
                             <th style={{ ...TH, minWidth: 400 }}>Courier</th>
                         </tr>
                     </thead>
@@ -665,7 +710,10 @@ export const CourierSelection = ({
                             const sharedSpan = sharedSpans[item.id]; // used for all shared cols
 
                             return (
-                                <tr key={item.id} style={{ backgroundColor: selectedRowIds.has(rowKey) ? "#f0f7ff" : COLOR.white, transition: "background 0.15s" }}>
+                                <tr key={item.id}
+                                    onMouseEnter={(e) => { if (!selectedRowIds.has(rowKey)) e.currentTarget.style.backgroundColor = "var(--ds-bg-header)"; }}
+                                    onMouseLeave={(e) => { if (!selectedRowIds.has(rowKey)) e.currentTarget.style.backgroundColor = COLOR.white; }}
+                                    style={{ backgroundColor: selectedRowIds.has(rowKey) ? COLOR.primaryLight : COLOR.white, transition: "background 0.15s" }}>
                                     {/* Checkbox — shared span (one per split-group OR per non-split order) */}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...TD, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
@@ -722,17 +770,17 @@ export const CourierSelection = ({
                                     )}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
-                                            <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                background: statusText === "Courier Selected" ? COLOR.successLight : COLOR.bgHeader,
-                                                color: statusText === "Courier Selected" ? COLOR.success : COLOR.textMuted,
-                                                border: `1px solid ${statusText === "Courier Selected" ? "#a8d5b5" : COLOR.border}` }}>
+                                            <span style={badge(statusText === "Courier Selected" ? "success" : "neutral")}>
                                                 {statusText}
                                             </span>
                                         </td>
                                     )}
-                                    {/* Courier dropdown — one per group */}
+                                    {/* Courier dropdown — one per group. Fixed width + a min-height
+                                        wrapper so the cell reserves its full size while couriers load
+                                        async — the Loader→Dropdown swap then causes no table reflow. */}
                                     {sharedSpan !== 0 && (
-                                        <td style={{ ...TD, minWidth: 400, padding: "6px 10px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
+                                        <td style={{ ...TD, width: 420, minWidth: 420, padding: "6px 10px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
+                                          <div style={{ minHeight: 38, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                                             {rowState?.loading ? (
                                                 <Loader size={20} />
                                             ) : (
@@ -750,14 +798,19 @@ export const CourierSelection = ({
                                                     {rowState?.error && <p style={{ margin: "2px 0 0", fontSize: 11, color: COLOR.danger }}>{rowState.error}</p>}
                                                 </>
                                             )}
+                                          </div>
                                         </td>
                                     )}
                                 </tr>
                             );
                         }) : (
                             <tr>
-                                <td colSpan={13} style={{ padding: 40, textAlign: "center", color: COLOR.textMuted, fontSize: 13 }}>
-                                    {hasActiveFilters ? "No line items match the selected filters." : "No line items found for the selected orders."}
+                                <td colSpan={13} style={{ padding: "48px 24px", textAlign: "center", color: COLOR.textMuted }}>
+                                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ds-neutral-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>🚚</div>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: COLOR.text, marginBottom: 3 }}>No line items</div>
+                                    <div style={{ fontSize: 13 }}>
+                                        {hasActiveFilters ? "No line items match the selected filters — try clearing them." : "No line items found for the selected orders."}
+                                    </div>
                                 </td>
                             </tr>
                         )}
@@ -781,8 +834,8 @@ export const CourierSelection = ({
 
             {/* Bottom nav */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLOR.borderLight}` }}>
-                <button onClick={onPrev} style={btn("secondary")}>← Back to Suppliers</button>
-                <button onClick={onNext} style={btn("primary")}>Go to Manifest Generation →</button>
+                <Btn variant="secondary" onClick={onPrev}>← Back to Suppliers</Btn>
+                <Btn variant="primary" onClick={onNext}>Create Shipment &amp; Manifest →</Btn>
             </div>
         </div>
     );

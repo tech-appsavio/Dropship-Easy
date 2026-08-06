@@ -1,5 +1,5 @@
-import jwt from "jsonwebtoken";
 import express from "express";
+import { verifyMondayJwt, sessionFromDecoded } from "../utils/verify-monday-jwt";
 
 /** Define the session property on the request object   */
 declare global {
@@ -21,41 +21,32 @@ export default async function authenticationMiddleware(
   next: express.NextFunction
 ) {
   try {
-    console.log('🔐 Authentication middleware called');
     const authorization = req.headers.authorization ?? req.query?.token;
 
     if (typeof authorization !== "string") {
-      console.log('❌ No authorization token found');
       res
         .status(401)
         .json({ error: "not authenticated, no credentials in request" });
       return;
     }
 
-    if (typeof process.env.MONDAY_SIGNING_SECRET !== "string") {
-      console.log('❌ Missing MONDAY_SIGNING_SECRET');
-      res.status(500).json({ error: "Missing MONDAY_SIGNING_SECRET (should be in .env file)" });
-      return;
-    }
-    
-    console.log('🔑 Verifying JWT token...');
-    const { accountId, userId, backToUrl, shortLivedToken } = jwt.verify(
-      authorization,
-      process.env.MONDAY_SIGNING_SECRET
-    ) as any;
-
-    console.log('✅ JWT verified successfully');
-    console.log('👤 User ID:', userId);
-    console.log('🏢 Account ID:', accountId);
-    console.log('🎫 Has shortLivedToken:', !!shortLivedToken);
+    // monday issues TWO differently-signed JWT types that both land here — a
+    // traditional board/item-view context token (Signing Secret) and a token from
+    // monday.get("sessionToken") used by Account Settings / the Shiprocket proxy
+    // (OAuth Client Secret). verifyMondayJwt tries both so either type verifies
+    // correctly; see src/utils/verify-monday-jwt.ts for why this matters.
+    const decoded = verifyMondayJwt(authorization);
+    const { accountId, userId, backToUrl, shortLivedToken } = sessionFromDecoded(decoded);
 
     req.session = { accountId, userId, backToUrl, shortLivedToken };
 
     next();
   } catch (err: any) {
-    console.error('❌ Authentication error:', err.message);
-    res
-      .status(401)
-      .json({ error: "authentication error, could not verify credentials" });
+    // Don't leak internal JWT error detail (invalid signature, missing secret, etc.)
+    // to the client — log server-side, return a generic 401.
+    console.error("Authentication failed:", err?.message);
+    return res.status(401).json({
+      error: "authentication error, could not verify credentials",
+    });
   }
 }

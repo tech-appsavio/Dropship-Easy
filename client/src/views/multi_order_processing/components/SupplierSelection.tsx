@@ -1,20 +1,23 @@
 ﻿import React, { useState, useMemo } from "react";
 import { Dropdown, Button, Loader, Toast } from "@vibe/core";
 import { useSupplierSelectionData } from "../hooks/useSupplierSelectionData";
-import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_PRODUCT_BOARD_ID, SUPPLIER_PRODUCT_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP, PRODUCT_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_PRODUCT_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP, PRODUCT_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../columns";
+import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, SUPPLIER_PRODUCT_BOARD_ID } from "../boardIds";
+import { logError } from "../utils/logError";
 import ShipRocketService from "../../../services/shiprocketCourier";
 import mondaySdk from "monday-sdk-js";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import { useToast } from "../hooks/useToast";
-import { btn, TH, TD, filterBar, sectionTitle, paginationBtn, COLOR } from "../styles";
+import { btn, TH, TD, sectionTitle, paginationBtn, COLOR, badge } from "../styles";
+import { Btn } from "./Btn";
 
 const monday = mondaySdk();
 
 const TAG_STYLES: Record<string, React.CSSProperties> = {
-    Best:    { background: "#e6f4ea", color: "#137333", border: "1px solid #a8d5b5" },
-    Good:    { background: "#e8f0fe", color: "#1a73e8", border: "1px solid #a8c4f5" },
-    Average: { background: "#fff8e1", color: "#b45309", border: "1px solid #f5d97a" },
-    Poor:    { background: "#fce8e6", color: "#c5221f", border: "1px solid #f5b4b0" },
+    Best:    { background: "var(--ds-success-light)", color: "var(--ds-success)", border: "1px solid var(--ds-success-bd)" },
+    Good:    { background: "var(--ds-primary-light)", color: "var(--ds-primary)", border: "1px solid var(--ds-info-bd)" },
+    Average: { background: "var(--ds-warning-light)", color: "var(--ds-warning)", border: "1px solid var(--ds-warning-bd)" },
+    Poor:    { background: "var(--ds-danger-light)",  color: "var(--ds-danger)",  border: "1px solid var(--ds-danger-bd)" },
 };
 
 const SupplierOption = ({ label, tag, availableQty }: { label: string; tag?: string; availableQty?: number }) => (
@@ -533,9 +536,9 @@ export const SupplierSelection = ({
 
                     console.log(`[SR Create] Billing fields for "${order.name}":`, { customerId, customerFound: !!customer, billingStreet, billingCity, billingState, billingCountry, billingPincode });
 
-                    if (!billingState) throw new Error(`Billing State is missing for order "${order.name}". Please fill in the customer's Billing State in Monday.com.`);
-                    if (!billingCity) throw new Error(`Billing City is missing for order "${order.name}". Please fill in the customer's Billing City in Monday.com.`);
-                    if (!billingPincode) throw new Error(`Billing Pincode is missing for order "${order.name}". Please fill in the customer's Billing Pincode in Monday.com.`);
+                    if (!billingState) throw new Error(`Billing State is missing for order "${order.name}". Please fill in the customer's Billing State in monday.com.`);
+                    if (!billingCity) throw new Error(`Billing City is missing for order "${order.name}". Please fill in the customer's Billing City in monday.com.`);
+                    if (!billingPincode) throw new Error(`Billing Pincode is missing for order "${order.name}". Please fill in the customer's Billing Pincode in monday.com.`);
 
                     const orderItems = group.items.map((item) => {
                         const qtyCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY);
@@ -611,39 +614,72 @@ export const SupplierSelection = ({
                         // Today's date for CREATEDDATE column
                         const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 
-                        // Read discount proportionally from parent order
                         const parentDiscountRaw = parseFloat(getOCol(ORDER_ALL_COLUMN_IDS_MAP.DISCOUNT)?.text || "0") || 0;
                         const parentTotal = parseFloat(getOCol(ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE)?.text || "0") || 0;
+
+                        // Split Total Price = the actual value of THIS split's items (qty ×
+                        // each product's real Selling Price, already computed above as
+                        // `totalValue`) — not a proportional cut of the parent order's total.
+                        const splitTotal = totalValue;
+
+                        // Discount distributed proportionally to this split's share of the
+                        // parent order's total value (parent has no per-item discount split).
                         const splitDiscount = parentTotal > 0 && parentDiscountRaw > 0
-                            ? parseFloat(((totalValue / parentTotal) * parentDiscountRaw).toFixed(2))
+                            ? parseFloat(((splitTotal / parentTotal) * parentDiscountRaw).toFixed(2))
                             : 0;
+
+                        // COD mirrors the PARENT order's COD flag as-is (not recomputed per split).
+                        const parentCodRaw = getOCol(ORDER_ALL_COLUMN_IDS_MAP.COD)?.text?.trim();
+                        const parentCod = parentCodRaw !== undefined && parentCodRaw !== '' ? parseInt(parentCodRaw) || 0 : (isCOD ? 1 : 0);
 
                         const newOrderColValues: any = {
                             [ORDER_ALL_COLUMN_IDS_MAP.PARENTORDER]:     { item_ids: [String(group.orderId)] },
                             [ORDER_ALL_COLUMN_IDS_MAP.CREATEDDATE]:     { date: todayStr },
-                            [ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE]:     String(totalValue.toFixed(2)),
+                            [ORDER_ALL_COLUMN_IDS_MAP.TOTAL_PRICE]:     String(splitTotal.toFixed(2)),
                             [ORDER_ALL_COLUMN_IDS_MAP.BILLING_ADDRESS]: fullAddress,
                             [ORDER_ALL_COLUMN_IDS_MAP.DELIVERY_CODE]:   billingPincode,
                             [ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD]:   { label: isCOD ? "COD" : "Prepaid" },
-                            [ORDER_ALL_COLUMN_IDS_MAP.STATUS]:          { label: "Confirmed" },
+                            [ORDER_ALL_COLUMN_IDS_MAP.STATUS]:          { label: "New" },
                         };
                         // Only set columns whose IDs have been configured
                         if (ORDER_ALL_COLUMN_IDS_MAP.DISCOUNT) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.DISCOUNT] = String(splitDiscount);
+                        if (ORDER_ALL_COLUMN_IDS_MAP.COD) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.COD] = parentCod;
                         if (ORDER_ALL_COLUMN_IDS_MAP.SHIPPING_ADDRESS) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.SHIPPING_ADDRESS] = fullAddress;
                         if (customerId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER] = { item_ids: [customerId] };
                         if (srOrderId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Order_ID] = srOrderId;
                         if (srShipmentId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID] = srShipmentId;
 
-                        console.log("[SR Create] Creating split order in Orders board:", splitOrderName);
+                        console.log("[SR Create] Creating split order in Orders board:", splitOrderName, "| total:", splitTotal);
                         const splitOrderRes: any = await monday.api(`mutation {
                             create_item(
                                 board_id: ${ORDER_BOARD_ID},
                                 item_name: "${splitOrderName.replace(/"/g, "'")}",
-                                column_values: "${JSON.stringify(newOrderColValues).replace(/"/g, '\\"')}"
+                                column_values: "${JSON.stringify(newOrderColValues).replace(/"/g, '\\"')}",
+                                create_labels_if_missing: true
                             ) { id }
                         }`);
                         const splitOrderId = splitOrderRes?.data?.create_item?.id;
                         console.log("[SR Create] Split order created - ID:", splitOrderId);
+
+                        // Copy the parent order's Source onto the split order. Uses
+                        // change_simple_column_value with the parent's text value, which
+                        // works for both a status/color and a plain text Source column.
+                        const parentSource = getOCol(ORDER_ALL_COLUMN_IDS_MAP.SOURCE)?.text?.trim();
+                        if (splitOrderId && ORDER_ALL_COLUMN_IDS_MAP.SOURCE && parentSource) {
+                            try {
+                                await monday.api(`mutation {
+                                    change_simple_column_value(
+                                        item_id: ${splitOrderId},
+                                        board_id: ${ORDER_BOARD_ID},
+                                        column_id: "${ORDER_ALL_COLUMN_IDS_MAP.SOURCE}",
+                                        value: ${JSON.stringify(parentSource)},
+                                        create_labels_if_missing: true
+                                    ) { id }
+                                }`);
+                            } catch (e: any) {
+                                console.warn("[SR Create] Failed to copy Source to split order:", e?.message);
+                            }
+                        }
 
                         // Track for parent order update after all groups
                         if (splitOrderId) {
@@ -701,16 +737,27 @@ export const SupplierSelection = ({
                 } catch (srErr: any) {
                     console.error("[SR Create] Failed for group", group.orderId, group.supplierLabel, srErr.message);
                     showToast(`Shiprocket order creation failed for ${group.supplierLabel}: ${srErr.message}`, "negative");
+                    logError({
+                        stage: "Supplier Selection", severity: "Error",
+                        message: `Shiprocket order creation failed for ${group.supplierLabel}: ${srErr.message}`,
+                        technicalDetails: String(srErr?.stack || srErr),
+                        orderId: String(group.orderId), orderItemId: String(group.orderId), supplier: group.supplierLabel,
+                        suggestedSolution: "Verify the supplier's Shiprocket pickup location and product details, then update the supplier again.",
+                        retry: true,
+                    });
                 }
             }
 
-            // Update each parent order: link its split orders and mark Type = Header
+            // Mark each parent order as a Header. NOTE: we intentionally do NOT write the
+            // split orders into the parent's "Parent Orders" column — that column means
+            // "this order's parent". The child→parent link is set on each split order
+            // (see PARENTORDER above); the parent must not list its children here, or the
+            // parent-child direction is inverted.
             for (const parentOrderId of Object.keys(createdSplitOrders)) {
                 const splitOrderIds = createdSplitOrders[parentOrderId];
                 if (!splitOrderIds || splitOrderIds.length === 0) continue;
                 try {
                     const parentCV = {
-                        [ORDER_ALL_COLUMN_IDS_MAP.PARENTORDER]: { item_ids: splitOrderIds },
                         [ORDER_ALL_COLUMN_IDS_MAP.Order_Type]: { label: "Header" },
                     };
                     await monday.api(`mutation {
@@ -729,6 +776,7 @@ export const SupplierSelection = ({
             await refetch();
             if (Object.keys(createdSplitOrders).length > 0) setShowSplitNotice(true);
             showToast("Supplier updated successfully!", "positive");
+            monday.execute("valueCreatedForUser"); // monday activation signal
             console.log("[SupplierSelection] - handleUpdateSupplier DONE");
             setSelectedLineItemIds(new Set());
             setRowSupplierMap((prev) => {
@@ -739,12 +787,24 @@ export const SupplierSelection = ({
         } catch (e: any) {
             console.error("[SupplierSelection] Update failed:", e.message);
             showToast("Update failed: " + e.message, "negative");
+            logError({
+                stage: "Supplier Selection", severity: "Error",
+                message: `Supplier update failed: ${e.message}`,
+                technicalDetails: String(e?.stack || e),
+                suggestedSolution: "Re-check the selected line items and supplier assignment, then try updating again.",
+                retry: true,
+            });
         } finally {
             setIsUpdating(false);
         }
     };
 
-    if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}><Loader size={40} /></div>;
+    if (loading) return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center", alignItems: "center", minHeight: 400, color: COLOR.textMuted }}>
+            <Loader size={38} />
+            <span style={{ fontSize: 13 }}>Loading line items…</span>
+        </div>
+    );
 
     const hasActiveFilters = selectedOrderFilter || selectedProductFilter || selectedSkuFilter || selectedCategoryFilter || selectedStatusFilter || selectedExistingSupplierFilter;
     const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: COLOR.textMuted, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" };
@@ -758,8 +818,8 @@ export const SupplierSelection = ({
             {showSplitNotice && (
                 <div style={{
                     position: "fixed", top: 24, right: 24, zIndex: 10000,
-                    width: 380, background: "#fffbea",
-                    border: "1px solid #f5c842", borderLeft: "5px solid #f59e0b",
+                    width: 380, background: "var(--ds-warning-light)",
+                    border: "1px solid var(--ds-warning-bd)", borderLeft: "5px solid var(--ds-warning)",
                     borderRadius: 10, padding: "16px 18px",
                     boxShadow: "0 4px 20px rgba(245,158,11,0.18)",
                     display: "flex", alignItems: "flex-start", gap: 14,
@@ -767,16 +827,16 @@ export const SupplierSelection = ({
                 }}>
                     <div style={{ fontSize: 26, lineHeight: 1, flexShrink: 0, marginTop: 2 }}>⚠️</div>
                     <div style={{ flex: 1 }}>
-                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#92400e", letterSpacing: "0.01em" }}>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--ds-warning)", letterSpacing: "0.01em" }}>
                             Split Orders Created
                         </p>
-                        <p style={{ margin: "6px 0 0", fontSize: 13, color: "#78350f", lineHeight: 1.5 }}>
+                        <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--ds-warning)", lineHeight: 1.5 }}>
                             Some orders have multiple suppliers and were split into suborders. Please verify before processing.
                         </p>
                     </div>
                     <button
                         onClick={() => setShowSplitNotice(false)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#92400e", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0, opacity: 0.7 }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ds-warning)", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0, opacity: 0.7 }}
                     >
                         ✕
                     </button>
@@ -806,15 +866,15 @@ export const SupplierSelection = ({
                             style={{
                                 ...btn("secondary"),
                                 display: "flex", alignItems: "center", gap: 6,
-                                borderColor: hasBestSelectableItems ? "#f59e0b" : undefined,
-                                color: hasBestSelectableItems ? "#92400e" : undefined,
-                                background: hasBestSelectableItems ? "#fffbea" : undefined,
+                                borderColor: hasBestSelectableItems ? "var(--ds-warning)" : undefined,
+                                color: hasBestSelectableItems ? "var(--ds-warning)" : undefined,
+                                background: hasBestSelectableItems ? "var(--ds-warning-light)" : undefined,
                             }}
                         >
                             ⭐ Select Best for All
                         </button>
                         <Button disabled={!canUpdate || isUpdating} loading={isUpdating} onClick={handleUpdateSupplier}>
-                            Update Supplier ({selectedLineItemIds.size})
+                            Update Supplier{selectedLineItemIds.size > 0 ? ` (${selectedLineItemIds.size})` : ""}
                         </Button>
                     </div>
                     {selectedLineItemIds.size > 0 && !canUpdate && (
@@ -825,44 +885,46 @@ export const SupplierSelection = ({
 
             {/* Filter panel */}
             {showFilters && <div style={{ marginBottom: 16 }}>
-                <div style={{ ...filterBar, marginBottom: 8, zIndex: 22 }}>
-                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 8, position: "relative", zIndex: 22 }}>
+                    <div style={{ minWidth: 0 }}>
                         <label style={labelStyle}>Order</label>
                         <Dropdown placeholder="All Orders" options={orderOptions} value={selectedOrderFilter}
                             onChange={(val: any) => { setSelectedOrderFilter(val); setSelectedProductFilter(null); setSelectedSkuFilter(null); setSelectedCategoryFilter(null); setSelectedLineItemIds(new Set()); resetPage(); }} />
                     </div>
-                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                    <div style={{ minWidth: 0 }}>
                         <label style={labelStyle}>Product</label>
                         <Dropdown placeholder="All Products" options={productFilterOptions} value={selectedProductFilter}
                             onChange={(val: any) => { setSelectedProductFilter(val); setSelectedLineItemIds(new Set()); setGlobalSupplier(null); resetPage(); }} />
                     </div>
-                    <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+                    <div style={{ minWidth: 0 }}>
                         <label style={labelStyle}>SKU</label>
                         <Dropdown placeholder="All SKUs" options={skuOptions} value={selectedSkuFilter}
                             onChange={(val: any) => { setSelectedSkuFilter(val); setSelectedLineItemIds(new Set()); resetPage(); }} />
                     </div>
-                    <div style={{ flex: "1 1 140px", minWidth: 120 }}>
+                    <div style={{ minWidth: 0 }}>
                         <label style={labelStyle}>Category</label>
                         <Dropdown placeholder="All Categories" options={categoryOptions} value={selectedCategoryFilter}
                             onChange={(val: any) => { setSelectedCategoryFilter(val); setSelectedLineItemIds(new Set()); resetPage(); }} />
                     </div>
                 </div>
-                <div style={{ ...filterBar, marginBottom: 0, zIndex: 20 }}>
-                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 0, position: "relative", zIndex: 20, alignItems: "end" }}>
+                    <div style={{ minWidth: 0 }}>
                         <label style={labelStyle}>Status</label>
                         <Dropdown placeholder="All Statuses" options={statusOptions} value={selectedStatusFilter}
                             onChange={(val: any) => { setSelectedStatusFilter(val); setSelectedLineItemIds(new Set()); resetPage(); }} />
                     </div>
-                    <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                    <div style={{ minWidth: 0 }}>
                         <label style={labelStyle}>Current Supplier</label>
                         <Dropdown placeholder="All Suppliers" options={existingSupplierOptions} value={selectedExistingSupplierFilter}
                             onChange={(val: any) => { setSelectedExistingSupplierFilter(val); setSelectedLineItemIds(new Set()); resetPage(); }} />
                     </div>
-                    <div style={{ flex: "2 1 200px" }} />
+                    <div style={{ minWidth: 0 }} />
                     {hasActiveFilters && (
-                        <button onClick={resetAllFilters} style={{ ...btn("ghost"), alignSelf: "flex-end", marginBottom: 2 }}>
-                            - Clear All
-                        </button>
+                        <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-end" }}>
+                            <button onClick={resetAllFilters} style={{ ...btn("ghost"), marginBottom: 2 }}>
+                                - Clear All
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>}
@@ -899,7 +961,7 @@ export const SupplierSelection = ({
                                     }}
                                 />
                             </th>
-                            {["Order","Product","SKU","Category","Qty","Current Supplier","Split Order","Status"].map(h => <th key={h} style={TH}>{h}</th>)}
+                            {["Order","Product Name","SKU","Category","Qty","Current Supplier","Split Order","Status"].map(h => <th key={h} style={TH}>{h}</th>)}
                             <th style={{ ...TH, minWidth: 400 }}>Select Supplier</th>
                         </tr>
                     </thead>
@@ -915,7 +977,10 @@ export const SupplierSelection = ({
                             const orderSpan = orderSpans[item.id];
                             const sharedSpan = sharedSpans[item.id];
                             return (
-                                <tr key={item.id} style={{ backgroundColor: selectedLineItemIds.has(item.id) ? "#f0f7ff" : COLOR.white, transition: "background 0.15s" }}>
+                                <tr key={item.id}
+                                    onMouseEnter={(e) => { if (!selectedLineItemIds.has(item.id)) e.currentTarget.style.backgroundColor = "var(--ds-bg-header)"; }}
+                                    onMouseLeave={(e) => { if (!selectedLineItemIds.has(item.id)) e.currentTarget.style.backgroundColor = COLOR.white; }}
+                                    style={{ backgroundColor: selectedLineItemIds.has(item.id) ? COLOR.primaryLight : COLOR.white, transition: "background 0.15s" }}>
                                     <td style={{ ...TD, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }}>
                                         <input type="checkbox" checked={selectedLineItemIds.has(item.id)} onChange={() => toggleLineItem(item.id)}
                                             style={{ width: 14, height: 14, cursor: "pointer", display: "block", margin: "0 auto", accentColor: "#0073ea" }} />
@@ -940,10 +1005,7 @@ export const SupplierSelection = ({
                                         </td>
                                     )}
                                     <td style={TD}>
-                                        <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                            background: statusText === "Supplier Selected" ? COLOR.successLight : COLOR.bgHeader,
-                                            color: statusText === "Supplier Selected" ? COLOR.success : COLOR.textMuted,
-                                            border: `1px solid ${statusText === "Supplier Selected" ? "#a8d5b5" : COLOR.border}` }}>
+                                        <span style={badge(statusText === "Supplier Selected" ? "success" : "neutral")}>
                                             {statusText}
                                         </span>
                                     </td>
@@ -963,8 +1025,12 @@ export const SupplierSelection = ({
                             );
                         }) : (
                             <tr>
-                                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: COLOR.textMuted, fontSize: 13 }}>
-                                    {hasActiveFilters ? "No line items match the selected filters." : "No line items found for the selected orders."}
+                                <td colSpan={11} style={{ padding: "48px 24px", textAlign: "center", color: COLOR.textMuted }}>
+                                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ds-neutral-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>📋</div>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: COLOR.text, marginBottom: 3 }}>No line items</div>
+                                    <div style={{ fontSize: 13 }}>
+                                        {hasActiveFilters ? "No line items match the selected filters — try clearing them." : "No line items found for the selected orders."}
+                                    </div>
                                 </td>
                             </tr>
                         )}
@@ -988,8 +1054,8 @@ export const SupplierSelection = ({
 
             {/* Bottom nav */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLOR.borderLight}` }}>
-                <button onClick={onPrev} style={btn("secondary")}>- Back to Orders</button>
-                <button onClick={onNext} style={btn("primary")}>Go to Courier Selection -</button>
+                <Btn variant="secondary" onClick={onPrev}>← Back to Orders</Btn>
+                <Btn variant="primary" onClick={onNext}>Go to Courier Selection →</Btn>
             </div>
         </div>
     );

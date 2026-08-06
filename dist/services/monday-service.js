@@ -56,6 +56,46 @@ class MondayService {
             }
         });
     }
+    // Returns the subset of the given board IDs that DON'T exist for this token (deleted
+    // boards / stale config). Empty array means every board is valid. Used to fail fast
+    // with a clear message instead of a deep InvalidBoardIdException.
+    static findMissingBoards(token, boardIds) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const ids = boardIds.map((b) => String(b)).filter(Boolean);
+            if (!ids.length)
+                return [];
+            try {
+                const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
+                    headers: { Authorization: token }
+                });
+                const resp = yield client.request(`query ($ids: [ID!]) { boards(ids: $ids) { id } }`, { ids });
+                const existing = new Set(((_a = resp === null || resp === void 0 ? void 0 : resp.boards) !== null && _a !== void 0 ? _a : []).map((b) => String(b.id)));
+                return ids.filter((id) => !existing.has(id));
+            }
+            catch (err) {
+                return []; // on query failure, don't block — let the downstream call surface it
+            }
+        });
+    }
+    // Quick liveness check for an OAuth token. Returns false if monday rejects it (e.g.
+    // the token was revoked when the app was uninstalled). Used to detect a stale token
+    // and prompt reconnection instead of failing deep inside a mutation.
+    static isTokenValid(token) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!token)
+                return false;
+            try {
+                const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', { headers: { Authorization: token } });
+                const resp = yield client.request(`query { me { id } }`);
+                return !!((_a = resp === null || resp === void 0 ? void 0 : resp.me) === null || _a === void 0 ? void 0 : _a.id);
+            }
+            catch (_b) {
+                return false;
+            }
+        });
+    }
     static getBoardColumns(token, boardId) {
         var _a, _b;
         return __awaiter(this, void 0, void 0, function* () {
@@ -135,8 +175,10 @@ class MondayService {
                 const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
                     headers: { Authorization: token }
                 });
+                // create_labels_if_missing lets status/dropdown values (e.g. Source "Shopify",
+                // Order Type "Order") populate on freshly-provisioned boards without pre-seeding labels.
                 const query = `mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
-                create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues) {
+                create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
                     id
                 }
             }`;
@@ -157,13 +199,17 @@ class MondayService {
     //   orderName  = the order item's name        ({{1}})
     //   totalPrice = the "Total Price" column      ({{2}})
     //   products   = connected line-item names     ({{3}})
-    static getOrderWhatsappParams(token, itemId) {
+    static getOrderWhatsappParams(token, itemId, lineItemsBoardId) {
         var _a;
         return __awaiter(this, void 0, void 0, function* () {
             const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
                 headers: { Authorization: token }
             });
-            const LINE_ITEMS_BOARD_ID = process.env.LINE_ITEMS_BOARD_ID || '2028904077';
+            // Use the caller account's provisioned line-items board. Multi-tenant: no env /
+            // hardcoded fallback — using the wrong board would either read another tenant's data
+            // or make "products" come back empty. If it's missing, skip the connection scan
+            // (the board-scan fallback below still works off the order's own line-item links).
+            const LINE_ITEMS_BOARD_ID = lineItemsBoardId || '';
             let orderName = '';
             let totalPrice = '';
             let products = '';
@@ -202,8 +248,9 @@ class MondayService {
                 console.error('❌ getOrderWhatsappParams error:', err.message);
             }
             // Fallback: no two-way connection on the order — scan the line-items board for
-            // items connected back to this order via their "Order" relation column.
-            if (!products) {
+            // items connected back to this order via their "Order" relation column. Requires the
+            // account's line-items board id (no env fallback); skip if it wasn't provided.
+            if (!products && LINE_ITEMS_BOARD_ID) {
                 try {
                     products = yield MondayService.getConnectedLineItemNames(token, itemId, LINE_ITEMS_BOARD_ID);
                 }

@@ -27,17 +27,17 @@ export const generateManifestPDF = async (manifestData: any) => {
     // ── TOP HEADER ────────────────────────────────────────────────────────────
     let y = margin + pad + 6;
 
-    // Left: brand text
+    // Left: supplier name
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(...PURPLE);
-    doc.text("Shiprocket", margin + pad, y);
+    doc.text(String(supplierName || "Supplier"), margin + pad, y);
 
     // Center: title
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.setTextColor(...BLACK);
-    doc.text("Shiprocket Manifest", pageW / 2, y, { align: "center" });
+    doc.text("Manifest", pageW / 2, y, { align: "center" });
 
     // Right: Manifest ID + total shipments
     const manifestId = `MANIFEST-${String(manifestCounter++).padStart(4, "0")}`;

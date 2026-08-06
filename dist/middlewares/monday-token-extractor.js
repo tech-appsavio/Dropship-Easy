@@ -7,8 +7,10 @@
  * HOW IT WORKS
  * ─────────────
  * Monday.com sends a signed JWT in every request (Authorization header or
- * ?token query param).  The JWT is signed with your app's MONDAY_SIGNING_SECRET
- * and contains:
+ * ?token query param). It's signed with EITHER your app's MONDAY_SIGNING_SECRET
+ * (board/item-view context tokens) or MONDAY_CLIENT_SECRET (tokens fetched via
+ * monday.get("sessionToken")) — this file tries both via verify-monday-jwt.ts.
+ * The decoded payload contains:
  *   • accountId       – the monday.com account making the request
  *   • userId          – the user who triggered the action
  *   • shortLivedToken – a temporary OAuth token you can use to call the
@@ -40,28 +42,28 @@
  *      router.post("/my-route", mondayTokenMiddleware, myController);
  *      // then access req.session.shortLivedToken inside myController
  */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mondayTokenMiddleware = exports.extractMondayToken = void 0;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const verify_monday_jwt_1 = require("../utils/verify-monday-jwt");
 /**
  * Pure function — no side effects, no Express dependency.
  * Pass the raw Authorization header value (or ?token query string).
  */
-function extractMondayToken(authorization, signingSecret = process.env.MONDAY_SIGNING_SECRET) {
+function extractMondayToken(authorization) {
+    var _a;
     if (typeof authorization !== "string") {
         return { ok: false, error: "not authenticated, no credentials in request", status: 401 };
     }
-    if (typeof signingSecret !== "string") {
-        return { ok: false, error: "Missing MONDAY_SIGNING_SECRET", status: 500 };
-    }
     try {
-        const { accountId, userId, backToUrl, shortLivedToken } = jsonwebtoken_1.default.verify(authorization, signingSecret);
-        return { ok: true, session: { accountId, userId, backToUrl, shortLivedToken } };
+        // Tries both the Signing Secret (board/item-view tokens) and the OAuth Client
+        // Secret (monday.get("sessionToken") tokens) — see verify-monday-jwt.ts.
+        const decoded = (0, verify_monday_jwt_1.verifyMondayJwt)(authorization);
+        return { ok: true, session: (0, verify_monday_jwt_1.sessionFromDecoded)(decoded) };
     }
-    catch (_a) {
+    catch (err) {
+        if ((_a = err === null || err === void 0 ? void 0 : err.message) === null || _a === void 0 ? void 0 : _a.startsWith("Missing MONDAY_SIGNING_SECRET")) {
+            return { ok: false, error: err.message, status: 500 };
+        }
         return { ok: false, error: "authentication error, could not verify credentials", status: 401 };
     }
 }

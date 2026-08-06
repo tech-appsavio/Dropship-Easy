@@ -1,14 +1,21 @@
 // src/views/multi_order_processing/components/OrderSelection.tsx
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Loader, Dropdown } from "@vibe/core";
 import mondaySdk from "monday-sdk-js";
 import { useOrderData } from "../hooks/useOrderData";
-import { ORDER_COLUMN_LABELS_VISIBLE, ORDER_ITEM_BOARD_ID, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP } from "../constants";
+import { ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, ORDER_COLUMN_LABELS_VISIBLE } from "../columns";
+import { ORDER_ITEM_BOARD_ID } from "../boardIds";
 import { ExpandableOrderRow } from "./ExpandableOrderRow";
-import { btn, TH, filterBar, sectionTitle, paginationBtn, COLOR } from "../styles";
+import { fetchAllBoardItems } from "../utils/fetchAllItems";
+import { SetupIncompleteBanner } from "./SetupIncompleteBanner";
+import { btn, TH, filterBar, sectionTitle, paginationBtn, COLOR, SHADOW, badge } from "../styles";
+import { Btn } from "./Btn";
 
 const monday = mondaySdk();
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100].map((n) => ({ value: n, label: String(n) }));
+// Stable empty-array reference so memoized rows don't re-render just because
+// `lineItemsMap[id] || []` produced a fresh array each render.
+const EMPTY: any[] = [];
 
 interface Props {
     selectedOrderIds: Set<string>;
@@ -25,6 +32,7 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
 
     // NEW STATES: Salesforce-like list filtering layout components
     const [showFilters, setShowFilters] = useState(false);
+    const [searchFocused, setSearchFocused] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<any>(null);
     const [selectedDateFilter, setSelectedDateFilter] = useState<any>(null);
     const [customDateStart, setCustomDateStart] = useState("");
@@ -43,43 +51,21 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
     useEffect(() => {
         const fetchLineItems = async () => {
             try {
-                const res: any = await monday.api(`query {
-                    boards(ids: ${ORDER_ITEM_BOARD_ID}) {
-                        items_page(limit: 500) {
-                            items {
-                                id
-                                name
-                                column_values {
-                                    column {
-                                        title
-                                        type
-                                        id
-                                    }
-                                    id
-                                    type
-                                    text
-                                    value
-                                    ... on MirrorValue {
-                                        display_value
-                                        id
-                                        text
-                                        value
-                                    }
-                                    ... on BoardRelationValue {
-                                        linked_item_ids
-                                        display_value
-                                    }
-                                    ... on FormulaValue {
-                                        value
-                                        display_value
-                                    }
-                                }
-                            }
-                        }
+                // Paginated (cursor) fetch — supports line-item boards with >500 items.
+                const items = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
+                    id
+                    name
+                    column_values {
+                        column { title type id }
+                        id
+                        type
+                        text
+                        value
+                        ... on MirrorValue { display_value }
+                        ... on BoardRelationValue { linked_item_ids display_value }
+                        ... on FormulaValue { display_value }
                     }
-                }`); //
-
-                const items = res.data?.boards?.[0]?.items_page?.items || [];
+                `);
                 const map: Record<string, any[]> = {};
 
                 items.forEach((item: any) => {
@@ -127,15 +113,19 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
         const today = startOfDay(now);
 
         return orders.filter((o) => {
-            // Only show "Confirmed" orders, exclude "Manifest Generated"
-            if (String(o.STATUS) !== "Confirmed" || String(o.STATUS) === "Manifest Generated") return false;
+            // Only show "Confirmed" orders, exclude "Manifest Generated". Compared
+            // case-insensitively and trimmed, since a stray space or casing difference
+            // in the monday status label (e.g. "Confirmed " or "confirmed") would
+            // otherwise silently hide an order that looks correct at a glance.
+            const status = String(o.STATUS || "").trim().toLowerCase();
+            if (status !== "confirmed") return false;
 
             const term = searchTerm.toLowerCase();
             const matchesSearch =
                 o.name.toLowerCase().includes(term) ||
                 String(o.BILLING_ADDRESS || "").toLowerCase().includes(term) ||
                 String(o.CUSTOMER || "").toLowerCase().includes(term);
-            const matchesStatus = !selectedStatus || String(o.STATUS) === selectedStatus.value;
+            const matchesStatus = !selectedStatus || String(o.STATUS || "").trim().toLowerCase() === selectedStatus.value.trim().toLowerCase();
 
             let matchesDate = true;
             if (selectedDateFilter) {
@@ -183,11 +173,11 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
 
     const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
 
-    const toggle = (id: string) => {
+    const toggle = useCallback((id: string) => {
         const next = new Set(selectedOrderIds);
         next.has(id) ? next.delete(id) : next.add(id);
         onSelectionChange(next);
-    };
+    }, [selectedOrderIds, onSelectionChange]);
 
     const handleClearAllFilters = () => {
         setSelectedStatus(null);
@@ -202,14 +192,24 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
 
     if (loading)
         return (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
-                <Loader size={40} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center", alignItems: "center", minHeight: 320, color: COLOR.textMuted }}>
+                <Loader size={38} />
+                <span style={{ fontSize: 13 }}>Loading confirmed orders…</span>
             </div>
         );
-    if (error) return <div style={{ color: COLOR.danger, padding: 20, fontWeight: 500 }}>Error: {error}</div>;
+    if (error)
+        return (
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: COLOR.dangerLight, border: `1px solid var(--ds-danger-bd)`, borderRadius: 10, padding: "14px 16px", margin: "8px 0", color: COLOR.danger, fontSize: 13 }}>
+                <span style={{ fontSize: 16, lineHeight: 1 }}>⚠️</span>
+                <div><b>Couldn't load orders</b><div style={{ marginTop: 2, color: COLOR.danger }}>{error}</div></div>
+            </div>
+        );
 
     return (
         <div>
+            {/* Warns (with a link to the Settings tab) if required credentials/boards aren't set up */}
+            <SetupIncompleteBanner />
+
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                 <div>
@@ -219,7 +219,8 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                     </p>
                 </div>
                 {selectedOrderIds.size > 0 && (
-                    <span style={{ background: COLOR.primaryLight, color: COLOR.primary, border: `1px solid #a8c4f5`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>
+                    <span style={{ ...badge("info"), padding: "5px 14px", fontSize: 12, fontWeight: 700 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: COLOR.primary }} />
                         {selectedOrderIds.size} selected
                     </span>
                 )}
@@ -233,7 +234,9 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                         id="order-search-input"
                         type="text"
                         placeholder="Search by order name, address or customer name..."
-                        style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 8, border: `1px solid ${COLOR.border}`, fontSize: 13, color: COLOR.text, outline: "none", boxSizing: "border-box", background: COLOR.white }}
+                        onFocus={() => setSearchFocused(true)}
+                        onBlur={() => setSearchFocused(false)}
+                        style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 8, border: `1px solid ${searchFocused ? COLOR.primary : COLOR.border}`, boxShadow: searchFocused ? SHADOW.focus : "none", fontSize: 13, color: COLOR.text, outline: "none", boxSizing: "border-box", background: COLOR.white, transition: "border-color .15s, box-shadow .15s" }}
                         onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                     />
                 </div>
@@ -323,11 +326,17 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                         </thead>
                         <tbody>
                             {paginatedOrders.length > 0 ? paginatedOrders.map((order) => (
-                                <ExpandableOrderRow key={order.id} order={order} isSelected={selectedOrderIds.has(order.id)} onSelect={toggle} lineItems={lineItemsMap[order.id] || []} />
+                                <ExpandableOrderRow key={order.id} order={order} isSelected={selectedOrderIds.has(order.id)} onSelect={toggle} lineItems={lineItemsMap[order.id] || EMPTY} />
                             )) : (
                                 <tr>
-                                    <td colSpan={ORDER_COLUMN_LABELS_VISIBLE.length + 1} style={{ padding: 40, textAlign: "center", color: COLOR.textMuted, fontSize: 13 }}>
-                                        No confirmed orders found
+                                    <td colSpan={ORDER_COLUMN_LABELS_VISIBLE.length + 1} style={{ padding: "48px 24px", textAlign: "center", color: COLOR.textMuted }}>
+                                        <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ds-neutral-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>📦</div>
+                                        <div style={{ fontSize: 14, fontWeight: 600, color: COLOR.text, marginBottom: 3 }}>No confirmed orders</div>
+                                        <div style={{ fontSize: 13 }}>
+                                            {searchTerm || selectedStatus || selectedDateFilter
+                                                ? "No orders match your filters — try clearing them."
+                                                : "Confirmed orders will appear here once customers confirm their orders."}
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -346,9 +355,9 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                     <button onClick={() => setCurrentPage((p) => p + 1)} disabled={currentPage === totalPages} style={paginationBtn(currentPage === totalPages)}>Next →</button>
                     <span style={{ fontSize: 12, color: COLOR.textMuted }}>{filteredOrders.length} record{filteredOrders.length !== 1 ? "s" : ""}</span>
                 </div>
-                <button onClick={onNext} disabled={isNextDisabled} style={btn("primary", isNextDisabled)}>
+                <Btn variant="primary" onClick={onNext} disabled={isNextDisabled}>
                     Go to Supplier Selection <span style={{ fontSize: 15 }}>→</span>
-                </button>
+                </Btn>
             </div>
         </div>
     );

@@ -1,0 +1,85 @@
+/*
+ * App design tokens as CSS custom properties, so the whole app can switch between
+ * monday's light / dark / black themes at runtime with no React re-render — components
+ * read `var(--ds-*)` (via COLOR in styles.ts and local palettes), and the browser repaints
+ * when these values change. Dark values are applied when `document.documentElement` carries
+ * data-theme="dark" or "black" (set from monday's context theme in shared/theme.ts).
+ */
+
+:root {
+    --ds-primary:        #0073ea;
+    --ds-primary-hover:  #0060c0;
+    --ds-primary-light:  #e6f2ff;
+    --ds-primary-muted:  #a8c6ea;
+    --ds-success:        #0f7a43;
+    --ds-success-light:  #e7f6ee;
+    --ds-success-bd:     #bfe6cf;
+    --ds-danger:         #d83a52;
+    --ds-danger-light:   #fdecee;
+    --ds-danger-bd:      #f3c3ca;
+    --ds-warning:        #b45309;
+    --ds-warning-light:  #fff4e5;
+    --ds-warning-bd:     #f3ddb0;
+    --ds-text:           #323338;
+    --ds-text-muted:     #676879;
+    --ds-text-faint:     #9699a6;
+    --ds-border:         #d0d4e4;
+    --ds-border-light:   #e6e8ef;
+    --ds-bg:             #f6f7fb;
+    --ds-bg-header:      #f5f6f8;
+    --ds-surface:        #ffffff;
+    --ds-surface-alt:    #fbfcfd;
+    --ds-grid:           #c3c8d6;
+    --ds-disabled-bg:    #eef0f4;
+    --ds-disabled-text:  #9699a6;
+    --ds-info-bd:        #cfe1f6;
+    --ds-neutral-bg:     #eef0f4;
+    color-scheme: light;
+}
+
+/* monday "dark" and "black" themes share one dark palette here. */
+:root[data-theme="dark"],
+:root[data-theme="black"] {
+    --ds-primary:        #5b9df5;
+    --ds-primary-hover:  #7bb0f7;
+    --ds-primary-light:  #1b2a44;
+    --ds-primary-muted:  #37527a;
+    --ds-success:        #4ad295;
+    --ds-success-light:  #14352a;
+    --ds-success-bd:     #245c40;
+    --ds-danger:         #ff7285;
+    --ds-danger-light:   #3a1f27;
+    --ds-danger-bd:      #6b3540;
+    --ds-warning:        #f5b13d;
+    --ds-warning-light:  #3a2e14;
+    --ds-warning-bd:     #6b551f;
+    --ds-text:           #e6e8f2;
+    --ds-text-muted:     #a8abbd;
+    --ds-text-faint:     #7e8296;
+    --ds-border:         #3b3f57;
+    --ds-border-light:   #2e3247;
+    --ds-bg:             #181b34;
+    --ds-bg-header:      #20233d;
+    --ds-surface:        #222541;
+    --ds-surface-alt:    #262a49;
+    --ds-grid:           #3b3f57;
+    --ds-disabled-bg:    #2a2d47;
+    --ds-disabled-text:  #6b6f85;
+    --ds-info-bd:        #35507a;
+    --ds-neutral-bg:     #2a2d47;
+    color-scheme: dark;
+}
+
+/* Pure-black variant a touch darker than "dark". */
+:root[data-theme="black"] {
+    --ds-bg:             #0f1020;
+    --ds-bg-header:      #17182b;
+    --ds-surface:        #1a1b30;
+    --ds-surface-alt:    #1f2038;
+}
+
+/* Keep the page canvas itself in sync (behind the app containers). */
+body {
+    background: var(--ds-bg);
+    color: var(--ds-text);
+}

@@ -3,13 +3,16 @@ import { useState, useEffect, useMemo } from "react";
 import mondaySdk from "monday-sdk-js";
 
 import {
-    ORDER_ITEM_BOARD_ID,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
-    SUPPLIER_PRODUCT_BOARD_ID,
     SUPPLIER_PRODUCT_COLUMN_IDS_MAP,
     SUPPLIER_ALL_COLUMN_IDS_MAP,
     PRODUCT_ALL_COLUMN_IDS_MAP,
-} from "../constants";
+} from "../columns";
+import {
+    ORDER_ITEM_BOARD_ID,
+    SUPPLIER_PRODUCT_BOARD_ID,
+} from "../boardIds";
+import { fetchAllBoardItems } from "../utils/fetchAllItems";
 
 
 
@@ -23,27 +26,19 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
     const fetchLineItems = async () => {
         console.log("[useSupplierSelectionData] ── Fetching line items for orders:", selectedOrderIds);
         setLoading(true);
-        const query = `query {
-            boards(ids: ${ORDER_ITEM_BOARD_ID}) {
-                items_page(limit: 500) {
-                    items {
-                        id
-                        name
-                        column_values {
-                            column { title type id }
-                            id type text value
-                            ... on MirrorValue { display_value id text value }
-                            ... on BoardRelationValue { linked_item_ids display_value }
-                            ... on FormulaValue { value display_value }
-                        }
-                    }
-                }
-            }
-        }`;
-
         try {
-            const res: any = await monday.api(query);
-            const allItems = res.data.boards[0].items_page.items;
+            // Paginated (cursor) fetch — supports line-item boards with >500 items.
+            const allItems = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
+                id
+                name
+                column_values {
+                    column { title type id }
+                    id type text value
+                    ... on MirrorValue { display_value }
+                    ... on BoardRelationValue { linked_item_ids display_value }
+                    ... on FormulaValue { display_value }
+                }
+            `);
             console.log("[useSupplierSelectionData] Total line items on board:", allItems.length);
 
             const filteredItems = allItems
@@ -162,28 +157,16 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
         }
         console.log("[useSupplierSelectionData] Fetching suppliers for product:", productId);
 
-        const relationQuery = `query {
-            boards(ids: ${SUPPLIER_PRODUCT_BOARD_ID}) {
-                items_page(limit: 500) {
-                    items {
-                        id
-                        column_values {
-                            id text
-                            ... on BoardRelationValue { linked_item_ids display_value }
-                            ... on MirrorValue { display_value }
-                        }
-                    }
-                }
-            }
-        }`;
-
         try {
-            const relRes: any = await monday.api(relationQuery);
-            if (!relRes.data || !relRes.data.boards || relRes.data.boards.length === 0) {
-                throw new Error("No data returned for supplier products board.");
-            }
-
-            const allSupplierProductItems = relRes.data.boards[0].items_page.items;
+            // Paginated (cursor) fetch — supports supplier-product boards with >500 rows.
+            const allSupplierProductItems = await fetchAllBoardItems(SUPPLIER_PRODUCT_BOARD_ID, `
+                id
+                column_values {
+                    id text
+                    ... on BoardRelationValue { linked_item_ids display_value }
+                    ... on MirrorValue { display_value }
+                }
+            `);
             console.log("[useSupplierSelectionData] Total supplier-product rows:", allSupplierProductItems.length);
 
             const productRelations = allSupplierProductItems

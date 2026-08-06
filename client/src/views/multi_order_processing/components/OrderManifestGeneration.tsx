@@ -3,25 +3,31 @@ import React, { useState, useMemo } from "react";
 import { Button, Loader, Toast, Dropdown } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import { btn, TH, TD, filterBar, sectionTitle, paginationBtn, COLOR, badge } from "../styles";
+import { Btn } from "./Btn";
 import {
-    SUPPLIER_MANIFEST_BOARD_ID,
     SUPPLIER_MANIFEST_COLUMN_IDS_MAP,
     ORDERLINEITEMS_ALL_COLUMN_IDS_MAP,
     ORDER_ALL_COLUMN_IDS_MAP,
     CUSTOMER_ALL_COLUMN_IDS_MAP,
     SUPPLIER_ALL_COLUMN_IDS_MAP,
+    PRODUCT_ALL_COLUMN_IDS_MAP,
+    SHIPMENTS_ALL_COLUMN_IDS_MAP,
+} from "../columns";
+import {
+    SUPPLIER_MANIFEST_BOARD_ID,
     ORDER_BOARD_ID,
     ORDER_ITEM_BOARD_ID,
-    PRODUCT_ALL_COLUMN_IDS_MAP,
     SHIPMENTS_BOARD_ID,
-    SHIPMENTS_ALL_COLUMN_IDS_MAP,
-} from "../constants";
+} from "../boardIds";
 import mondaySdk from "monday-sdk-js";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import { useToast } from "../hooks/useToast";
 import { generateManifestPDF } from "../utils/pdfGenerator";
 import { generateLabelPDF } from "../utils/labelPdfGenerator";
+import { fetchAllBoardItems } from "../utils/fetchAllItems";
+import { logError } from "../utils/logError";
 import ShipRocketService from "../../../services/shiprocketCourier";
+import { resolveColumnIdByTitle } from "../utils/mondayColumns";
 
 const monday = mondaySdk();
 
@@ -29,17 +35,17 @@ const thStyle = TH;
 const tdStyle = TD;
 
 const COURIER_TAG_STYLES: Record<string, React.CSSProperties> = {
-    Best:    { background: "#e6f4ea", color: "#137333", border: "1px solid #a8d5b5" },
-    Good:    { background: "#e8f0fe", color: "#1a73e8", border: "1px solid #a8c4f5" },
-    Average: { background: "#fff8e1", color: "#b45309", border: "1px solid #f5d97a" },
-    Poor:    { background: "#fce8e6", color: "#c5221f", border: "1px solid #f5b4b0" },
+    Best:    { background: "var(--ds-success-light)", color: "var(--ds-success)", border: "1px solid var(--ds-success-bd)" },
+    Good:    { background: "var(--ds-primary-light)", color: "var(--ds-primary)", border: "1px solid var(--ds-info-bd)" },
+    Average: { background: "var(--ds-warning-light)", color: "var(--ds-warning)", border: "1px solid var(--ds-warning-bd)" },
+    Poor:    { background: "var(--ds-danger-light)",  color: "var(--ds-danger)",  border: "1px solid var(--ds-danger-bd)" },
 };
 
 const CourierOptionInline = ({ label, tag, freight_charge }: { label: string; tag?: string; freight_charge?: number }) => (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%" }}>
-        <span style={{ fontSize: 13, color: "#323338", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ fontSize: 13, color: "var(--ds-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-            {freight_charge !== undefined && <span style={{ fontSize: 11, color: "#676879" }}>₹{freight_charge}</span>}
+            {freight_charge !== undefined && <span style={{ fontSize: 11, color: "var(--ds-text-muted)" }}>₹{freight_charge}</span>}
             {tag && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...COURIER_TAG_STYLES[tag] }}>{tag}</span>}
         </div>
     </div>
@@ -162,16 +168,27 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
         return col?.linked_item_ids?.[0] || "";
     };
+    // Human split name (e.g. "ORD-0001-S2") — used to order splits S1, S2, S3… correctly.
+    const getSplitOrderName = (item: any): string => {
+        const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
+        return col?.display_value || "";
+    };
 
     const sortedFilteredLineItems = useMemo(() => [...filteredLineItems].sort((a: any, b: any) => {
-        const oCmp = (a.orderName || a.linkedOrderId || "").localeCompare(b.orderName || b.linkedOrderId || "");
+        const oCmp = (a.orderName || a.linkedOrderId || "").localeCompare(b.orderName || b.linkedOrderId || "", undefined, { numeric: true });
         if (oCmp !== 0) return oCmp;
-        const aSplit = getSplitOrderId(a);
-        const bSplit = getSplitOrderId(b);
-        if (aSplit && !bSplit) return -1;
-        if (!aSplit && bSplit) return 1;
-        if (aSplit && bSplit) { const sCmp = aSplit.localeCompare(bSplit); if (sCmp !== 0) return sCmp; }
-        return (a.name || "").localeCompare(b.name || "");
+        const aHasSplit = !!getSplitOrderId(a);
+        const bHasSplit = !!getSplitOrderId(b);
+        if (aHasSplit && !bHasSplit) return -1;
+        if (!aHasSplit && bHasSplit) return 1;
+        if (aHasSplit && bHasSplit) {
+            // Order splits by their name (ORD-0001-S1, -S2, …) numerically, not by item id.
+            const aName = getSplitOrderName(a) || getSplitOrderId(a);
+            const bName = getSplitOrderName(b) || getSplitOrderId(b);
+            const sCmp = aName.localeCompare(bName, undefined, { numeric: true });
+            if (sCmp !== 0) return sCmp;
+        }
+        return (a.name || "").localeCompare(b.name || "", undefined, { numeric: true });
     }), [filteredLineItems]);
 
     const selectableItems = useMemo(() => sortedFilteredLineItems, [sortedFilteredLineItems]);
@@ -393,8 +410,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
     };
 
     // ── Phase 2: Post-AWB steps per group (Steps 2-8) ───────────────────────
-    const runPostAwbSteps = async (group: { awbCode: string; srShipmentId: string; courierId: string; courierName: string; orderName: string; supplierData: any; supplierName: string; splitOrderId: string; monitorId: string; items: any[]; allSiblingIds: string[] }) => {
-        const { awbCode, srShipmentId, courierId, courierName, orderName, supplierData, supplierName, splitOrderId, monitorId, items, allSiblingIds } = group;
+    const runPostAwbSteps = async (group: { awbCode: string; srShipmentId: string; courierId: string; courierName: string; orderName: string; splitOrderName?: string; supplierData: any; supplierName: string; splitOrderId: string; monitorId: string; items: any[]; allSiblingIds: string[] }) => {
+        const { awbCode, srShipmentId, courierId, courierName, orderName, splitOrderName, supplierData, supplierName, splitOrderId, monitorId, items, allSiblingIds } = group;
+        // Use the split order's own name if this group is a split; otherwise the main order name.
+        const shipmentOrderName = splitOrderName || orderName;
         // For non-split orders all line items belong to the same Shiprocket shipment,
         // so we update every sibling; for split orders we only touch this split group.
         const updateItemIds = allSiblingIds.length > 0 ? allSiblingIds : items.map((i: any) => i.id);
@@ -431,12 +450,21 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             [SHIPMENTS_ALL_COLUMN_IDS_MAP.Shipper_Company_Name]: supplierName,
             [SHIPMENTS_ALL_COLUMN_IDS_MAP.Shipper_Address]: supplierData.address,
         };
+        // A newly created shipment starts as "Active" (Cancel Shipment status column).
+        if (SHIPMENTS_ALL_COLUMN_IDS_MAP.CANCEL_SHIPMENT) {
+            shipCV[SHIPMENTS_ALL_COLUMN_IDS_MAP.CANCEL_SHIPMENT] = { label: "Active" };
+        }
+        // Populate the "Created Date" date column (resolved by title, not hardcoded ID,
+        // since the Shipments board previously had no real date-typed column captured).
+        const shipCreatedDateColId = await resolveColumnIdByTitle(SHIPMENTS_BOARD_ID, "Created Date");
+        if (shipCreatedDateColId) shipCV[shipCreatedDateColId] = { date: now.toISOString().slice(0, 10) };
+
         const createShipRes: any = await monday.api(`mutation {
-            create_item(board_id: ${SHIPMENTS_BOARD_ID}, item_name: "Shipment - ${orderName}",
-                column_values: "${JSON.stringify(shipCV).replace(/"/g, '\\"')}") { id }
+            create_item(board_id: ${SHIPMENTS_BOARD_ID}, item_name: "Shipment - ${shipmentOrderName}",
+                column_values: "${JSON.stringify(shipCV).replace(/"/g, '\\"')}", create_labels_if_missing: true) { id }
         }`);
         const newShipmentItemId: string | undefined = createShipRes?.data?.create_item?.id;
-        if (!newShipmentItemId) throw new Error("Failed to create Monday shipment item");
+        if (!newShipmentItemId) throw new Error("Failed to create monday shipment item");
 
         // Step 4: Generate Shiprocket pickup
         const genRes: any = await ShipRocketService.generatePickup(srShipmentId);
@@ -659,6 +687,11 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
 
             const now = new Date();
             const ts = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+            const nowIso = now.toISOString().slice(0, 10);
+
+            // Resolved once (by title, not hardcoded ID) and reused across every manifest
+            // group created below — the Supplier Manifests board had no date column at all.
+            const manifestCreatedDateColId = await resolveColumnIdByTitle(SUPPLIER_MANIFEST_BOARD_ID, "Created Date");
 
             for (const [, groupItems] of Object.entries(manifestGroups)) {
                 const first = groupItems[0];
@@ -668,12 +701,15 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
 
                 try {
                     const groupParentOrderIds = [...new Set(groupItems.map((i) => i.parentOrderId).filter(Boolean))];
+                    const groupSplitOrderIds = [...new Set(groupItems.map((i) => i.splitOrderId).filter(Boolean))];
                     const manifestColValues: any = {
                         [SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER_LINE_ITEM]: { item_ids: groupItems.map((i) => String(i.id)) },
                     };
                     if (groupParentOrderIds.length > 0) manifestColValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.ORDER] = { item_ids: groupParentOrderIds.map(String) };
+                    if (groupSplitOrderIds.length > 0) manifestColValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SPLIT_ORDERS] = { item_ids: groupSplitOrderIds.map(String) };
                     if (first.supplierId) manifestColValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.SUPPLIER] = { item_ids: [String(first.supplierId)] };
                     if (first.supplierEmail) manifestColValues[SUPPLIER_MANIFEST_COLUMN_IDS_MAP.Supplier_Email] = { email: first.supplierEmail, text: first.supplierEmail };
+                    if (manifestCreatedDateColId) manifestColValues[manifestCreatedDateColId] = { date: nowIso };
                     const createRes: any = await monday.api(`mutation {
                         create_item(board_id: ${SUPPLIER_MANIFEST_BOARD_ID}, item_name: "${manifestName}",
                             column_values: "${JSON.stringify(manifestColValues).replace(/"/g, '\\"')}") { id }
@@ -732,17 +768,12 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                     // siblings only) so every sibling shows "Manifest Generated".
                     const nonSplitParentIds = Object.keys(nonSplitBuckets);
                     if (nonSplitParentIds.length > 0) {
-                        const auditRes: any = await monday.api(`query {
-                            boards(ids: ${ORDER_ITEM_BOARD_ID}) {
-                                items_page(limit: 500) { items {
-                                    id
-                                    column_values(ids: ["${ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER}"]) {
-                                        id text value ... on BoardRelationValue { linked_item_ids }
-                                    }
-                                } }
+                        const allOli = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
+                            id
+                            column_values(ids: ["${ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER}"]) {
+                                id text value ... on BoardRelationValue { linked_item_ids }
                             }
-                        }`);
-                        const allOli = auditRes.data?.boards?.[0]?.items_page?.items || [];
+                        `);
                         for (const parentId of nonSplitParentIds) {
                             const siblingIds = allOli
                                 .filter((li: any) => {
@@ -770,18 +801,17 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
 
                 try {
                     for (const parentId of [...new Set(groupItems.map((i) => i.parentOrderId))]) {
-                        const auditRes: any = await monday.api(`query {
-                            boards(ids: ${ORDER_ITEM_BOARD_ID}) { items_page(limit: 500) { items { id column_values { id text ... on BoardRelationValue { linked_item_ids } } } } }
-                        }`);
-                        const allOli = auditRes.data?.boards?.[0]?.items_page?.items || [];
+                        const allOli = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `id column_values { id text ... on BoardRelationValue { linked_item_ids } }`);
                         const siblings = allOli.filter((li: any) => {
                             const oc = li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.ORDER);
                             const lid = oc?.linked_item_ids?.[0] || (() => { try { return String(JSON.parse(oc?.value || "{}").linkedPulseIds?.[0]?.linkedPulseId || ""); } catch { return ""; } })();
                             return String(lid) === String(parentId);
                         });
                         const allManifested = siblings.length > 0 && siblings.every((li: any) => li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS)?.text === "Manifest Generated");
-                        const allShipped = siblings.length > 0 && siblings.every((li: any) => li.column_values.find((c: any) => c.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.Shipped)?.text === "Yes");
-                        const newOrderStatus = allShipped ? "Shipped" : allManifested ? "Manifest Generated" : null;
+                        // The manifest process's final order status is "Manifest Generated".
+                        // "Shipped" is NOT set here — it's set only immediately after the
+                        // shipment is created (see runPostAwbSteps → split order status).
+                        const newOrderStatus = allManifested ? "Manifest Generated" : null;
                         if (newOrderStatus) {
                             await monday.api(`mutation { change_multiple_column_values(item_id: ${parentId}, board_id: ${ORDER_BOARD_ID}, column_values: "${JSON.stringify({ [ORDER_ALL_COLUMN_IDS_MAP.STATUS]: { label: newOrderStatus } }).replace(/"/g, '\\"')}") { id } }`);
                         }
@@ -797,8 +827,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
     // ── Phase 2 + 3: Run post-AWB steps then manifest for success groups ─────
     const runPhase2AndManifest = async (successGroups: NonNullable<typeof awbFailModal>["successGroups"]) => {
         setIsProcessing(true);
-        showToast("Your request is being processed. Please wait while shipments are created and the manifest and shipping labels are generated.", "positive");
-        const collectedErrors: { group: string; step: string; error: string }[] = [];
+        showToast("Please wait while shipments, manifests, and shipping labels are being generated…", "warning");
+        const collectedErrors: { group: string; step: string; error: string; splitOrderItemId?: string }[] = [];
         const phase2SuccessGroups: typeof successGroups = [];
         try {
             for (const group of successGroups) {
@@ -807,7 +837,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                     await runPostAwbSteps(group);
                     phase2SuccessGroups.push(group);
                 } catch (e: any) {
-                    collectedErrors.push({ group: groupLabel, step: "Shipment Steps", error: e.message });
+                    // group.splitOrderId is the split order's monday item id → link the record.
+                    collectedErrors.push({ group: groupLabel, step: "Shipment Steps", error: e.message, splitOrderItemId: group.splitOrderId });
                 }
             }
 
@@ -828,12 +859,32 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             setProcessErrors(collectedErrors);
             if (collectedErrors.length === 0) {
                 showToast("All shipments created and manifests generated successfully!", "positive");
+                monday.execute("valueCreatedForUser"); // monday activation signal
             } else {
                 showToast(`Completed with ${collectedErrors.length} error(s). See details below.`, "negative");
+                collectedErrors.forEach((err) =>
+                    logError({
+                        stage: err.step === "Shipment Steps" ? "Shipment Creation" : "Manifest Generation",
+                        severity: "Error",
+                        message: `${err.step} failed for ${err.group}: ${err.error}`,
+                        technicalDetails: err.error,
+                        splitOrderId: err.group,
+                        splitOrderItemId: err.splitOrderItemId, // links the "Split Orders" connect when known
+                        suggestedSolution: "Review the order in the Ship Easy boards and retry this step from Create Shipment & Manifest.",
+                        retry: true,
+                    })
+                );
             }
             setSelectedLineItemIds(new Set());
         } catch (e: any) {
             showToast("Processing failed: " + e.message, "negative");
+            logError({
+                stage: "Manifest Generation", severity: "Critical",
+                message: `Create Shipment & Manifest failed: ${e.message}`,
+                technicalDetails: String(e?.stack || e),
+                suggestedSolution: "Re-check the selected orders and their courier/AWB assignments, then run Create Shipment & Manifest again.",
+                retry: true,
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -1015,6 +1066,13 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             await runPhase2AndManifest(successGroups);
         } catch (e: any) {
             showToast("Processing failed: " + e.message, "negative");
+            logError({
+                stage: "Shipment Creation", severity: "Critical",
+                message: `AWB assignment failed: ${e.message}`,
+                technicalDetails: String(e?.stack || e),
+                suggestedSolution: "Verify courier serviceability and Shiprocket credentials, then run Process Orders again.",
+                retry: true,
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -1134,6 +1192,13 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                 await runPhase2AndManifest(newSuccessGroups);
             } catch (e: any) {
                 showToast("Processing failed: " + e.message, "negative");
+                logError({
+                    stage: "Manifest Generation", severity: "Critical",
+                    message: `Shipment/manifest processing failed after courier reassignment: ${e.message}`,
+                    technicalDetails: String(e?.stack || e),
+                    suggestedSolution: "Re-check the reassigned couriers and retry Create Shipment & Manifest.",
+                    retry: true,
+                });
             }
         }
     };
@@ -1178,18 +1243,29 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
 
     const sanitizeFilename = (name: string) => name.replace(/[^a-zA-Z0-9_(). \-]/g, "").trim();
 
-    if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}><Loader size={40} /></div>;
+    if (loading) return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center", alignItems: "center", minHeight: 400, color: COLOR.textMuted }}>
+            <Loader size={38} />
+            <span style={{ fontSize: 13 }}>Loading orders for shipment…</span>
+        </div>
+    );
 
     return (
         <div style={{ padding: "24px" }}>
-            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={15000} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
+            {/* Blocks all interaction while shipments/manifests/labels are being generated.
+                isProcessing is always false while the AWB/reassign/confirm modals are open
+                (reset in the finally blocks), so this never blocks those. */}
+            {isProcessing && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.55)", zIndex: 9000, cursor: "wait" }} aria-busy="true" />
+            )}
+            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={15000} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, maxWidth: 380 }}>
                 {toast.message}
             </Toast>
 
             {/* AWB Failure Modal */}
             {awbFailModal && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ background: "#fff", borderRadius: 12, padding: 28, maxWidth: 560, width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+                    <div style={{ background: "var(--ds-surface)", borderRadius: 12, padding: 28, maxWidth: 560, width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
                         <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: COLOR.text }}>AWB Assignment Partially Failed</h3>
 
                         {/* Failed orders */}
@@ -1197,7 +1273,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                             <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600, color: COLOR.danger }}>
                                 ✕ {awbFailModal.failedGroups.length} order(s) failed AWB assignment
                             </p>
-                            <div style={{ background: "#fff8f8", border: "1px solid #f5c2c2", borderRadius: 8, padding: "10px 14px", maxHeight: 160, overflowY: "auto" }}>
+                            <div style={{ background: "var(--ds-danger-light)", border: "1px solid var(--ds-danger-bd)", borderRadius: 8, padding: "10px 14px", maxHeight: 160, overflowY: "auto" }}>
                                 {awbFailModal.failedGroups.map((g, i) => (
                                     <div key={i} style={{ marginBottom: i < awbFailModal.failedGroups.length - 1 ? 10 : 0 }}>
                                         <span style={{ fontWeight: 600, fontSize: 13, color: COLOR.text }}>{g.orderName}</span>
@@ -1238,7 +1314,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             {/* Reassign Courier Modal */}
             {reassignModal && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1001, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ background: "#fff", borderRadius: 12, padding: 28, maxWidth: 640, width: "92%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", maxHeight: "85vh", overflowY: "auto" }}>
+                    <div style={{ background: "var(--ds-surface)", borderRadius: 12, padding: 28, maxWidth: 640, width: "92%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", maxHeight: "85vh", overflowY: "auto" }}>
                         <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700, color: COLOR.text }}>Reassign Courier for Failed Orders</h3>
                         <p style={{ margin: "0 0 18px", fontSize: 13, color: COLOR.textMuted }}>
                             Select a different courier for each failed order, then click Update.
@@ -1307,16 +1383,17 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                     <p style={{ margin: "3px 0 0", fontSize: 13, color: COLOR.textMuted }}>Assign AWB numbers and generate manifests for selected orders</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                    <Button
-                        disabled={!processValidation.isValid || isProcessing}
-                        loading={isProcessing}
-                        onClick={handleProcessOrders}
-                    >
-                        🚀 Process Orders ({selectedOrderCount})
-                    </Button>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: processValidation.isValid ? COLOR.success : COLOR.danger }}>
-                        {processValidation.reason}
-                    </p>
+                    {/* The validation reason (e.g. "Select items to process.") is now shown
+                        as a hover tooltip on the button instead of as helper text below it. */}
+                    <span title={processValidation.reason}>
+                        <Button
+                            disabled={!processValidation.isValid || isProcessing}
+                            loading={isProcessing}
+                            onClick={handleProcessOrders}
+                        >
+                            Process Orders{selectedOrderCount > 0 ? ` (${selectedOrderCount})` : ""}
+                        </Button>
+                    </span>
                 </div>
             </div>
 
@@ -1399,25 +1476,25 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
 
             {/* Process Error Panel */}
             {processErrors.length > 0 && (
-                <div style={{ background: "#fff8f8", border: "1px solid #f5c2c2", borderRadius: 6, padding: "16px", marginBottom: 20 }}>
+                <div style={{ background: "var(--ds-danger-light)", border: "1px solid var(--ds-danger-bd)", borderRadius: 6, padding: "16px", marginBottom: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "#c0392b" }}>⚠️ {processErrors.length} error(s) during processing</span>
-                        <button onClick={() => setProcessErrors([])} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, color: "#888", lineHeight: 1 }}>✕</button>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ds-danger)" }}>⚠️ {processErrors.length} error(s) during processing</span>
+                        <button onClick={() => setProcessErrors([])} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, color: "var(--ds-text-faint)", lineHeight: 1 }}>✕</button>
                     </div>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
-                            <tr style={{ background: "#fdecea" }}>
-                                <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #f5c2c2", fontWeight: 600, color: "#323338" }}>Group</th>
-                                <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #f5c2c2", fontWeight: 600, color: "#323338" }}>Step</th>
-                                <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #f5c2c2", fontWeight: 600, color: "#323338" }}>Error</th>
+                            <tr style={{ background: "var(--ds-danger-light)" }}>
+                                <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid var(--ds-danger-bd)", fontWeight: 600, color: "var(--ds-text)" }}>Group</th>
+                                <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid var(--ds-danger-bd)", fontWeight: 600, color: "var(--ds-text)" }}>Step</th>
+                                <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid var(--ds-danger-bd)", fontWeight: 600, color: "var(--ds-text)" }}>Error</th>
                             </tr>
                         </thead>
                         <tbody>
                             {processErrors.map((err, i) => (
-                                <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#fff8f8" }}>
-                                    <td style={{ padding: "8px 12px", border: "1px solid #f5c2c2", color: "#323338" }}>{err.group}</td>
-                                    <td style={{ padding: "8px 12px", border: "1px solid #f5c2c2", color: "#676879", whiteSpace: "nowrap" }}>{err.step}</td>
-                                    <td style={{ padding: "8px 12px", border: "1px solid #f5c2c2", color: "#c0392b", wordBreak: "break-word", maxWidth: 400 }}>{err.error}</td>
+                                <tr key={i} style={{ background: i % 2 === 0 ? "var(--ds-surface)" : "var(--ds-danger-light)" }}>
+                                    <td style={{ padding: "8px 12px", border: "1px solid var(--ds-danger-bd)", color: "var(--ds-text)" }}>{err.group}</td>
+                                    <td style={{ padding: "8px 12px", border: "1px solid var(--ds-danger-bd)", color: "var(--ds-text-muted)", whiteSpace: "nowrap" }}>{err.step}</td>
+                                    <td style={{ padding: "8px 12px", border: "1px solid var(--ds-danger-bd)", color: "var(--ds-danger)", wordBreak: "break-word", maxWidth: 400 }}>{err.error}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1467,7 +1544,10 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                                 const checkboxIndeterminate = checkboxItems.some((i: any) => selectedLineItemIds.has(i.id)) && !checkboxChecked;
 
                                 return (
-                                <tr key={item.id} style={{ backgroundColor: selectedLineItemIds.has(item.id) ? "#f0f7ff" : COLOR.white, transition: "background 0.15s" }}>
+                                <tr key={item.id}
+                                    onMouseEnter={(e) => { if (!selectedLineItemIds.has(item.id)) e.currentTarget.style.backgroundColor = "var(--ds-bg-header)"; }}
+                                    onMouseLeave={(e) => { if (!selectedLineItemIds.has(item.id)) e.currentTarget.style.backgroundColor = COLOR.white; }}
+                                    style={{ backgroundColor: selectedLineItemIds.has(item.id) ? COLOR.primaryLight : COLOR.white, transition: "background 0.15s" }}>
                                     {/* Checkbox — per split group (or per order for non-split) */}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...tdStyle, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
@@ -1540,10 +1620,14 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan={1 + 1 + 1 + 1 + itemColumns.length + 1 + 1 + groupColumns.length} style={{ padding: 40, textAlign: "center", color: COLOR.textMuted, fontSize: 13 }}>
-                                        {selectedOrderFilter || selectedSupplierFilter || selectedCourierFilter || selectedSkuFilter
-                                            ? "No line items match the selected filters."
-                                            : "No line items to display."}
+                                    <td colSpan={1 + 1 + 1 + 1 + itemColumns.length + 1 + 1 + groupColumns.length} style={{ padding: "48px 24px", textAlign: "center", color: COLOR.textMuted }}>
+                                        <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ds-neutral-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>📄</div>
+                                        <div style={{ fontSize: 14, fontWeight: 600, color: COLOR.text, marginBottom: 3 }}>No line items</div>
+                                        <div style={{ fontSize: 13 }}>
+                                            {selectedOrderFilter || selectedSupplierFilter || selectedCourierFilter || selectedSkuFilter
+                                                ? "No line items match the selected filters — try clearing them."
+                                                : "No line items to display."}
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -1568,9 +1652,9 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             {/* Inline confirm dialog */}
             {showConfirm && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ background: "#fff", borderRadius: 8, padding: "32px", maxWidth: 420, width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+                    <div style={{ background: "var(--ds-surface)", borderRadius: 8, padding: "32px", maxWidth: 420, width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
                         <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 600 }}>Finish &amp; Reset</h3>
-                        <p style={{ margin: "0 0 24px", fontSize: 14, color: "#676879" }}>Are you sure you want to finish and reset? This will clear all selected orders.</p>
+                        <p style={{ margin: "0 0 24px", fontSize: 14, color: "var(--ds-text-muted)" }}>Are you sure you want to finish and reset? This will clear all selected orders.</p>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
                         <button onClick={() => setShowConfirm(false)} style={btn("secondary")}>Cancel</button>
                             <button onClick={() => { setShowConfirm(false); onNext(); }} style={btn("primary")}>Finish &amp; Reset</button>
@@ -1581,8 +1665,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
 
             {/* Bottom nav */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${COLOR.borderLight}` }}>
-                <button onClick={onPrev} style={btn("secondary")}>← Back to Couriers</button>
-                <button onClick={() => setShowConfirm(true)} style={btn("primary")}>Finish &amp; Reset →</button>
+                <Btn variant="secondary" onClick={onPrev}>← Back to Couriers</Btn>
+                <Btn variant="primary" onClick={() => setShowConfirm(true)}>Finish &amp; Reset →</Btn>
             </div>
         </div>
     );

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ship Easy — How to use</title>
+<style>
+  :root {
+    --ink:#16202b; --muted:#5c6875; --faint:#8a94a3; --line:#e6e8ef;
+    --bg:#f6f7fb; --card:#fff; --primary:#0073ea; --primary-soft:#e6f2ff; --done:#1a8f4c;
+    --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.6; }
+  .wrap { max-width:820px; margin:0 auto; padding:48px 22px 72px; }
+  .eyebrow { font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--primary); margin:0 0 12px; }
+  h1 { font-size:clamp(26px,4.4vw,36px); line-height:1.1; letter-spacing:-.02em; margin:0 0 10px; }
+  .lede { font-size:16px; color:var(--muted); margin:0 0 8px; max-width:60ch; }
+  h2 { font-size:19px; letter-spacing:-.015em; margin:34px 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 3px rgba(22,32,43,.05); padding:20px 22px; margin:14px 0; }
+  ol.setup { list-style:none; counter-reset:s; margin:0; padding:0; }
+  ol.setup > li { counter-increment:s; position:relative; padding:12px 0 12px 46px; border-top:1px solid #f0f1f5; }
+  ol.setup > li:first-child { border-top:none; }
+  ol.setup > li::before { content:counter(s); position:absolute; left:0; top:12px; width:30px; height:30px; border-radius:50%; background:var(--primary-soft); color:var(--primary); font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .step-title { font-weight:600; }
+  .flow { display:flex; flex-direction:column; gap:0; }
+  .stage { display:grid; grid-template-columns:44px 1fr; gap:16px; padding-bottom:20px; position:relative; }
+  .stage:last-child { padding-bottom:0; }
+  .rail { position:relative; display:flex; justify-content:center; }
+  .rail::before { content:""; position:absolute; top:34px; bottom:-20px; width:2px; background:var(--line); }
+  .stage:last-child .rail::before { display:none; }
+  .node { width:34px; height:34px; border-radius:50%; background:var(--primary); color:#fff; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; z-index:1; }
+  .stage:last-child .node { background:var(--done); }
+  .stage h3 { margin:4px 0 4px; font-size:16px; }
+  .stage p { margin:0; color:var(--muted); font-size:14px; }
+  code { font-family:var(--mono); font-size:.9em; background:#eef0f5; padding:2px 6px; border-radius:5px; }
+  .chip { display:inline-block; font-family:var(--mono); font-size:11.5px; padding:2px 9px; border-radius:999px; border:1px solid var(--line); color:var(--muted); background:#fbfcfd; margin:2px 4px 2px 0; }
+  .note { font-size:13px; color:var(--faint); }
+  figure.shot { margin:16px 0 0; }
+  figure.shot img { width:100%; max-width:100%; height:auto; display:block; border:1px solid var(--line); border-radius:10px; box-shadow:0 1px 4px rgba(22,32,43,.07); }
+  figure.shot figcaption { font-size:12.5px; color:var(--faint); margin-top:7px; text-align:center; }
+  .shots { display:grid; grid-template-columns:1fr; gap:22px; }
+  b { color:var(--ink); }
+  a { color:var(--primary); }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8eaf0; --muted:#a7b0bf; --faint:#7c8698; --bg:#12161d; --card:#1a2029; --line:#2a323e; --primary-soft:#12314f; }
+    code { background:#232a34; } .chip { background:#1f2630; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Ship Easy · Multi-Order Processing for monday</p>
+  <h1>How to use the app</h1>
+  <p class="lede">Ship Easy turns Shopify orders into monday records and automates the whole
+  dropshipping flow — confirmation, supplier and courier selection, shipments, and supplier
+  manifests. Here's how to set it up and use it.</p>
+
+  <h2>Getting started (one-time setup)</h2>
+  <div class="card">
+    <ol class="setup">
+      <li><span class="step-title">Install the app.</span> On install, Ship Easy automatically
+        creates all the boards and columns it needs — <b>you don't create anything manually</b>.</li>
+      <li><span class="step-title">Connect your account.</span> Open <b>Account Settings</b> and
+        click <b>Connect</b> to authorize the app. This is required so order webhooks can write to
+        your boards.</li>
+      <li><span class="step-title">Add your service credentials.</span> In <b>Account Settings</b>,
+        enter your <b>WhatsApp</b> and <b>Shiprocket</b> details so confirmations and shipping work.</li>
+      <li><span class="step-title">Connect Shopify.</span> Copy the <b>Shopify Order Webhook URL</b>
+        from Account Settings and paste it into Shopify → <b>Settings → Notifications → Webhooks</b>
+        as an <b>Order creation</b> webhook (format JSON). Each account's URL is unique.</li>
+      <li><span class="step-title">You're ready.</span> New Shopify orders now flow into your
+        <b>Orders</b> and <b>Order Line Items</b> boards automatically.</li>
+    </ol>
+  </div>
+
+  <h2>Set up your products &amp; suppliers <span class="chip" style="color:var(--primary);border-color:var(--primary)">Required</span></h2>
+  <p class="lede">Do this once, <b>after</b> the boards and columns have been created and <b>before</b>
+  you process any orders. It tells Ship Easy which supplier can fulfil each product, so it can
+  split orders and pick the right supplier automatically.</p>
+  <div class="card">
+    <ol class="setup">
+      <li><span class="step-title">Import or create your products.</span> Add your catalogue to the
+        <b>Products</b> board (import a spreadsheet or add items manually).</li>
+      <li><span class="step-title">Populate the Supplier Products board.</span> This board is the
+        link between a supplier and the products they sell.</li>
+      <li><span class="step-title">Create a group for each supplier.</span> On the
+        <b>Supplier Products</b> board, add one group per supplier so their products stay together.</li>
+      <li><span class="step-title">Add the products each supplier sells.</span> Inside that
+        supplier's group, add a record for every product that supplier can fulfil.</li>
+      <li><span class="step-title">Connect the records.</span> On each Supplier Product record, use
+        the <b>Connected Board</b> columns to link it to the corresponding <b>Supplier</b> and
+        <b>Product</b>.</li>
+      <li><span class="step-title">Enter the Available Quantity.</span> Set the quantity that supplier
+        has available for each product.</li>
+    </ol>
+    <p class="note" style="margin-top:12px">Why this matters: when an order arrives, Ship Easy uses these
+    Supplier Product links to identify which supplier can fulfil each product. Without this setup, it
+    can't match products to suppliers and orders can't be processed correctly.</p>
+  </div>
+
+  <h2>Processing orders</h2>
+  <p class="lede">Open the <b>Multi Order Processing</b> board view and work through four steps:</p>
+  <div class="card flow">
+    <div class="stage">
+      <div class="rail"><div class="node">1</div></div>
+      <div><h3>Order Selection</h3><p>Confirmed orders are listed — select the ones you want to process.</p></div>
+    </div>
+    <div class="stage">
+      <div class="rail"><div class="node">2</div></div>
+      <div><h3>Supplier Selection</h3><p>Assign a supplier to each line item. Orders with items from
+        multiple suppliers are split into sub-orders, and the order is created in Shiprocket.</p></div>
+    </div>
+    <div class="stage">
+      <div class="rail"><div class="node">3</div></div>
+      <div><h3>Courier Selection</h3><p>The app checks Shiprocket serviceability; pick a courier for
+        each shipment. Use <b>Select best for all</b> to auto-pick the recommended option.</p></div>
+    </div>
+    <div class="stage">
+      <div class="rail"><div class="node">4</div></div>
+      <div><h3>Create Shipment &amp; Manifest</h3><p>Click <b>Process Orders</b> — the app assigns AWBs,
+        creates the shipments, and generates supplier manifests and shipping labels. Set
+        <b>Send Email To Supplier</b> to <b>Send</b> to email the manifest.</p></div>
+    </div>
+  </div>
+
+  <h2>A look at each step</h2>
+  <div class="card">
+    <div class="shots">
+      <figure class="shot">
+        <img src="/how-to-assets/01-order-selection.png" alt="Order Selection — step 1 of the Bulk Order Processing view listing confirmed orders" loading="lazy" />
+        <figcaption>Step 1 — Order Selection: pick the confirmed orders to process.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/how-to-assets/02-supplier-selection.png" alt="Supplier Selection — step 2, assigning a supplier to each line item" loading="lazy" />
+        <figcaption>Step 2 — Supplier Selection: assign a supplier per item (multi-supplier orders split automatically).</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/how-to-assets/03-courier-selection.png" alt="Courier Selection — step 3, choosing a courier per shipment" loading="lazy" />
+        <figcaption>Step 3 — Courier Selection: pick a courier per shipment, or use “Select Best for All”.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/how-to-assets/04-create-shipment-manifest.png" alt="Create Shipment &amp; Manifest — step 4, assigning AWBs and generating manifests" loading="lazy" />
+        <figcaption>Step 4 — Create Shipment &amp; Manifest: assign AWBs and generate supplier manifests &amp; labels.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <h2>Order confirmation (WhatsApp)</h2>
+  <div class="card">
+    <p style="margin:0 0 10px;color:var(--muted)">From the <b>Orders</b> board you can send a WhatsApp
+    confirmation to the customer. Their reply (Confirm / Cancel) updates the order status
+    automatically, so only confirmed orders move into processing.</p>
+    <p style="margin:0;color:var(--muted)"><b>WhatsApp setup:</b> to set up WhatsApp for your account,
+    please follow the <b>How to use</b> guide to create your WhatsApp message template, then enter your
+    WhatsApp credentials in <b>Account Settings</b>.</p>
+  </div>
+
+  <h2>Tracking &amp; cancellation</h2>
+  <div class="card">
+    <p style="margin:0 0 10px;color:var(--muted)"><b>Tracking:</b> open an order item and use the
+    <b>Order Tracking</b> view to see live shipment status, the delivery timeline, and courier details.</p>
+    <p style="margin:0;color:var(--muted)"><b>Cancel a shipment:</b> on the <b>Shipments</b> board,
+    set the <b>Cancel Shipment</b> status to <b>Cancel</b> — the app cancels it in Shiprocket and
+    writes the result to the <b>Cancellation Response</b> column.</p>
+    <figure class="shot">
+      <img src="/how-to-assets/05-order-tracking.png" alt="Order Tracking view showing live shipment status, timeline and courier details" loading="lazy" />
+      <figcaption>The Order Tracking view: live status, delivery timeline, and shipment details.</figcaption>
+    </figure>
+  </div>
+
+  <h2>Boards the app creates</h2>
+  <div class="card">
+    <span class="chip">Customers</span><span class="chip">Products</span><span class="chip">Suppliers</span>
+    <span class="chip">Orders</span><span class="chip">Order Line Items</span><span class="chip">Supplier Products</span>
+    <span class="chip">Supplier Manifests</span><span class="chip">Shipments</span><span class="chip">Error Logs</span>
+    <p class="note" style="margin-top:12px">Each monday account gets its own boards and connects its
+    own Shopify, WhatsApp, and Shiprocket — your data stays in your account only.</p>
+  </div>
+
+  <p class="note" style="margin-top:28px">For more information, use the <b>How to use</b> guide.</p>
+  <p class="note" style="margin-top:8px">Need help? Contact support and mention which step you're on.</p>
+</div>
+</body>
+</html>

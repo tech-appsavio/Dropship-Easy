@@ -6,8 +6,10 @@
  * HOW IT WORKS
  * ─────────────
  * Monday.com sends a signed JWT in every request (Authorization header or
- * ?token query param).  The JWT is signed with your app's MONDAY_SIGNING_SECRET
- * and contains:
+ * ?token query param). It's signed with EITHER your app's MONDAY_SIGNING_SECRET
+ * (board/item-view context tokens) or MONDAY_CLIENT_SECRET (tokens fetched via
+ * monday.get("sessionToken")) — this file tries both via verify-monday-jwt.ts.
+ * The decoded payload contains:
  *   • accountId       – the monday.com account making the request
  *   • userId          – the user who triggered the action
  *   • shortLivedToken – a temporary OAuth token you can use to call the
@@ -40,8 +42,8 @@
  *      // then access req.session.shortLivedToken inside myController
  */
 
-import jwt from "jsonwebtoken";
 import express from "express";
+import { verifyMondayJwt, sessionFromDecoded } from "../utils/verify-monday-jwt";
 
 export interface MondaySession {
   accountId: string;
@@ -59,24 +61,21 @@ type ExtractResult =
  * Pass the raw Authorization header value (or ?token query string).
  */
 export function extractMondayToken(
-  authorization: string | undefined,
-  signingSecret: string | undefined = process.env.MONDAY_SIGNING_SECRET
+  authorization: string | undefined
 ): ExtractResult {
   if (typeof authorization !== "string") {
     return { ok: false, error: "not authenticated, no credentials in request", status: 401 };
   }
-  if (typeof signingSecret !== "string") {
-    return { ok: false, error: "Missing MONDAY_SIGNING_SECRET", status: 500 };
-  }
 
   try {
-    const { accountId, userId, backToUrl, shortLivedToken } = jwt.verify(
-      authorization,
-      signingSecret
-    ) as any;
-
-    return { ok: true, session: { accountId, userId, backToUrl, shortLivedToken } };
-  } catch {
+    // Tries both the Signing Secret (board/item-view tokens) and the OAuth Client
+    // Secret (monday.get("sessionToken") tokens) — see verify-monday-jwt.ts.
+    const decoded = verifyMondayJwt(authorization);
+    return { ok: true, session: sessionFromDecoded(decoded) };
+  } catch (err: any) {
+    if (err?.message?.startsWith("Missing MONDAY_SIGNING_SECRET")) {
+      return { ok: false, error: err.message, status: 500 };
+    }
     return { ok: false, error: "authentication error, could not verify credentials", status: 401 };
   }
 }
