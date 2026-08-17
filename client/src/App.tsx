@@ -6,6 +6,7 @@ import { initMondayTheme } from "./shared/theme";
 import MultiOrderProcessing from "./views/multi_order_processing/MultiOrderProcessing";
 import OrderTracking from "./views/order_tracking/OrderTracking";
 import AccountSettings from "./views/settings/AccountSettings";
+import AiAssistant from "./views/ai_assistant/AiAssistant";
 
 const App = () => {
     const [view, setView] = useState<string>("default");
@@ -18,6 +19,8 @@ const App = () => {
             setView("order_tracking");
         } else if (path.includes("settings")) {
             setView("settings");
+        } else if (path.includes("ai_assistant") || path.includes("ai-assistant")) {
+            setView("ai_assistant");
         } else {
             setView("default");
         }
@@ -26,6 +29,7 @@ const App = () => {
     if (view === "multi_order_processing") return <MultiOrderProcessing />;
     if (view === "order_tracking") return <OrderTracking />;
     if (view === "settings") return <AccountSettings />;
+    if (view === "ai_assistant") return <AiAssistant />;
 
     return (
         <div className="App" style={{ padding: "24px" }}>

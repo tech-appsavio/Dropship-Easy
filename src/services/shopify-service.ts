@@ -140,7 +140,11 @@ export class ShopifyService {
             lastName: data.customer?.last_name || '',
             email: data.customer?.email || '',
             phone: rawPhone,
-            createdAt: data.customer?.created_at || data.created_at || new Date().toISOString(),
+            // "Created Date" = when this record enters the system (the ORDER's date), matching
+            // Orders and Line Items. Do NOT use the customer's Shopify signup date
+            // (data.customer.created_at) — that can be months/years old and misrepresents when
+            // the customer record was created here.
+            createdAt: data.created_at || new Date().toISOString(),
             defaultAddress: {
                 address1: data.customer?.default_address?.address1 || data.billing_address?.address1 || '',
                 province: data.customer?.default_address?.province || data.billing_address?.province || '',

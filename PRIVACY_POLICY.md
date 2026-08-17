@@ -103,8 +103,18 @@ run entirely in the browser and make **no** network requests to third parties.
 | `me:read` | Identify the installing account (account ID) to isolate each customer's data. |
 | `boards:read` | Read your orders, line items, suppliers, and configuration. |
 | `boards:write` | Create the required boards/columns and write order, shipment, and status data. |
+| `ai:consume` | Power the app's AI features (the board AI assistant and AI-ranked supplier/courier suggestions) via monday's Models API, using your account's monday AI tokens. |
 
 We request only these scopes and nothing more.
+
+### AI features
+
+The App's AI features (an in-board AI assistant and optional AI ranking of suppliers/couriers)
+are powered by **monday's Models API** — monday's own AI gateway — authenticated with your
+account's monday token and billed to your account's monday AI tokens. We send only **non-personal
+board attributes** (e.g. status counts, supplier/courier price and rating, SKUs) to the AI — never
+customer names, addresses, phone numbers, or emails. AI features are **optional** and the App
+falls back to standard (non-AI) behavior if AI is unavailable.
 
 ## 8. Data retention and deletion
 

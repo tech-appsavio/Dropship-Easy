@@ -15,8 +15,10 @@ const account_store_1 = require("../services/account-store");
 const board_provisioning_1 = require("../services/board-provisioning");
 const AUTHORIZE_URL = 'https://auth.monday.com/oauth2/authorize';
 const TOKEN_URL = 'https://auth.monday.com/oauth2/token';
-// Scopes needed for the server-to-server flows (create/update board items).
-const SCOPES = 'me:read boards:read boards:write';
+// Scopes needed for the server-to-server flows (create/update board items) plus `ai:consume`
+// for the monday Models API (the AI assistant + AI-ranked dropdowns). Adding a scope requires
+// existing users to re-authorize (Reconnect) to grant it.
+const SCOPES = 'me:read boards:read boards:write ai:consume';
 function redirectUri() {
     return process.env.MONDAY_OAUTH_REDIRECT_URI
         || `${(process.env.APP_URL || '').replace(/\/$/, '')}/oauth/callback`;

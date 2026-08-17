@@ -24,6 +24,12 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     // Enforce HTTPS for a year, including subdomains.
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    // Disable browser features the app never uses (defense-in-depth; also greens the
+    // "Permissions-Policy" check in header scanners). Empty allowlist = feature blocked.
+    res.setHeader(
+        'Permissions-Policy',
+        'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()'
+    );
     // Don't advertise the server stack.
     res.removeHeader('X-Powered-By');
     next();

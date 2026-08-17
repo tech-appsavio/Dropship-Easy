@@ -128,7 +128,7 @@ class ShopifyService {
         });
     }
     static parseShopifyOrder(data) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13;
         // Phone fallback: customer.phone > customer.default_address.phone > billing_address.phone > order.phone
         const rawPhone = ((_a = data.customer) === null || _a === void 0 ? void 0 : _a.phone)
             || ((_c = (_b = data.customer) === null || _b === void 0 ? void 0 : _b.default_address) === null || _c === void 0 ? void 0 : _c.phone)
@@ -141,22 +141,26 @@ class ShopifyService {
             lastName: ((_g = data.customer) === null || _g === void 0 ? void 0 : _g.last_name) || '',
             email: ((_h = data.customer) === null || _h === void 0 ? void 0 : _h.email) || '',
             phone: rawPhone,
-            createdAt: ((_j = data.customer) === null || _j === void 0 ? void 0 : _j.created_at) || data.created_at || new Date().toISOString(),
+            // "Created Date" = when this record enters the system (the ORDER's date), matching
+            // Orders and Line Items. Do NOT use the customer's Shopify signup date
+            // (data.customer.created_at) — that can be months/years old and misrepresents when
+            // the customer record was created here.
+            createdAt: data.created_at || new Date().toISOString(),
             defaultAddress: {
-                address1: ((_l = (_k = data.customer) === null || _k === void 0 ? void 0 : _k.default_address) === null || _l === void 0 ? void 0 : _l.address1) || ((_m = data.billing_address) === null || _m === void 0 ? void 0 : _m.address1) || '',
-                province: ((_p = (_o = data.customer) === null || _o === void 0 ? void 0 : _o.default_address) === null || _p === void 0 ? void 0 : _p.province) || ((_q = data.billing_address) === null || _q === void 0 ? void 0 : _q.province) || '',
-                city: ((_s = (_r = data.customer) === null || _r === void 0 ? void 0 : _r.default_address) === null || _s === void 0 ? void 0 : _s.city) || ((_t = data.billing_address) === null || _t === void 0 ? void 0 : _t.city) || '',
-                country: ((_v = (_u = data.customer) === null || _u === void 0 ? void 0 : _u.default_address) === null || _v === void 0 ? void 0 : _v.country) || ((_w = data.billing_address) === null || _w === void 0 ? void 0 : _w.country) || '',
-                zip: ((_y = (_x = data.customer) === null || _x === void 0 ? void 0 : _x.default_address) === null || _y === void 0 ? void 0 : _y.zip) || ((_z = data.billing_address) === null || _z === void 0 ? void 0 : _z.zip) || '',
+                address1: ((_k = (_j = data.customer) === null || _j === void 0 ? void 0 : _j.default_address) === null || _k === void 0 ? void 0 : _k.address1) || ((_l = data.billing_address) === null || _l === void 0 ? void 0 : _l.address1) || '',
+                province: ((_o = (_m = data.customer) === null || _m === void 0 ? void 0 : _m.default_address) === null || _o === void 0 ? void 0 : _o.province) || ((_p = data.billing_address) === null || _p === void 0 ? void 0 : _p.province) || '',
+                city: ((_r = (_q = data.customer) === null || _q === void 0 ? void 0 : _q.default_address) === null || _r === void 0 ? void 0 : _r.city) || ((_s = data.billing_address) === null || _s === void 0 ? void 0 : _s.city) || '',
+                country: ((_u = (_t = data.customer) === null || _t === void 0 ? void 0 : _t.default_address) === null || _u === void 0 ? void 0 : _u.country) || ((_v = data.billing_address) === null || _v === void 0 ? void 0 : _v.country) || '',
+                zip: ((_x = (_w = data.customer) === null || _w === void 0 ? void 0 : _w.default_address) === null || _x === void 0 ? void 0 : _x.zip) || ((_y = data.billing_address) === null || _y === void 0 ? void 0 : _y.zip) || '',
             },
             // Order-level billing_address specifically (falls back to default_address if
             // the order itself has no billing_address, e.g. some manual/API-created orders).
             billingAddress: {
-                address1: ((_0 = data.billing_address) === null || _0 === void 0 ? void 0 : _0.address1) || ((_2 = (_1 = data.customer) === null || _1 === void 0 ? void 0 : _1.default_address) === null || _2 === void 0 ? void 0 : _2.address1) || '',
-                province: ((_3 = data.billing_address) === null || _3 === void 0 ? void 0 : _3.province) || ((_5 = (_4 = data.customer) === null || _4 === void 0 ? void 0 : _4.default_address) === null || _5 === void 0 ? void 0 : _5.province) || '',
-                city: ((_6 = data.billing_address) === null || _6 === void 0 ? void 0 : _6.city) || ((_8 = (_7 = data.customer) === null || _7 === void 0 ? void 0 : _7.default_address) === null || _8 === void 0 ? void 0 : _8.city) || '',
-                country: ((_9 = data.billing_address) === null || _9 === void 0 ? void 0 : _9.country) || ((_11 = (_10 = data.customer) === null || _10 === void 0 ? void 0 : _10.default_address) === null || _11 === void 0 ? void 0 : _11.country) || '',
-                zip: ((_12 = data.billing_address) === null || _12 === void 0 ? void 0 : _12.zip) || ((_14 = (_13 = data.customer) === null || _13 === void 0 ? void 0 : _13.default_address) === null || _14 === void 0 ? void 0 : _14.zip) || '',
+                address1: ((_z = data.billing_address) === null || _z === void 0 ? void 0 : _z.address1) || ((_1 = (_0 = data.customer) === null || _0 === void 0 ? void 0 : _0.default_address) === null || _1 === void 0 ? void 0 : _1.address1) || '',
+                province: ((_2 = data.billing_address) === null || _2 === void 0 ? void 0 : _2.province) || ((_4 = (_3 = data.customer) === null || _3 === void 0 ? void 0 : _3.default_address) === null || _4 === void 0 ? void 0 : _4.province) || '',
+                city: ((_5 = data.billing_address) === null || _5 === void 0 ? void 0 : _5.city) || ((_7 = (_6 = data.customer) === null || _6 === void 0 ? void 0 : _6.default_address) === null || _7 === void 0 ? void 0 : _7.city) || '',
+                country: ((_8 = data.billing_address) === null || _8 === void 0 ? void 0 : _8.country) || ((_10 = (_9 = data.customer) === null || _9 === void 0 ? void 0 : _9.default_address) === null || _10 === void 0 ? void 0 : _10.country) || '',
+                zip: ((_11 = data.billing_address) === null || _11 === void 0 ? void 0 : _11.zip) || ((_13 = (_12 = data.customer) === null || _12 === void 0 ? void 0 : _12.default_address) === null || _13 === void 0 ? void 0 : _13.zip) || '',
             }
         };
         const customerName = `${customer.firstName} ${customer.lastName}`.trim();

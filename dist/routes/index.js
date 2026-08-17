@@ -10,6 +10,7 @@ const shopify_1 = __importDefault(require("./shopify"));
 const shiprocket_1 = __importDefault(require("./shiprocket"));
 const oauth_1 = __importDefault(require("./oauth"));
 const settings_1 = __importDefault(require("./settings"));
+const ai_1 = __importDefault(require("./ai"));
 // monday marketplace domain-association file — served at the app root so monday can
 // verify the app ↔ domain link. Uses the configured OAuth Client ID, so it's always
 // correct and nothing sensitive is hardcoded. Publicly accessible by design.
@@ -23,6 +24,7 @@ router.use(shiprocket_1.default);
 router.use(shopify_1.default);
 router.use(oauth_1.default);
 router.use(settings_1.default);
+router.use(ai_1.default);
 // serve client app
 router.use(express_1.default.static('client/build'));
 router.get('/health', function (req, res) {

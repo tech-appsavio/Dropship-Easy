@@ -4,6 +4,7 @@ import { useSupplierSelectionData } from "../hooks/useSupplierSelectionData";
 import { ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_PRODUCT_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP, PRODUCT_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../columns";
 import { ORDER_ITEM_BOARD_ID, ORDER_BOARD_ID, SUPPLIER_PRODUCT_BOARD_ID } from "../boardIds";
 import { logError } from "../utils/logError";
+import { aiRank, applyAiRanking } from "../utils/aiRank";
 import ShipRocketService from "../../../services/shiprocketCourier";
 import mondaySdk from "monday-sdk-js";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
@@ -20,13 +21,14 @@ const TAG_STYLES: Record<string, React.CSSProperties> = {
     Poor:    { background: "var(--ds-danger-light)",  color: "var(--ds-danger)",  border: "1px solid var(--ds-danger-bd)" },
 };
 
-const SupplierOption = ({ label, tag, availableQty }: { label: string; tag?: string; availableQty?: number }) => (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "2px 0", width: "100%" }}>
+const SupplierOption = ({ label, tag, availableQty, aiReason }: { label: string; tag?: string; availableQty?: number; aiReason?: string }) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "2px 0", width: "100%" }} title={aiReason ? `AI: ${aiReason}` : undefined}>
         <span style={{ fontSize: 13, color: COLOR.text, flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
             {availableQty !== undefined && (
                 <span style={{ fontSize: 11, color: COLOR.textMuted }}>Qty: {availableQty}</span>
             )}
+            {aiReason && <span title={`AI: ${aiReason}`} style={{ fontSize: 11 }}>✨</span>}
             {tag && (
                 <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>
                     {tag}
@@ -49,6 +51,11 @@ export const SupplierSelection = ({
 }) => {
     const { allProducts, suppliersMap, fetchSuppliersForProduct, loading, lineItems, refetch } = useSupplierSelectionData(selectedOrderIds);
     const { toast, showToast, hideToast } = useToast();
+
+    // AI ranking overlay (progressive enhancement): productId → AI-reordered suppliers. Merged
+    // OVER the hook's weighted suppliersMap, so if AI is off/unavailable the weighted order shows.
+    const [aiSupplierOverride, setAiSupplierOverride] = useState<Record<string, any[]>>({});
+    const effSuppliersMap = useMemo(() => ({ ...suppliersMap, ...aiSupplierOverride }), [suppliersMap, aiSupplierOverride]);
 
     // Per-row supplier selection: lineItemId -> selected supplier option
     const [rowSupplierMap, setRowSupplierMap] = useState<Record<string, any>>({});
@@ -102,7 +109,7 @@ export const SupplierSelection = ({
                 const existingSupplierName = supplierCol?.display_value?.trim() || supplierCol?.text?.trim();
 
                 if (existingSupplierName) {
-                    const suppliers = suppliersMap[item.productId] || [];
+                    const suppliers = effSuppliersMap[item.productId] || [];
                     const matchingSupplier = suppliers.find((s: any) => s.label === existingSupplierName);
                     if (matchingSupplier) {
                         next[item.id] = matchingSupplier;
@@ -110,20 +117,20 @@ export const SupplierSelection = ({
                     }
                 }
 
-                const suppliers = suppliersMap[item.productId];
+                const suppliers = effSuppliersMap[item.productId];
                 if (suppliers && suppliers.length === 1) {
                     next[item.id] = suppliers[0];
                 }
             });
             return next;
         });
-    }, [suppliersMap, lineItems]);
+    }, [effSuppliersMap, lineItems]);
 
     // Show suppliers only for the currently filtered product
     const globalSupplierOptions = useMemo(() => {
         if (!selectedProductFilter) return [];
-        return suppliersMap[selectedProductFilter.value] || [];
-    }, [suppliersMap, selectedProductFilter]);
+        return effSuppliersMap[selectedProductFilter.value] || [];
+    }, [effSuppliersMap, selectedProductFilter]);
 
     const orderFilteredItems = useMemo(() => {
         if (!selectedOrderFilter) return lineItems;
@@ -248,11 +255,40 @@ export const SupplierSelection = ({
     // Effective supplier for a row: global overrides inline (keyed by item id)
     const getEffectiveSupplier = (itemId: string) => globalSupplier || rowSupplierMap[itemId] || null;
 
+    // ── AI ranking (progressive enhancement) ────────────────────────────────
+    // Re-ranks each product's supplier options via monday AI into aiSupplierOverride, which is
+    // merged OVER the weighted suppliersMap. Best-effort: products the AI can't rank keep their
+    // existing (weighted) order, so nothing breaks when AI is off/unavailable.
+    const [aiRanking, setAiRanking] = useState(false);
+    const handleAiRankAll = async () => {
+        if (aiRanking) return;
+        setAiRanking(true);
+        try {
+            // Unique products currently in the order that have >1 supplier to rank.
+            const productIds = Array.from(new Set(lineItems.map((i: any) => i.productId).filter(Boolean)))
+                .filter((pid) => (effSuppliersMap[pid as string] || []).length > 1) as string[];
+            let applied = 0;
+            await Promise.all(productIds.map(async (pid) => {
+                const opts = effSuppliersMap[pid] || [];
+                const items = opts.map((o: any) => ({ id: String(o.value), label: o.label, price: o.price, rating: o.rating, availableQty: o.availableQty }));
+                const ranking = await aiRank("supplier", items);
+                if (!ranking) return;
+                applied++;
+                setAiSupplierOverride((prev) => ({ ...prev, [pid]: applyAiRanking(opts, ranking) }));
+            }));
+            showToast(applied > 0 ? "Suppliers re-ranked by AI." : "AI ranking is unavailable (needs a monday Pro/Enterprise plan with AI).", applied > 0 ? "positive" : "negative");
+        } catch {
+            showToast("AI ranking failed. Showing standard ranking.", "negative");
+        } finally {
+            setAiRanking(false);
+        }
+    };
+
     const handleSelectBestForAll = () => {
         setRowSupplierMap((prev) => {
             const next = { ...prev };
             lineItems.forEach((item: any) => {
-                const suppliers = suppliersMap[item.productId] || [];
+                const suppliers = effSuppliersMap[item.productId] || [];
                 if (!suppliers.length) return;
                 const best = suppliers.find((s: any) => s.tag === "Best") || suppliers[0];
                 if (best) next[item.id] = best;
@@ -261,15 +297,15 @@ export const SupplierSelection = ({
         });
         const selectableIds = new Set(
             lineItems
-                .filter((item: any) => (suppliersMap[item.productId] || []).length > 0)
+                .filter((item: any) => (effSuppliersMap[item.productId] || []).length > 0)
                 .map((item: any) => item.id)
         );
         setSelectedLineItemIds(selectableIds);
     };
 
     const hasBestSelectableItems = useMemo(() =>
-        lineItems.some((item: any) => (suppliersMap[item.productId] || []).length > 0)
-    , [lineItems, suppliersMap]);
+        lineItems.some((item: any) => (effSuppliersMap[item.productId] || []).length > 0)
+    , [lineItems, effSuppliersMap]);
 
     // Validate: every selected item must have an effective supplier
     const canUpdate = useMemo(() => {
@@ -873,6 +909,20 @@ export const SupplierSelection = ({
                         >
                             ⭐ Select Best for All
                         </button>
+                        <button
+                            onClick={handleAiRankAll}
+                            disabled={!hasBestSelectableItems || aiRanking || isUpdating}
+                            title="Re-rank suppliers using monday AI"
+                            style={{
+                                ...btn("secondary"),
+                                display: "flex", alignItems: "center", gap: 6,
+                                borderColor: hasBestSelectableItems ? "var(--ds-primary)" : undefined,
+                                color: hasBestSelectableItems ? "var(--ds-primary)" : undefined,
+                                background: hasBestSelectableItems ? "var(--ds-primary-light)" : undefined,
+                            }}
+                        >
+                            ✨ {aiRanking ? "Ranking…" : "AI Rank"}
+                        </button>
                         <Button disabled={!canUpdate || isUpdating} loading={isUpdating} onClick={handleUpdateSupplier}>
                             Update Supplier{selectedLineItemIds.size > 0 ? ` (${selectedLineItemIds.size})` : ""}
                         </Button>
@@ -937,7 +987,7 @@ export const SupplierSelection = ({
                         options={globalSupplierOptions} value={globalSupplier}
                         onChange={(val: any) => setGlobalSupplier(val)}
                         menuPosition="fixed" menuPlacement="auto"
-                        optionRenderer={(opt: any) => <SupplierOption label={opt.label} tag={opt.tag} availableQty={opt.availableQty} />} />
+                        optionRenderer={(opt: any) => <SupplierOption label={opt.label} tag={opt.tag} availableQty={opt.availableQty} aiReason={opt.aiReason} />} />
                 </div>
                 {globalSupplier && (
                     <button onClick={() => setGlobalSupplier(null)} style={btn("ghost")}>- Clear</button>
@@ -967,7 +1017,7 @@ export const SupplierSelection = ({
                     </thead>
                     <tbody>
                         {filteredLineItems.length > 0 ? paginatedLineItems.map((item) => {
-                            const productSuppliers = suppliersMap[item.productId] || [];
+                            const productSuppliers = effSuppliersMap[item.productId] || [];
                             const currentSupplierCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER);
                             const statusCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS);
                             const qtyCol = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.QUANTITY);
@@ -1018,7 +1068,7 @@ export const SupplierSelection = ({
                                             onMenuOpen={() => !globalSupplier && handleRowDropdownOpen(item.productId)}
                                             menuPosition="fixed" menuPlacement="auto" disabled={!!globalSupplier}
                                             menuStyles={{ minWidth: 400, width: "max-content", maxWidth: 560 }}
-                                            optionRenderer={(opt: any) => <SupplierOption label={opt.label} tag={opt.tag} availableQty={opt.availableQty} />}
+                                            optionRenderer={(opt: any) => <SupplierOption label={opt.label} tag={opt.tag} availableQty={opt.availableQty} aiReason={opt.aiReason} />}
                                         />
                                     </td>
                                 </tr>

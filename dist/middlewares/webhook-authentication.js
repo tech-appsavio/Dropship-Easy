@@ -48,8 +48,9 @@ exports.webhookTokenAuthMiddleware = webhookTokenAuthMiddleware;
 // Auth for session-less webhooks (e.g. monday board webhooks). If the request carries
 // a valid monday JWT, its account-scoped shortLivedToken is used. Otherwise the account
 // is taken from an `?account=<id>` param (or `accountId` in the body) — set on the webhook
-// URL at configuration time — and its stored OAuth token is resolved (falling back to
-// MONDAY_API_TOKEN during the single-tenant transition).
+// URL at configuration time — and that account's own stored OAuth token is resolved via
+// resolveMondayToken (which is strictly per-account; it does NOT fall back to any shared/
+// env token for real accounts — see account-store.ts).
 function webhookAuthenticationMiddleware(req, res, next) {
     return __awaiter(this, void 0, void 0, function* () {
         const resolveByAccount = () => __awaiter(this, void 0, void 0, function* () {

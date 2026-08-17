@@ -827,7 +827,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
     // ── Phase 2 + 3: Run post-AWB steps then manifest for success groups ─────
     const runPhase2AndManifest = async (successGroups: NonNullable<typeof awbFailModal>["successGroups"]) => {
         setIsProcessing(true);
-        showToast("Please wait while shipments, manifests, and shipping labels are being generated…", "warning");
+        showToast("⏳ Please wait while shipments, manifests, and shipping labels are being generated…", "dark");
         const collectedErrors: { group: string; step: string; error: string; splitOrderItemId?: string }[] = [];
         const phase2SuccessGroups: typeof successGroups = [];
         try {
@@ -1258,8 +1258,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             {isProcessing && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.55)", zIndex: 9000, cursor: "wait" }} aria-busy="true" />
             )}
-            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={15000} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, maxWidth: 380 }}>
-                {toast.message}
+            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={15000} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, maxWidth: 440 }}>
+                <span style={{ fontSize: 14.5, fontWeight: 600 }}>{toast.message}</span>
             </Toast>
 
             {/* AWB Failure Modal */}

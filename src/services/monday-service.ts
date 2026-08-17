@@ -92,7 +92,9 @@ class MondayService {
             console.log('📝 changeMultipleColumnValues called');
             console.log('   Board ID:', boardId);
             console.log('   Item ID:', itemId);
-            console.log('   Column Values:', JSON.stringify(columnValues, null, 2));
+            // Log only the column IDs being written — NOT the values, which can contain PII
+            // (customer name/address/phone/email when writing order/customer records).
+            console.log('   Columns:', Object.keys(columnValues || {}).join(', '));
             
             const mondayClient = new ApiClient({token: token});
             
@@ -144,8 +146,9 @@ class MondayService {
 
     static async createItem(token: string, boardId: string, itemName: string, columnValues: any) {
         try {
-            console.log('🔑 Creating item with token:', token?.substring(0, 20) + '...');
-            console.log('📋 Board ID:', boardId, 'Item Name:', itemName);
+            // Never log token bytes — log only that a token is present. Don't log the raw
+            // item name either: for the Customers board it IS the customer's name (PII).
+            console.log(`🔑 Creating item on board ${boardId} (auth: ${token ? 'present' : 'MISSING'})`);
             
             const client = new GraphQLClient('https://api.monday.com/v2', {
                 headers: { Authorization: token }

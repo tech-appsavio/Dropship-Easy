@@ -6,6 +6,7 @@ import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
 import { ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_COLUMNS, titleMapOf } from "../columns";
 import { ORDER_ITEM_BOARD_ID } from "../boardIds";
 import { logError } from "../utils/logError";
+import { aiRank, applyAiRanking } from "../utils/aiRank";
 import ShipRocketService from "../../../services/shiprocketCourier";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import mondaySdk from "monday-sdk-js";
@@ -23,7 +24,7 @@ const TAG_STYLES: Record<string, React.CSSProperties> = {
     Poor:    { background: "var(--ds-danger-light)",  color: "var(--ds-danger)",  border: "1px solid var(--ds-danger-bd)" },
 };
 
-const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, rto_charges }: any) => {
+const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, rto_charges, aiReason }: any) => {
     const [tooltip, setTooltip] = React.useState<{ x: number; y: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -33,7 +34,7 @@ const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, r
         setTooltip({ x: rect.left, y: rect.top });
     };
 
-    const hasDetails = (freight_charge !== undefined) || (rating && rating > 0) || (etd && etd !== "-") || (cod_charges > 0) || (rto_charges > 0);
+    const hasDetails = (freight_charge !== undefined) || (rating && rating > 0) || (etd && etd !== "-") || (cod_charges > 0) || (rto_charges > 0) || !!aiReason;
 
     return (
         <div
@@ -47,6 +48,7 @@ const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, r
                 {freight_charge !== undefined && (
                     <span style={{ fontSize: 11, color: "var(--ds-text-muted)", whiteSpace: "nowrap" }}>₹{freight_charge}</span>
                 )}
+                {aiReason && <span title={`AI: ${aiReason}`} style={{ fontSize: 11 }}>✨</span>}
                 {tag && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>{tag}</span>
                 )}
@@ -70,6 +72,9 @@ const CourierOption = ({ label, tag, freight_charge, rating, etd, cod_charges, r
                         {label}
                         {tag && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, ...TAG_STYLES[tag] }}>{tag}</span>}
                     </div>
+                    {aiReason && (
+                        <div style={{ fontSize: 11.5, color: "var(--ds-primary)", marginBottom: 8, lineHeight: 1.4 }}>✨ {aiReason}</div>
+                    )}
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                         {freight_charge !== undefined && (
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
@@ -445,6 +450,41 @@ export const CourierSelection = ({
         }
     };
 
+    // ── AI ranking (progressive enhancement) ────────────────────────────────
+    // Re-ranks each loaded row's courier options via monday AI, overlaying the AI order + tags.
+    // Best-effort: rows the AI can't rank keep their existing (weighted) order, so nothing breaks.
+    const [aiRanking, setAiRanking] = useState(false);
+    const handleAiRankAll = async () => {
+        if (aiRanking) return;
+        setAiRanking(true);
+        try {
+            const keys = Object.keys(rowCourierMap).filter((k) => {
+                const s = rowCourierMap[k];
+                return s && !s.loading && s.options.length > 1;
+            });
+            let applied = 0;
+            await Promise.all(keys.map(async (key) => {
+                const opts = rowCourierMap[key].options;
+                const items = opts
+                    .filter((o: any) => o.value !== "SP Store (Self)")
+                    .map((o: any) => ({ id: String(o.value), label: o.label, price: o.freight_charge, rating: o.rating, etd: o.etd, codCharges: o.cod_charges, rtoCharges: o.rto_charges }));
+                const ranking = await aiRank("courier", items);
+                if (!ranking) return;
+                applied++;
+                setRowCourierMap((prev) => {
+                    const st = prev[key];
+                    if (!st) return prev;
+                    return { ...prev, [key]: { ...st, options: applyAiRanking(st.options, ranking) } };
+                });
+            }));
+            showToast(applied > 0 ? "Couriers re-ranked by AI." : "AI ranking is unavailable (needs a monday Pro/Enterprise plan with AI).", applied > 0 ? "positive" : "negative");
+        } catch {
+            showToast("AI ranking failed. Showing standard ranking.", "negative");
+        } finally {
+            setAiRanking(false);
+        }
+    };
+
     const handleSelectBestForAll = () => {
         setRowCourierMap((prev) => {
             const next = { ...prev };
@@ -600,6 +640,20 @@ export const CourierSelection = ({
                             }}
                         >
                             ⭐ Select Best for All
+                        </button>
+                        <button
+                            onClick={handleAiRankAll}
+                            disabled={!hasBestSelectableRows || aiRanking || isUpdating}
+                            title="Re-rank couriers using monday AI"
+                            style={{
+                                ...btn("secondary"),
+                                display: "flex", alignItems: "center", gap: 6,
+                                borderColor: hasBestSelectableRows ? "var(--ds-primary)" : undefined,
+                                color: hasBestSelectableRows ? "var(--ds-primary)" : undefined,
+                                background: hasBestSelectableRows ? "var(--ds-primary-light)" : undefined,
+                            }}
+                        >
+                            ✨ {aiRanking ? "Ranking…" : "AI Rank"}
                         </button>
                         <Button disabled={!canUpdate || isUpdating} loading={isUpdating} onClick={handleUpdateCourier}>
                             Update Courier{selectedRowIds.size > 0 ? ` (${selectedRowIds.size})` : ""}
@@ -792,8 +846,8 @@ export const CourierSelection = ({
                                                         onChange={(val: any) => setRowCourierMap((prev: any) => ({ ...prev, [rowKey]: { ...prev[rowKey], selected: val } }))}
                                                         menuPosition="fixed" menuPlacement="auto"
                                                         menuStyles={{ minWidth: 400, width: "max-content", maxWidth: 500 }}
-                                                        optionRenderer={(opt: any) => <CourierOption label={opt.label} tag={opt.tag} freight_charge={opt.freight_charge} rating={opt.rating} etd={opt.etd} cod_charges={opt.cod_charges} rto_charges={opt.rto_charges} />}
-                                                        valueRenderer={(opt: any) => <CourierOption label={opt.label} tag={opt.tag} freight_charge={opt.freight_charge} rating={opt.rating} etd={opt.etd} cod_charges={opt.cod_charges} rto_charges={opt.rto_charges} />}
+                                                        optionRenderer={(opt: any) => <CourierOption label={opt.label} tag={opt.tag} freight_charge={opt.freight_charge} rating={opt.rating} etd={opt.etd} cod_charges={opt.cod_charges} rto_charges={opt.rto_charges} aiReason={opt.aiReason} />}
+                                                        valueRenderer={(opt: any) => <CourierOption label={opt.label} tag={opt.tag} freight_charge={opt.freight_charge} rating={opt.rating} etd={opt.etd} cod_charges={opt.cod_charges} rto_charges={opt.rto_charges} aiReason={opt.aiReason} />}
                                                     />
                                                     {rowState?.error && <p style={{ margin: "2px 0 0", fontSize: 11, color: COLOR.danger }}>{rowState.error}</p>}
                                                 </>

@@ -38,8 +38,9 @@ export async function webhookTokenAuthMiddleware(
 // Auth for session-less webhooks (e.g. monday board webhooks). If the request carries
 // a valid monday JWT, its account-scoped shortLivedToken is used. Otherwise the account
 // is taken from an `?account=<id>` param (or `accountId` in the body) — set on the webhook
-// URL at configuration time — and its stored OAuth token is resolved (falling back to
-// MONDAY_API_TOKEN during the single-tenant transition).
+// URL at configuration time — and that account's own stored OAuth token is resolved via
+// resolveMondayToken (which is strictly per-account; it does NOT fall back to any shared/
+// env token for real accounts — see account-store.ts).
 export async function webhookAuthenticationMiddleware(
   req: express.Request,
   res: express.Response,
