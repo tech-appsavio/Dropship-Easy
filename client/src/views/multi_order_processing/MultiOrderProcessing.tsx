@@ -16,13 +16,6 @@ const FLOW: View[] = ["ORDERS", "SUPPLIERS", "COURIERS", "MANIFEST"];
 
 const monday = mondaySdk();
 
-const NAV_CONFIG: Record<View, { prevLabel?: string; nextLabel: string }> = {
-    ORDERS:    { nextLabel: "Go to Supplier Selection" },
-    SUPPLIERS: { prevLabel: "Back to Orders",    nextLabel: "Go to Courier Selection" },
-    COURIERS:  { prevLabel: "Back to Suppliers", nextLabel: "Create Shipment & Manifest" },
-    MANIFEST:  { prevLabel: "Back to Couriers",  nextLabel: "Finish & Reset" },
-};
-
 export const MultiOrderProcessing: React.FC = () => {
     const [view, setView] = useState<View>("ORDERS");
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());

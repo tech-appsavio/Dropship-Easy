@@ -127,15 +127,15 @@ async function createBoard(client: GraphQLClient, name: string, workspaceId?: st
     return resp?.create_board?.id;
 }
 
-// Resolves (creating if needed) the "Ship Easy" folder to hold all of the app's boards.
+// Resolves (creating if needed) the "Dropship Easy" folder to hold all of the app's boards.
 // Idempotent: reuses the stored folder/workspace, then an existing folder found by name,
 // before creating a new one — so reinstalls never make duplicate folders. Returns empty
 // on any failure so provisioning falls back to creating boards without a folder.
-async function ensureShipEasyFolder(
+async function ensureDropshipEasyFolder(
     client: GraphQLClient,
     stored: { workspaceId?: string; folderId?: string },
 ): Promise<{ workspaceId?: string; folderId?: string }> {
-    const FOLDER_NAME = 'Ship Easy';
+    const FOLDER_NAME = 'Dropship Easy';
     try {
         // Pick a workspace: reuse the stored one, else prefer "Main workspace", else the first.
         let workspaceId = stored.workspaceId;
@@ -157,11 +157,11 @@ async function ensureShipEasyFolder(
             if (wid) workspaceId = String(wid);
         }
         if (!workspaceId) {
-            console.warn('⚠️ Could not resolve a workspace for the "Ship Easy" folder — creating boards at the default location.');
+            console.warn('⚠️ Could not resolve a workspace for the "Dropship Easy" folder — creating boards at the default location.');
             return {};
         }
 
-        // Reuse an existing "Ship Easy" folder in this workspace if present.
+        // Reuse an existing "Dropship Easy" folder in this workspace if present.
         const foldersResp: any = await client.request(
             `query ($ws: [ID!]) { folders(workspace_ids: $ws, limit: 200) { id name } }`,
             { ws: [workspaceId] },
@@ -175,10 +175,9 @@ async function ensureShipEasyFolder(
             { name: FOLDER_NAME, ws: workspaceId },
         );
         const folderId = createResp?.create_folder?.id;
-        console.log(`✅ "${FOLDER_NAME}" folder ready (workspace ${workspaceId}, folder ${folderId})`);
         return { workspaceId, folderId: folderId ? String(folderId) : undefined };
     } catch (err: any) {
-        console.error('⚠️ Could not create/resolve the "Ship Easy" folder — creating boards without it:', err.message);
+        console.error('⚠️ Could not create/resolve the "Dropship Easy" folder — creating boards without it:', err.message);
         return {};
     }
 }
@@ -260,7 +259,6 @@ const provisionInFlight = new Map<string, Promise<AccountConfig>>();
 export function provisionAccount(accountId: string, token: string): Promise<AccountConfig> {
     const running = provisionInFlight.get(String(accountId));
     if (running) {
-        console.log(`⏳ Provisioning already in progress for account ${accountId} — awaiting it`);
         return running;
     }
     const p = provisionAccountImpl(String(accountId), token).finally(() => provisionInFlight.delete(String(accountId)));
@@ -276,8 +274,8 @@ async function provisionAccountImpl(accountId: string, token: string): Promise<A
         ? { provisioned: true, boards: { ...existing.boards }, columns: { ...(existing.columns || {}) }, workspaceId: existing.workspaceId, folderId: existing.folderId }
         : { provisioned: false, boards: {}, columns: {} };
 
-    // Create/reuse the "Ship Easy" folder so all boards are grouped inside it.
-    const folder = await ensureShipEasyFolder(client, { workspaceId: config.workspaceId, folderId: config.folderId });
+    // Create/reuse the "Dropship Easy" folder so all boards are grouped inside it.
+    const folder = await ensureDropshipEasyFolder(client, { workspaceId: config.workspaceId, folderId: config.folderId });
     config.workspaceId = folder.workspaceId ?? config.workspaceId;
     config.folderId = folder.folderId ?? config.folderId;
 
@@ -301,7 +299,6 @@ async function provisionAccountImpl(accountId: string, token: string): Promise<A
         if (config.boards[board.key]) continue;
         if (byName[board.name]) {
             config.boards[board.key] = byName[board.name];
-            console.log(`♻️ reusing existing board "${board.name}" (${byName[board.name]})`);
         }
     }
 
@@ -312,7 +309,6 @@ async function provisionAccountImpl(accountId: string, token: string): Promise<A
             const boardId = await createBoard(client, board.name, config.workspaceId, config.folderId);
             if (boardId) {
                 config.boards[board.key] = boardId;
-                console.log(`✅ Created board "${board.name}" (${boardId})`);
             }
         } catch (err: any) {
             console.error(`❌ Board "${board.name}" failed: ${err.message}`);
@@ -376,7 +372,6 @@ async function provisionAccountImpl(accountId: string, token: string): Promise<A
 
     config.provisioned = true;
     await saveAccountConfig(accountId, config);
-    console.log(`✅ Provisioning complete for account ${accountId}`);
     return config;
 }
 
@@ -413,7 +408,6 @@ async function createColumnsForBoard<T extends { title: string }>(
                 config.columns[board.key] = config.columns[board.key] || {};
                 config.columns[board.key][def.title] = id;
                 entry.byTitle[def.title] = { id, type: '' };
-                console.log(`  ✅ ${def.title} on "${board.name}" (${id})`);
             }
         } catch (err: any) {
             console.error(`  ⚠️ Column "${def.title}" on "${board.name}" failed: ${err.message}`);

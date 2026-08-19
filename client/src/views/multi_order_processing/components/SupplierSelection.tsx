@@ -49,7 +49,7 @@ export const SupplierSelection = ({
     onPrev: () => void;
     onNext: () => void;
 }) => {
-    const { allProducts, suppliersMap, fetchSuppliersForProduct, loading, lineItems, refetch } = useSupplierSelectionData(selectedOrderIds);
+    const { suppliersMap, fetchSuppliersForProduct, loading, lineItems, refetch } = useSupplierSelectionData(selectedOrderIds);
     const { toast, showToast, hideToast } = useToast();
 
     // AI ranking overlay (progressive enhancement): productId → AI-reordered suppliers. Merged
@@ -98,7 +98,9 @@ export const SupplierSelection = ({
         return col?.linked_item_ids?.[0] || "";
     };
 
-    // Auto-select supplier when only one exists for a line item's product
+    // Pre-fill each row's supplier dropdown: first from the supplier actually SAVED on the board,
+    // otherwise auto-select the supplier when a product has exactly ONE (the only possible choice)
+    // — mirroring Courier Selection, which auto-selects a single serviceable courier.
     React.useEffect(() => {
         setRowSupplierMap((prev) => {
             const next = { ...prev };
@@ -117,6 +119,7 @@ export const SupplierSelection = ({
                     }
                 }
 
+                // Auto-select when the product has a single supplier.
                 const suppliers = effSuppliersMap[item.productId];
                 if (suppliers && suppliers.length === 1) {
                     next[item.id] = suppliers[0];
@@ -318,14 +321,6 @@ export const SupplierSelection = ({
         if (!canUpdate) return;
 
         const selectedItems = lineItems.filter((item) => selectedLineItemIds.has(item.id));
-        console.log("[SR Debug] selectedLineItemIds:", Array.from(selectedLineItemIds));
-        console.log("[SR Debug] lineItems count (full):", lineItems.length);
-        console.log("[SR Debug] filteredLineItems count (visible):", filteredLineItems.length);
-        console.log("[SR Debug] selectedItems count (from full lineItems):", selectedItems.length);
-        selectedItems.forEach((item) => {
-            const supplier = getEffectiveSupplier(item.id);
-            console.log(`[SR Debug]   item.id=${item.id} name="${item.name}" linkedOrderId=${item.linkedOrderId} orderName="${item.orderName}" productId=${item.productId} supplier=${supplier?.label} (${supplier?.value})`);
-        });
         const missingFromFilter = Array.from(selectedLineItemIds).filter(id => !filteredLineItems.find((i) => i.id === id));
         if (missingFromFilter.length > 0) {
             console.warn("[SR Debug] - These IDs were hidden by filter/pagination but ARE included via lineItems:", missingFromFilter);
@@ -339,12 +334,10 @@ export const SupplierSelection = ({
             const qty = parseFloat(qtyCol?.text || "1") || 1;
             if (!supplierQtyMap[key]) supplierQtyMap[key] = { supplier, requiredQty: 0 };
             supplierQtyMap[key].requiredQty += qty;
-            console.log(`[SupplierSelection]   Item "${item.name}" -> supplier="${supplier.label}" qty=${qty}`);
         }
 
         for (const { supplier, requiredQty } of Object.values(supplierQtyMap)) {
             const availableQty = supplier.availableQty ?? 0;
-            console.log(`[SupplierSelection] Inventory check: supplier="${supplier.label}" available=${availableQty} required=${requiredQty}`);
             if (availableQty < requiredQty) {
                 console.warn(`[SupplierSelection] Insufficient inventory for ${supplier.label}`);
                 showToast(`Insufficient inventory for ${supplier.label}: available ${availableQty}, required ${requiredQty}.`, "negative");
@@ -354,10 +347,8 @@ export const SupplierSelection = ({
 
         setIsUpdating(true);
         try {
-            console.log("[SupplierSelection] Updating supplier on", selectedItems.length, "line items...");
             await Promise.all(selectedItems.map((item) => {
                 const supplier = getEffectiveSupplier(item.id);
-                console.log(`[SupplierSelection]   Mutating item ${item.id} -> supplier ${supplier.value} (${supplier.label})`);
                 const columnValues = {
                     [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SUPPLIER]: { item_ids: [supplier.value] },
                     [ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.STATUS]: { label: "Supplier Selected" },
@@ -371,13 +362,11 @@ export const SupplierSelection = ({
                 }`);
             }));
 
-            console.log("[SupplierSelection] Decrementing available qty per supplier-product...");
             await Promise.all(
                 Object.entries(supplierQtyMap).map(async ([, { supplier, requiredQty }]) => {
                     const supplierProductItemId = supplier.supplierProductItemId;
                     if (supplierProductItemId) {
                         const newQty = (supplier.availableQty ?? 0) - requiredQty;
-                        console.log(`[SupplierSelection]   Update qty for supplierProductItem ${supplierProductItemId}: ${supplier.availableQty} -> ${newQty}`);
                         await monday.api(`mutation {
                             change_simple_column_value(
                                 item_id: ${supplierProductItemId},
@@ -391,7 +380,6 @@ export const SupplierSelection = ({
             );
 
             const affectedProductIds = [...new Set(selectedItems.map((i) => i.productId).filter(Boolean))] as string[];
-            console.log("[SupplierSelection] Refreshing supplier lists for products:", affectedProductIds);
             await Promise.all(affectedProductIds.map((pid) => fetchSuppliersForProduct(pid, true)));
 
             // -"-"- Create Shiprocket orders -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-
@@ -448,20 +436,12 @@ export const SupplierSelection = ({
             selectedItems.forEach((item) => {
                 const supplier = getEffectiveSupplier(item.id);
                 const key = `${item.linkedOrderId}__${supplier.value}`;
-                console.log(`[SR Debug] Grouping item "${item.name}" (${item.id}) -> key="${key}" orderId=${item.linkedOrderId} supplier=${supplier?.label} (${supplier?.value})`);
                 if (!srGroups[key]) srGroups[key] = { orderId: item.linkedOrderId, supplierId: supplier.value, supplierLabel: supplier.label, items: [] };
                 srGroups[key].items.push(item);
             });
-            console.log("[SR Debug] Total groups formed:", Object.keys(srGroups).length);
             Object.entries(srGroups).forEach(([key, group]) => {
-                console.log(`[SR Debug]   Group key="${key}" orderId=${group.orderId} supplier=${group.supplierLabel} items=${group.items.map(i => i.name).join(", ")}`);
             });
-            console.log("[SR Debug] uniqueOrderIds:", uniqueOrderIds);
-            console.log("[SR Debug] orderMap keys:", Object.keys(orderMap));
-            console.log("[SR Debug] customerIds:", customerIds);
-            console.log("[SR Debug] customerMap keys:", Object.keys(customerMap));
 
-            console.log("[SR Create] Total groups:", Object.keys(srGroups).length);
 
             // Detect split orders (same parent order fulfilled by multiple suppliers)
             const groupsPerOrder: Record<string, string[]> = {};
@@ -503,7 +483,6 @@ export const SupplierSelection = ({
                         pin_code: getCol(SUPPLIER_ALL_COLUMN_IDS_MAP.POSTALCODE),
                     };
                 });
-                console.log("[SR Create] Supplier details fetched:", Object.keys(supplierDetailsMap).length);
             }
 
             // Fetch all registered Shiprocket pickup locations once
@@ -513,7 +492,6 @@ export const SupplierSelection = ({
                 (pickupRes?.data?.shipping_address || []).forEach((loc: any) => {
                     if (loc.pickup_location) registeredPickups.add(loc.pickup_location);
                 });
-                console.log("[SR Create] Registered pickup locations:", [...registeredPickups]);
             } catch (e: any) {
                 console.warn("[SR Create] Could not fetch pickup locations:", e.message);
             }
@@ -523,7 +501,6 @@ export const SupplierSelection = ({
                 const group = srGroups[key];
                 const pickupName = group.supplierLabel;
                 if (registeredPickups.has(pickupName)) {
-                    console.log("[SR Create] Pickup location already exists:", pickupName);
                     continue;
                 }
                 const sd = supplierDetailsMap[group.supplierId] || { name: pickupName, email: "", phone: "", address: "", city: "", state: "", country: "India", pin_code: "" };
@@ -540,7 +517,6 @@ export const SupplierSelection = ({
                         pin_code: sd.pin_code,
                     });
                     registeredPickups.add(pickupName);
-                    console.log("[SR Create] Created pickup location:", pickupName);
                 } catch (e: any) {
                     console.warn("[SR Create] Failed to create pickup location for", pickupName, ":", e.message);
                 }
@@ -570,7 +546,6 @@ export const SupplierSelection = ({
                     const paymentMethod = getOCol(ORDER_ALL_COLUMN_IDS_MAP.PAYMENTMETHOD)?.text || "";
                     const isCOD = paymentMethod.toLowerCase().includes("cod") || paymentMethod.toLowerCase().includes("cash");
 
-                    console.log(`[SR Create] Billing fields for "${order.name}":`, { customerId, customerFound: !!customer, billingStreet, billingCity, billingState, billingCountry, billingPincode });
 
                     if (!billingState) throw new Error(`Billing State is missing for order "${order.name}". Please fill in the customer's Billing State in monday.com.`);
                     if (!billingCity) throw new Error(`Billing City is missing for order "${order.name}". Please fill in the customer's Billing City in monday.com.`);
@@ -624,9 +599,7 @@ export const SupplierSelection = ({
                         order_items: orderItems,
                     };
 
-                    console.log("[SR Create] Creating Shiprocket order - orderId:", group.orderId, "supplier:", group.supplierLabel);
                     const srRes = await ShipRocketService.createOrder(srOrderPayload);
-                    console.log("[SR Create] Shiprocket response:", JSON.stringify(srRes));
 
                     if (srRes?.errors || (srRes?.status_code && srRes.status_code >= 300)) {
                         const errDetail = srRes?.errors ? JSON.stringify(srRes.errors) : srRes?.message || "Unknown error";
@@ -685,7 +658,6 @@ export const SupplierSelection = ({
                         if (srOrderId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Order_ID] = srOrderId;
                         if (srShipmentId) newOrderColValues[ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID] = srShipmentId;
 
-                        console.log("[SR Create] Creating split order in Orders board:", splitOrderName, "| total:", splitTotal);
                         const splitOrderRes: any = await monday.api(`mutation {
                             create_item(
                                 board_id: ${ORDER_BOARD_ID},
@@ -695,7 +667,6 @@ export const SupplierSelection = ({
                             ) { id }
                         }`);
                         const splitOrderId = splitOrderRes?.data?.create_item?.id;
-                        console.log("[SR Create] Split order created - ID:", splitOrderId);
 
                         // Copy the parent order's Source onto the split order. Uses
                         // change_simple_column_value with the parent's text value, which
@@ -737,7 +708,6 @@ export const SupplierSelection = ({
                                     ) { id }
                                 }`);
                             }));
-                            console.log("[SR Create] Updated Split Orders relation on", group.items.length, "line items -> split order", splitOrderId);
                         }
                     } else {
                         // Single supplier: write SR IDs directly to the parent order
@@ -752,7 +722,6 @@ export const SupplierSelection = ({
                                     }).replace(/"/g, '\\"')}"
                                 ) { id }
                             }`);
-                            console.log("[SR Create] Written SR IDs to parent order", group.orderId);
                         }
 
                         // Update ORDER relation on each line item to link to parent order
@@ -768,7 +737,6 @@ export const SupplierSelection = ({
                                 ) { id }
                             }`);
                         }));
-                        console.log("[SR Create] Updated ORDER relation on", group.items.length, "line items -> parent order", group.orderId);
                     }
                 } catch (srErr: any) {
                     console.error("[SR Create] Failed for group", group.orderId, group.supplierLabel, srErr.message);
@@ -803,7 +771,6 @@ export const SupplierSelection = ({
                             column_values: "${JSON.stringify(parentCV).replace(/"/g, '\\"')}"
                         ) { id }
                     }`);
-                    console.log("[SR Create] Parent order", parentOrderId, "updated — split orders:", splitOrderIds, "Type=Header");
                 } catch (e: any) {
                     console.warn("[SR Create] Failed to update parent order", parentOrderId, e.message);
                 }
@@ -813,7 +780,6 @@ export const SupplierSelection = ({
             if (Object.keys(createdSplitOrders).length > 0) setShowSplitNotice(true);
             showToast("Supplier updated successfully!", "positive");
             monday.execute("valueCreatedForUser"); // monday activation signal
-            console.log("[SupplierSelection] - handleUpdateSupplier DONE");
             setSelectedLineItemIds(new Set());
             setRowSupplierMap((prev) => {
                 const next = { ...prev };
@@ -847,8 +813,8 @@ export const SupplierSelection = ({
 
     return (
         <div>
-            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={4000} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
-                {toast.message}
+            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={4000} className="mop-toast">
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{toast.message}</span>
             </Toast>
 
             {showSplitNotice && (

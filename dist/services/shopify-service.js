@@ -24,23 +24,19 @@ class ShopifyService {
     // The monday account is resolved from the webhook URL's token (Option A) and passed
     // in as opts.accountId. shopDomain is kept only as a legacy fallback / for logging.
     static processOrderCreate(shopifyOrder, opts) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         return __awaiter(this, void 0, void 0, function* () {
             const shopDomain = opts === null || opts === void 0 ? void 0 : opts.shopDomain;
             const orderKey = String(shopifyOrder.id);
             if (processingOrders.has(orderKey)) {
-                console.log(`⏭️ Order ${orderKey} is already being processed — skipping duplicate webhook`);
                 return { success: true, duplicate: true, orderId: '' };
             }
             processingOrders.add(orderKey);
             try {
                 // Account comes from the per-account webhook token in the URL. Fall back to a
                 // shop-domain lookup only for the legacy shared endpoint.
-                console.log(`🛒 [shopify] processing order ${orderKey} — account="${(_a = opts === null || opts === void 0 ? void 0 : opts.accountId) !== null && _a !== void 0 ? _a : '(none)'}", shopDomain="${shopDomain !== null && shopDomain !== void 0 ? shopDomain : '(none)'}"`);
                 const accountId = (opts === null || opts === void 0 ? void 0 : opts.accountId) || (shopDomain ? yield (0, account_store_1.getAccountByShop)(shopDomain) : null);
-                console.log(`🔎 [shopify] resolved accountId="${accountId !== null && accountId !== void 0 ? accountId : '(none)'}"`);
                 const MONDAY_API_TOKEN = yield (0, account_store_1.resolveMondayToken)(accountId);
-                console.log(`🔑 [shopify] monday token resolved: ${MONDAY_API_TOKEN ? 'YES' : 'NO'}`);
                 if (!MONDAY_API_TOKEN) {
                     throw new Error(`No monday token available for account "${accountId !== null && accountId !== void 0 ? accountId : 'unknown'}" (shop "${shopDomain !== null && shopDomain !== void 0 ? shopDomain : 'unknown'}") — this account must complete OAuth (Connect) in Account Settings.`);
                 }
@@ -61,17 +57,15 @@ class ShopifyService {
                     console.warn(`🩹 [shopify] account "${accountId}" not fully provisioned — provisioning now`);
                     config = yield (0, board_provisioning_1.provisionAccount)(String(accountId), MONDAY_API_TOKEN);
                 }
-                console.log(`🗂️ [shopify] stored config for account "${accountId}":`, (config === null || config === void 0 ? void 0 : config.boards) ? JSON.stringify(config.boards) : 'NONE');
                 const boards = {
-                    customers: ((_b = config === null || config === void 0 ? void 0 : config.boards) === null || _b === void 0 ? void 0 : _b.customers) || '',
-                    orders: ((_c = config === null || config === void 0 ? void 0 : config.boards) === null || _c === void 0 ? void 0 : _c.orders) || '',
-                    lineItems: ((_d = config === null || config === void 0 ? void 0 : config.boards) === null || _d === void 0 ? void 0 : _d.lineItems) || '',
-                    products: ((_e = config === null || config === void 0 ? void 0 : config.boards) === null || _e === void 0 ? void 0 : _e.products) || '',
+                    customers: ((_a = config === null || config === void 0 ? void 0 : config.boards) === null || _a === void 0 ? void 0 : _a.customers) || '',
+                    orders: ((_b = config === null || config === void 0 ? void 0 : config.boards) === null || _b === void 0 ? void 0 : _b.orders) || '',
+                    lineItems: ((_c = config === null || config === void 0 ? void 0 : config.boards) === null || _c === void 0 ? void 0 : _c.lineItems) || '',
+                    products: ((_d = config === null || config === void 0 ? void 0 : config.boards) === null || _d === void 0 ? void 0 : _d.products) || '',
                 };
                 if (!boards.customers || !boards.orders || !boards.lineItems || !boards.products) {
                     throw new Error(`This monday account is not fully set up (provisioned boards missing) for account "${accountId !== null && accountId !== void 0 ? accountId : 'unknown'}". Open the app and complete setup, then retry.`);
                 }
-                console.log(`📋 [shopify] resolved board IDs → customers=${boards.customers}, orders=${boards.orders}, lineItems=${boards.lineItems}, products=${boards.products}`);
                 // Verify the resolved boards actually exist for this token. A stale config
                 // (board deleted after provisioning) would otherwise fail deep inside with a
                 // confusing InvalidBoardIdException. If any is missing AND we have an account,
@@ -81,11 +75,10 @@ class ShopifyService {
                 if (missingBoards.length && accountId) {
                     console.warn(`🩹 [shopify] boards missing for account "${accountId}": [${missingBoards.join(', ')}] — re-provisioning to repair…`);
                     const repaired = yield (0, board_provisioning_1.provisionAccount)(String(accountId), MONDAY_API_TOKEN);
-                    boards.customers = ((_f = repaired.boards) === null || _f === void 0 ? void 0 : _f.customers) || boards.customers;
-                    boards.orders = ((_g = repaired.boards) === null || _g === void 0 ? void 0 : _g.orders) || boards.orders;
-                    boards.lineItems = ((_h = repaired.boards) === null || _h === void 0 ? void 0 : _h.lineItems) || boards.lineItems;
-                    boards.products = ((_j = repaired.boards) === null || _j === void 0 ? void 0 : _j.products) || boards.products;
-                    console.log(`📋 [shopify] board IDs after repair → customers=${boards.customers}, orders=${boards.orders}, lineItems=${boards.lineItems}, products=${boards.products}`);
+                    boards.customers = ((_e = repaired.boards) === null || _e === void 0 ? void 0 : _e.customers) || boards.customers;
+                    boards.orders = ((_f = repaired.boards) === null || _f === void 0 ? void 0 : _f.orders) || boards.orders;
+                    boards.lineItems = ((_g = repaired.boards) === null || _g === void 0 ? void 0 : _g.lineItems) || boards.lineItems;
+                    boards.products = ((_h = repaired.boards) === null || _h === void 0 ? void 0 : _h.products) || boards.products;
                     missingBoards = yield monday_service_1.default.findMissingBoards(MONDAY_API_TOKEN, Object.values(boards));
                 }
                 if (missingBoards.length) {
@@ -101,7 +94,6 @@ class ShopifyService {
                 if (orderIdColId) {
                     const existing = yield monday_service_1.default.findItemByColumnValue(MONDAY_API_TOKEN, boards.orders, orderIdColId, orderData.order.orderId);
                     if (existing) {
-                        console.log(`⚠️ Order ${orderData.order.orderId} already exists in Monday (item: ${existing.id}) — skipping`);
                         return { success: true, customerId: 'existing', orderId: existing.id, duplicate: true };
                     }
                 }
@@ -203,7 +195,6 @@ class ShopifyService {
             if (externalIdCol && customer.shopifyId) {
                 const existingCustomer = yield monday_service_1.default.findItemByColumnValue(token, customersBoardId, externalIdCol, customer.shopifyId);
                 if (existingCustomer) {
-                    console.log(`✅ Found existing customer: ${existingCustomer.id} (External ID ${customer.shopifyId})`);
                     return existingCustomer.id;
                 }
             }
@@ -255,7 +246,6 @@ class ShopifyService {
                 }
             }
             const newCustomer = yield monday_service_1.default.createItem(token, customersBoardId, customer.itemName, columnValues);
-            console.log(`✅ Created new customer: ${newCustomer.id}`);
             return newCustomer.id;
         });
     }
@@ -269,7 +259,6 @@ class ShopifyService {
                 catch (err) {
                     const is503 = ((_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.status) === 503 || ((_b = err === null || err === void 0 ? void 0 : err.message) === null || _b === void 0 ? void 0 : _b.includes('503'));
                     if (is503 && attempt < retries) {
-                        console.log(`⚠️ 503 error, retrying in ${delayMs}ms (attempt ${attempt}/${retries})...`);
                         yield new Promise(r => setTimeout(r, delayMs));
                     }
                     else {
@@ -339,7 +328,6 @@ class ShopifyService {
             if (sourceCol)
                 columnValues[sourceCol.id] = sourceCol.type === 'status' ? { label: 'Shopify' } : 'Shopify';
             const newOrder = yield monday_service_1.default.createItem(token, ordersBoardId, orderName, columnValues);
-            console.log(`✅ Created order: ${newOrder.id} as ${orderName}`);
             return newOrder.id;
         });
     }
@@ -387,10 +375,8 @@ class ShopifyService {
             let product = existingProducts.find(p => (sku && p.sku && p.sku.toLowerCase() === sku.toLowerCase()) ||
                 p.name.toLowerCase() === productName.toLowerCase());
             if (product) {
-                console.log(`✅ Found existing product: "${product.name}" (id: ${product.id})`);
                 return product;
             }
-            console.log(`📦 Product "${productName}" not found in Products board — creating...`);
             const productColumns = yield monday_service_1.default.getBoardColumns(token, productsBoardId);
             const findCol = (title) => productColumns.find((c) => (c.title || '').trim().toLowerCase() === title.toLowerCase());
             const findColByKeyword = (kw) => productColumns.find((c) => (c.title || '').toLowerCase().includes(kw));
@@ -415,7 +401,6 @@ class ShopifyService {
             const newProduct = yield monday_service_1.default.createItem(token, productsBoardId, productName, productColumnValues);
             const created = { id: newProduct.id, name: productName, sku };
             existingProducts.push(created);
-            console.log(`✅ Created product: "${productName}" (id: ${newProduct.id}) | Price: ${price} | Category: ${category} | Weight: ${weight}`);
             return created;
         });
     }
@@ -429,7 +414,6 @@ class ShopifyService {
             ]);
             const colMap = this.buildColumnMap(lineItemColumns);
             const dateValue = (orderDate || new Date().toISOString()).split('T')[0];
-            console.log(`📋 Creating ${lineItems.length} line item(s) from Shopify order | Date: ${dateValue}`);
             for (const item of lineItems) {
                 const productName = item.title || item.name || 'Unknown Product';
                 const sku = item.sku || '';
@@ -437,7 +421,6 @@ class ShopifyService {
                 const price = String(item.price || '0');
                 // Shopify line_item.grams is the per-unit weight in grams; store it in kg.
                 const weight = item.grams ? String(item.grams / 1000) : '';
-                console.log(`🔍 Processing line item: "${productName}" | SKU: ${sku} | Qty: ${quantity} | Price: ${price} | Weight: ${weight}kg`);
                 // Category intentionally not populated (left for later) — passed as ''.
                 const product = yield this.findOrCreateProduct(token, productName, sku, existingProducts, boards.products, price, '', weight);
                 // Connect-column titles are the PLURAL of their target board (e.g. "Orders",
@@ -476,7 +459,6 @@ class ShopifyService {
                 if (!productCol)
                     console.warn('⚠️ No "Products" board_relation column found on Order Line Items board — product link not set.');
                 yield monday_service_1.default.createItem(token, boards.lineItems, productName, columnValues);
-                console.log(`✅ Created line item: "${productName}" | SKU: ${sku} | Qty: ${quantity} | Date: ${dateValue} | COD: ${cod}`);
             }
         });
     }

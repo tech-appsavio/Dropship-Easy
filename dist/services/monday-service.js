@@ -114,12 +114,8 @@ class MondayService {
     static changeMultipleColumnValues(token, boardId, itemId, columnValues) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                console.log('📝 changeMultipleColumnValues called');
-                console.log('   Board ID:', boardId);
-                console.log('   Item ID:', itemId);
                 // Log only the column IDs being written — NOT the values, which can contain PII
                 // (customer name/address/phone/email when writing order/customer records).
-                console.log('   Columns:', Object.keys(columnValues || {}).join(', '));
                 const mondayClient = new api_1.ApiClient({ token: token });
                 const query = `mutation change_multiple_column_values($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
                 change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
@@ -131,9 +127,7 @@ class MondayService {
                     itemId: itemId,
                     columnValues: JSON.stringify(columnValues)
                 };
-                console.log('🚀 Sending mutation to Monday API...');
                 const response = yield mondayClient.request(query, variables);
-                console.log('✅ Monday API response:', response);
                 return response;
             }
             catch (err) {
@@ -174,7 +168,6 @@ class MondayService {
             try {
                 // Never log token bytes — log only that a token is present. Don't log the raw
                 // item name either: for the Customers board it IS the customer's name (PII).
-                console.log(`🔑 Creating item on board ${boardId} (auth: ${token ? 'present' : 'MISSING'})`);
                 const client = new graphql_request_1.GraphQLClient('https://api.monday.com/v2', {
                     headers: { Authorization: token }
                 });
@@ -307,7 +300,6 @@ class MondayService {
     static changeColumnValue(token, boardId, itemId, columnId, value) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                console.log(`🔄 changeColumnValue: columnId=${columnId}, value=${value}`);
                 const mondayClient = new api_1.ApiClient({ token: token });
                 const changeStatusColumn = yield mondayClient.operations.changeColumnValueOp({
                     boardId: boardId,
@@ -315,7 +307,6 @@ class MondayService {
                     columnId: columnId,
                     value: value,
                 });
-                console.log(`✅ changeColumnValue success:`, changeStatusColumn);
                 return changeStatusColumn;
             }
             catch (err) {

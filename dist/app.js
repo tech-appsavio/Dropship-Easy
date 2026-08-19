@@ -20,5 +20,5 @@ app.disable('x-powered-by'); // don't advertise Express
 app.use(security_headers_1.default); // security response headers on every route
 app.use(body_parser_1.default.json());
 app.use(routes_1.default);
-app.listen(port, () => console.log(`Quickstart app listening at http://localhost:${port}`));
+app.listen(port);
 exports.default = app;

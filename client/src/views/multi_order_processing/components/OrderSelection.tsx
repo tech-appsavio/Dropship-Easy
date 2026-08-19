@@ -12,7 +12,6 @@ import { btn, TH, filterBar, sectionTitle, paginationBtn, COLOR, SHADOW, badge }
 import { Btn } from "./Btn";
 
 const monday = mondaySdk();
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100].map((n) => ({ value: n, label: String(n) }));
 // Stable empty-array reference so memoized rows don't re-render just because
 // `lineItemsMap[id] || []` produced a fresh array each render.
 const EMPTY: any[] = [];

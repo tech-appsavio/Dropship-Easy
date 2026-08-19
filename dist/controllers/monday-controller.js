@@ -47,7 +47,6 @@ function reverseString(req, res) {
             yield monday_service_1.default.changeColumnValue(shortLivedToken, boardId, itemId, targetColumnId, reversedWord);
         }
         catch (e) {
-            console.log(e.toString());
             return res.status(500).send({ message: 'internal server error' });
         }
         return res.status(200).send({});

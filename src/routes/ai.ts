@@ -32,7 +32,7 @@ router.post('/api/ai/assistant', authenticationMiddleware, async (req, res) => {
         // refer to the records by what they actually are (line items, customers, suppliers,
         // shipments, errors…) based on the board name — NOT always call them "orders".
         const sys =
-            `You are the Ship Easy assistant embedded in a monday.com board` +
+            `You are the Dropship Easy assistant embedded in a monday.com board` +
             (boardName ? ` named "${boardName}"` : '') + `. ` +
             `Refer to the board's records by what they actually are, inferred from the board name ` +
             `(e.g. "Order Line Items" → line items; "Customers" → customers; "Suppliers" → suppliers; ` +

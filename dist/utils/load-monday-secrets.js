@@ -24,11 +24,9 @@ function loadMondaySecretsIntoEnv() {
             }
         }
         // Log key NAMES only (never values) so a misconfiguration is visible in logs.
-        console.log(`🔐 Loaded ${loaded} secret(s) from monday-code into process.env (available keys: ${keys.join(', ') || 'none'})`);
     }
     catch (err) {
         // Not running on monday-code (e.g. local dev) — secrets come from .env via dotenv.
-        console.log('ℹ️ monday-code SecretsManager unavailable — relying on .env / process.env:', err === null || err === void 0 ? void 0 : err.message);
     }
 }
 exports.loadMondaySecretsIntoEnv = loadMondaySecretsIntoEnv;

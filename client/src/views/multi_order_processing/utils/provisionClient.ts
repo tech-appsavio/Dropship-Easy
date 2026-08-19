@@ -32,7 +32,6 @@ async function resolveApiVersion(): Promise<string | undefined> {
         cachedVersion = current?.value
             || versions.map((v) => v.value).filter(Boolean).sort().pop()
             || "";
-        console.log(`[provision] using monday API version: ${cachedVersion || "(account default)"}`);
     } catch (err) {
         cachedVersion = "";
     }
@@ -276,7 +275,6 @@ export async function provisionViaClient(
         if (boards[board.key]) continue;           // already have a valid stored ID
         if (byName[board.name]) {                    // an existing board matches by name
             boards[board.key] = byName[board.name];
-            console.log(`[provision] reusing existing board "${board.name}" (${byName[board.name]})`);
         }
     }
 

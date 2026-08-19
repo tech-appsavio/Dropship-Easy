@@ -32,32 +32,15 @@ class InvocableActions {
     static actionSendMessage(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                console.log('📨 actionSendMessage called');
                 const { payload } = req.body;
-                console.log('📦 Action fields:', Object.keys((payload === null || payload === void 0 ? void 0 : payload.inputFields) || {}).join(', '));
                 const { shortLivedToken, accountId } = req.session;
                 if (!shortLivedToken) {
-                    console.log('❌ Missing shortLivedToken');
                     throw new Error('Missing shortLivedToken');
                 }
-                console.log('✅ shortLivedToken present');
                 const { itemId, boardId, toPhoneColumn, templateId, fromPhone, message, messageColumn, wanidColumn, statusColumn } = payload.inputFields;
-                console.log('📋 Input fields:', {
-                    itemId,
-                    boardId,
-                    toPhoneColumn,
-                    templateId,
-                    fromPhone,
-                    message,
-                    messageColumn,
-                    wanidColumn,
-                    statusColumn
-                });
                 // Check if multiple items selected
                 const itemIds = Array.isArray(itemId) ? itemId : [itemId];
-                console.log(`📊 Processing ${itemIds.length} item(s)`);
                 if (itemIds.length > 1) {
-                    console.log('🔄 Multiple items detected, processing in batches');
                     // Process in batches
                     InvocableActions.processBatchMessages(itemIds, payload, shortLivedToken, accountId, res);
                     return res.status(200).json({
@@ -65,10 +48,8 @@ class InvocableActions {
                         message: `Processing ${itemIds.length} messages in batches of ${MESSAGE_BATCH_SIZE}`
                     });
                 }
-                console.log('📤 Processing single message');
                 // Single message - process immediately
                 yield InvocableActions.processSingleMessage(itemIds[0], payload, shortLivedToken, accountId);
-                console.log('✅ Message processed successfully');
                 return res.status(200).json({ success: true });
             }
             catch (error) {
@@ -83,29 +64,24 @@ class InvocableActions {
             setImmediate(() => __awaiter(this, void 0, void 0, function* () {
                 for (let i = 0; i < itemIds.length; i += MESSAGE_BATCH_SIZE) {
                     const batch = itemIds.slice(i, i + MESSAGE_BATCH_SIZE);
-                    console.log(`📤 Processing batch ${Math.floor(i / MESSAGE_BATCH_SIZE) + 1}: ${batch.length} messages`);
                     // Process batch in parallel
                     yield Promise.all(batch.map(itemId => InvocableActions.processSingleMessage(itemId, payload, shortLivedToken, accountId)
                         .catch(err => console.error(`❌ Error processing item ${itemId}:`, err.message))));
                     // Delay before next batch (except for last batch)
                     if (i + MESSAGE_BATCH_SIZE < itemIds.length) {
-                        console.log(`⏳ Waiting ${BATCH_DELAY_MS}ms before next batch...`);
                         yield new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
                     }
                 }
-                console.log(`✅ Completed processing ${itemIds.length} messages`);
             }));
         });
     }
     static processSingleMessage(itemId, payload, shortLivedToken, accountId) {
         var _a, _b, _c, _d;
         return __awaiter(this, void 0, void 0, function* () {
-            console.log(`🔹 processSingleMessage started for item: ${itemId}`);
             const { boardId, toPhoneColumn, templateId, fromPhone, message, messageColumn, wanidColumn, statusColumn } = payload.inputFields;
             // Deduplicate: ignore duplicate requests within 5 seconds
             const dedupKey = `${itemId}-${toPhoneColumn}-${Date.now() - (Date.now() % 5000)}`;
             if (recentRequests.has(dedupKey)) {
-                console.log(`⏭️ Skipping duplicate request: ${dedupKey}`);
                 return;
             }
             recentRequests.add(dedupKey);
@@ -125,18 +101,13 @@ class InvocableActions {
             // the account's saved WhatsApp Phone Number ID instead of sending "[object Object]"
             // or an undefined id to Meta.
             const finalFromPhone = resolveField(fromPhone);
-            console.log(`🎯 Template: ${finalTemplateName}, Phone Column: ${finalPhoneColumn}`);
             if (!itemId || !finalPhoneColumn) {
-                console.log('❌ Missing itemId or toPhoneColumn');
                 throw new Error('Missing itemId or toPhoneColumn');
             }
-            console.log(`📞 Fetching phone number from column ${finalPhoneColumn}...`);
             const rawValue = yield monday_service_1.default.getColumnValue(shortLivedToken, itemId, finalPhoneColumn);
             if (!rawValue) {
-                console.log(`❌ No value found in column '${finalPhoneColumn}'`);
                 throw new Error(`No value found in column '${finalPhoneColumn}' for item ${itemId}.`);
             }
-            console.log(`📱 Phone value received from column (masked)`);
             let phoneNumber = rawValue;
             try {
                 const parsed = JSON.parse(rawValue);
@@ -144,9 +115,7 @@ class InvocableActions {
             }
             catch ( /* not JSON, use as-is */_e) { /* not JSON, use as-is */ }
             const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-            console.log(`✅ Phone resolved (masked): ${maskPhone(cleanPhone)}`);
             if (cleanPhone.length < 10) {
-                console.log(`❌ Invalid phone number length: ${cleanPhone.length}`);
                 throw new Error(`Invalid phone number: ${rawValue}`);
             }
             // Build the template body variables from the order item, in {{1}},{{2}},{{3}} order:
@@ -159,7 +128,6 @@ class InvocableActions {
             // missing text value"), so substitute a dash for any blank value.
             const safe = (v) => (v && v.trim() ? v.trim() : '-');
             const bodyParams = [safe(orderParams.orderName), safe(orderParams.totalPrice), safe(orderParams.products)];
-            console.log(`🧩 Template body params: ${JSON.stringify(bodyParams)} (lineItemsBoard=${lineItemsBoardId !== null && lineItemsBoardId !== void 0 ? lineItemsBoardId : 'env'})`);
             // Resolve the order's board columns + Status column up front, so the Status
             // column id can be embedded in the reply-button payloads below.
             let boardColumns = [];
@@ -171,19 +139,16 @@ class InvocableActions {
             }
             // Fetch actual template content from WhatsApp API
             let actualMessageSent = message || '';
-            let templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
+            let templateLanguage = 'en'; // default; overwritten by the template's actual language below
             let templateButtons = [];
             try {
-                console.log(`📝 Fetching template content for: ${finalTemplateName}`);
                 const template = yield whatsapp_service_1.WhatsappService.getTemplateContent(finalTemplateName, accountId);
                 templateLanguage = template.language;
                 templateButtons = template.buttons || [];
                 // Build a faithful log of what was sent by substituting each {{n}} with its param.
                 actualMessageSent = bodyParams.reduce((text, param, i) => text.replace(new RegExp(`\\{\\{${i + 1}\\}\\}`, 'g'), param), template.text);
-                console.log(`✅ Template content fetched (language: ${templateLanguage})`);
             }
             catch (err) {
-                console.log(`⚠️ Could not fetch template: ${err.message}`);
             }
             // Encode the order identity + intended status into each quick-reply button's
             // payload. The reply webhook reads this back to update the exact order —
@@ -199,23 +164,19 @@ class InvocableActions {
                 return { index: b.index, payload: JSON.stringify(Object.assign(Object.assign({}, orderRef), { a: action })) };
             });
             if (replyButtons.length > 0) {
-                console.log(`🔘 Reply button payloads: ${replyButtons.map(b => b.payload).join(' | ')}`);
             }
             // Prepare logging values
             let statusMsg = 'Sent successfully';
             let wanid = '';
             try {
-                console.log(`📤 Sending WhatsApp message to ${maskPhone(cleanPhone)}...`);
                 // Send WhatsApp message with body variables + order-tracking button payloads.
                 const waResponse = yield whatsapp_service_1.WhatsappService.sendTemplate(cleanPhone, finalTemplateName, templateLanguage, finalFromPhone, bodyParams, replyButtons, accountId);
                 // Extract wamid from Meta response
                 if (((_d = waResponse === null || waResponse === void 0 ? void 0 : waResponse.messages) === null || _d === void 0 ? void 0 : _d.length) > 0) {
                     wanid = waResponse.messages[0].id;
-                    console.log(`✅ Message sent! WAMID: ${wanid}`);
                 }
             }
             catch (waError) {
-                console.log(`❌ WhatsApp send error: ${waError.message}`);
                 statusMsg = `Failed: ${waError.message}`.substring(0, 255);
                 (0, error_log_1.logAccountError)(accountId, {
                     stage: 'WhatsApp', severity: 'Error',
@@ -229,9 +190,7 @@ class InvocableActions {
             }
             // Update Monday columns
             if (boardId) {
-                console.log(`📝 Updating Monday columns one by one...`);
                 // boardColumns was already fetched above (reused here to avoid a second call).
-                console.log(`📋 Available columns:`, boardColumns.map((c) => `${c.title} (${c.id}, ${c.type})`).join(', '));
                 const getColumnType = (colId) => {
                     const col = boardColumns.find((c) => c.id === colId);
                     return col === null || col === void 0 ? void 0 : col.type;
@@ -241,8 +200,6 @@ class InvocableActions {
                     if (messageColumn && actualMessageSent) {
                         const colId = resolveField(messageColumn);
                         const colType = getColumnType(colId);
-                        console.log(`📝 Message column type: ${colType}`);
-                        console.log(`📝 Message to store: "${actualMessageSent}"`);
                         // Format value based on column type
                         let value;
                         if (colType === 'long_text') {
@@ -252,7 +209,6 @@ class InvocableActions {
                             value = JSON.stringify(actualMessageSent);
                         }
                         yield monday_service_1.default.changeColumnValue(shortLivedToken, boardId, itemId, colId, value);
-                        console.log(`✅ Message column updated`);
                     }
                 }
                 catch (err) {
@@ -262,7 +218,6 @@ class InvocableActions {
                     if (wanidColumn && wanid) {
                         const colId = resolveField(wanidColumn);
                         const colType = getColumnType(colId);
-                        console.log(`📝 WANID column type: ${colType}; storing: "${wanid}"`);
                         // A text column takes a plain string; long_text needs {"text": "..."}.
                         // Previously this always used the {text} form, which is invalid for a
                         // text column, so the WANID silently never saved.
@@ -270,7 +225,6 @@ class InvocableActions {
                             ? { [colId]: { text: wanid } }
                             : { [colId]: wanid };
                         yield monday_service_1.default.changeMultipleColumnValues(shortLivedToken, boardId, itemId, columnValues);
-                        console.log(`✅ WANID column updated`);
                     }
                 }
                 catch (err) {
@@ -280,13 +234,11 @@ class InvocableActions {
                     if (statusColumn && statusMsg) {
                         const colId = resolveField(statusColumn);
                         const colType = getColumnType(colId);
-                        console.log(`📝 Status column type: ${colType}; Status to store: "${statusMsg}"`);
                         // long_text needs {"text": "..."}, plain text/other take the raw string.
                         const value = colType === 'long_text'
                             ? JSON.stringify({ text: statusMsg })
                             : JSON.stringify(statusMsg);
                         yield monday_service_1.default.changeColumnValue(shortLivedToken, boardId, itemId, colId, value);
-                        console.log(`✅ Status column updated`);
                     }
                 }
                 catch (err) {
@@ -303,37 +255,29 @@ class InvocableActions {
                     itemId: String(itemId),
                     statusColumnId: statusColumnId
                 });
-                console.log(`📌 Stored webhook token mapping for order ${itemId} / phone ${maskPhone(cleanPhone)}`);
             }
-            console.log(`✅ processSingleMessage completed for item: ${itemId}`);
         });
     }
     static getColumnsDropdownOptions(req, res) {
         var _a, _b, _c, _d, _e, _f;
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                console.log('🔍 Remote options request received');
                 const boardId = ((_c = (_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.payload) === null || _b === void 0 ? void 0 : _b.dependencyData) === null || _c === void 0 ? void 0 : _c.boardId)
                     || ((_e = (_d = req.body) === null || _d === void 0 ? void 0 : _d.payload) === null || _e === void 0 ? void 0 : _e.boardId);
-                console.log('📋 Board ID:', boardId);
                 if (!boardId) {
-                    console.log('❌ No boardId found');
                     return res.status(200).json({ options: [] });
                 }
                 // Use the account-scoped short-lived token from the signed monday request
                 // (same dynamic approach the Multi-Order Processing views use) — no hardcoded token.
                 const token = (_f = req.session) === null || _f === void 0 ? void 0 : _f.shortLivedToken;
                 if (!token) {
-                    console.log('❌ No shortLivedToken on request (is the route authenticated?)');
                     return res.status(200).json({ options: [] });
                 }
                 const boardColumns = yield monday_service_1.default.getBoardColumns(token, boardId);
-                console.log(`✅ Found ${boardColumns.length} columns`);
                 const options = boardColumns.map((col) => ({
                     title: `${col.title} (${col.type})`,
                     value: col.id
                 }));
-                console.log('📤 Returning options:', options.length);
                 return res.status(200).json({ options });
             }
             catch (error) {

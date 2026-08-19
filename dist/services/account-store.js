@@ -80,7 +80,6 @@ function deleteAccountToken(accountId) {
             return;
         try {
             yield s.delete(KEY_TOKEN(String(accountId)));
-            console.log(`🗑️ [token] cleared stale OAuth token for account "${accountId}"`);
         }
         catch (err) {
             console.error('❌ deleteAccountToken failed:', err.message);
@@ -96,7 +95,6 @@ function mapShopToAccount(shopDomain, accountId) {
             return;
         try {
             yield s.set(KEY_SHOP(shopDomain), String(accountId));
-            console.log(`🔗 [mapShopToAccount] "${shopDomain.toLowerCase()}" → account "${accountId}"`);
         }
         catch (err) {
             console.error('❌ mapShopToAccount failed:', err.message);
@@ -137,7 +135,6 @@ function getOrCreateWebhookToken(accountId) {
             const token = crypto_1.default.randomBytes(24).toString('hex');
             yield s.set(KEY_ACCT_WH(String(accountId)), token);
             yield s.set(KEY_WH_TOKEN(token), String(accountId));
-            console.log(`🔑 [webhook] created token for account "${accountId}"`);
             return token;
         }
         catch (err) {
@@ -178,7 +175,6 @@ function regenerateWebhookToken(accountId) {
             const token = crypto_1.default.randomBytes(24).toString('hex');
             yield s.set(KEY_ACCT_WH(String(accountId)), token);
             yield s.set(KEY_WH_TOKEN(token), String(accountId));
-            console.log(`🔄 [webhook] regenerated token for account "${accountId}"`);
             return token;
         }
         catch (err) {
@@ -266,37 +262,22 @@ function getAccountSettings(accountId) {
     });
 }
 exports.getAccountSettings = getAccountSettings;
-// Resolves a usable monday API token for an account. Prefers that account's own stored
-// OAuth token.
+// Resolves the monday API token for an account: its OWN stored OAuth token, or null.
 //
-// MULTI-TENANT SAFETY: the MONDAY_API_TOKEN env fallback belongs to ONE specific account
-// (the dev/legacy account). Using it for a DIFFERENT account would run every API call —
-// board queries, item creation — against the WRONG account, silently writing one
-// customer's orders into another's boards. So the fallback is allowed ONLY when there is
-// no account, or the account IS the legacy one (LEGACY_ACCOUNT_ID). Any other account
-// with no OAuth token returns null → the caller must fail and prompt OAuth, never borrow
-// a foreign token.
+// MULTI-TENANT MARKETPLACE: there is NO shared/env token fallback. Every account authenticates
+// with its own OAuth token (obtained at install). An account with no token must (re)connect via
+// Account Settings — we return null so the caller fails clearly instead of ever acting on another
+// account's behalf (which a shared env token would do, writing one customer's data into another's).
 function resolveMondayToken(accountId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (accountId) {
             const token = yield getAccountToken(accountId);
-            if (token) {
-                console.log(`✅ Resolved OAuth token for account "${accountId}"`);
+            if (token)
                 return token;
-            }
-        }
-        const legacyId = process.env.LEGACY_ACCOUNT_ID;
-        const isLegacyOrUnknown = !accountId || (legacyId && String(accountId) === String(legacyId));
-        const envToken = process.env.MONDAY_API_TOKEN;
-        if (isLegacyOrUnknown && envToken) {
-            console.warn(`⚠️ Using MONDAY_API_TOKEN env fallback (account: "${accountId !== null && accountId !== void 0 ? accountId : 'unknown'}").`);
-            return envToken;
-        }
-        if (accountId) {
-            console.error(`❌ No OAuth token for account "${accountId}" and it is not the legacy account — refusing MONDAY_API_TOKEN fallback (would write to the wrong account). This account must complete OAuth.`);
+            console.error(`❌ No OAuth token for account "${accountId}" — it must connect via Account Settings.`);
         }
         else {
-            console.error(`❌ No token available and MONDAY_API_TOKEN not set.`);
+            console.error('❌ resolveMondayToken called without an account id.');
         }
         return null;
     });

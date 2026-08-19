@@ -74,7 +74,6 @@ export class OAuthController {
             }
 
             await saveAccountToken(accountId, accessToken);
-            console.log(`✅ Stored OAuth token for account ${accountId}`);
 
             // Run the FULL workspace setup now — on install, right after "Add App" (which
             // triggers this OAuth flow) — so boards, all columns, connect + mirror columns,
@@ -88,7 +87,6 @@ export class OAuthController {
             // board/column is created. Column creation is parallelized so this stays fast.
             try {
                 await provisionAccount(accountId, accessToken);
-                console.log(`✅ Install-time setup complete for account ${accountId}`);
             } catch (err: any) {
                 // Don't fail the install if setup hiccups — the view's "finish setup" path
                 // will reconcile whatever is missing on first open.

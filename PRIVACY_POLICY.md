@@ -1,10 +1,10 @@
-# Privacy Policy — Ship Easy (Multi-Order Processing for monday.com)
+# Privacy Policy — Dropship Easy (Multi-Order Processing for monday.com)
 
 **Effective date:** 6 August 2026
 **Last updated:** 6 August 2026
 
 This Privacy Policy explains how **Appsavio** ("we", "us", "our") — the
-publisher of **Ship Easy**, the Multi-Order Processing app for monday.com (the "App") — collects,
+publisher of **Dropship Easy**, the Multi-Order Processing app for monday.com (the "App") — collects,
 uses, stores, shares, and protects information when you install and use the App.
 
 By installing or using the App, you agree to the practices described here.

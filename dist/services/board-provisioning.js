@@ -144,14 +144,14 @@ function createBoard(client, name, workspaceId, folderId) {
         return (_a = resp === null || resp === void 0 ? void 0 : resp.create_board) === null || _a === void 0 ? void 0 : _a.id;
     });
 }
-// Resolves (creating if needed) the "Ship Easy" folder to hold all of the app's boards.
+// Resolves (creating if needed) the "Dropship Easy" folder to hold all of the app's boards.
 // Idempotent: reuses the stored folder/workspace, then an existing folder found by name,
 // before creating a new one — so reinstalls never make duplicate folders. Returns empty
 // on any failure so provisioning falls back to creating boards without a folder.
-function ensureShipEasyFolder(client, stored) {
+function ensureDropshipEasyFolder(client, stored) {
     var _a, _b, _c, _d;
     return __awaiter(this, void 0, void 0, function* () {
-        const FOLDER_NAME = 'Ship Easy';
+        const FOLDER_NAME = 'Dropship Easy';
         try {
             // Pick a workspace: reuse the stored one, else prefer "Main workspace", else the first.
             let workspaceId = stored.workspaceId;
@@ -174,10 +174,10 @@ function ensureShipEasyFolder(client, stored) {
                     workspaceId = String(wid);
             }
             if (!workspaceId) {
-                console.warn('⚠️ Could not resolve a workspace for the "Ship Easy" folder — creating boards at the default location.');
+                console.warn('⚠️ Could not resolve a workspace for the "Dropship Easy" folder — creating boards at the default location.');
                 return {};
             }
-            // Reuse an existing "Ship Easy" folder in this workspace if present.
+            // Reuse an existing "Dropship Easy" folder in this workspace if present.
             const foldersResp = yield client.request(`query ($ws: [ID!]) { folders(workspace_ids: $ws, limit: 200) { id name } }`, { ws: [workspaceId] });
             const existing = ((_c = foldersResp === null || foldersResp === void 0 ? void 0 : foldersResp.folders) !== null && _c !== void 0 ? _c : []).find((f) => (f.name || '').trim() === FOLDER_NAME);
             if (existing)
@@ -185,11 +185,10 @@ function ensureShipEasyFolder(client, stored) {
             // Otherwise create it.
             const createResp = yield client.request(`mutation ($name: String!, $ws: ID!) { create_folder(name: $name, workspace_id: $ws) { id } }`, { name: FOLDER_NAME, ws: workspaceId });
             const folderId = (_d = createResp === null || createResp === void 0 ? void 0 : createResp.create_folder) === null || _d === void 0 ? void 0 : _d.id;
-            console.log(`✅ "${FOLDER_NAME}" folder ready (workspace ${workspaceId}, folder ${folderId})`);
             return { workspaceId, folderId: folderId ? String(folderId) : undefined };
         }
         catch (err) {
-            console.error('⚠️ Could not create/resolve the "Ship Easy" folder — creating boards without it:', err.message);
+            console.error('⚠️ Could not create/resolve the "Dropship Easy" folder — creating boards without it:', err.message);
             return {};
         }
     });
@@ -268,7 +267,6 @@ const provisionInFlight = new Map();
 function provisionAccount(accountId, token) {
     const running = provisionInFlight.get(String(accountId));
     if (running) {
-        console.log(`⏳ Provisioning already in progress for account ${accountId} — awaiting it`);
         return running;
     }
     const p = provisionAccountImpl(String(accountId), token).finally(() => provisionInFlight.delete(String(accountId)));
@@ -285,8 +283,8 @@ function provisionAccountImpl(accountId, token) {
         const config = (existing === null || existing === void 0 ? void 0 : existing.boards)
             ? { provisioned: true, boards: Object.assign({}, existing.boards), columns: Object.assign({}, (existing.columns || {})), workspaceId: existing.workspaceId, folderId: existing.folderId }
             : { provisioned: false, boards: {}, columns: {} };
-        // Create/reuse the "Ship Easy" folder so all boards are grouped inside it.
-        const folder = yield ensureShipEasyFolder(client, { workspaceId: config.workspaceId, folderId: config.folderId });
+        // Create/reuse the "Dropship Easy" folder so all boards are grouped inside it.
+        const folder = yield ensureDropshipEasyFolder(client, { workspaceId: config.workspaceId, folderId: config.folderId });
         config.workspaceId = (_a = folder.workspaceId) !== null && _a !== void 0 ? _a : config.workspaceId;
         config.folderId = (_b = folder.folderId) !== null && _b !== void 0 ? _b : config.folderId;
         // ── Phase 0: reconcile stored config with reality ─────────────────────────
@@ -310,7 +308,6 @@ function provisionAccountImpl(accountId, token) {
                 continue;
             if (byName[board.name]) {
                 config.boards[board.key] = byName[board.name];
-                console.log(`♻️ reusing existing board "${board.name}" (${byName[board.name]})`);
             }
         }
         // ── Phase 1: boards + standard columns ────────────────────────────────────
@@ -320,7 +317,6 @@ function provisionAccountImpl(accountId, token) {
                 const boardId = yield createBoard(client, board.name, config.workspaceId, config.folderId);
                 if (boardId) {
                     config.boards[board.key] = boardId;
-                    console.log(`✅ Created board "${board.name}" (${boardId})`);
                 }
             }
             catch (err) {
@@ -381,7 +377,6 @@ function provisionAccountImpl(accountId, token) {
         }))));
         config.provisioned = true;
         yield (0, account_store_1.saveAccountConfig)(accountId, config);
-        console.log(`✅ Provisioning complete for account ${accountId}`);
         return config;
     });
 }
@@ -414,7 +409,6 @@ function createColumnsForBoard(board, defs, config, map, create) {
                     config.columns[board.key] = config.columns[board.key] || {};
                     config.columns[board.key][def.title] = id;
                     entry.byTitle[def.title] = { id, type: '' };
-                    console.log(`  ✅ ${def.title} on "${board.name}" (${id})`);
                 }
             }
             catch (err) {

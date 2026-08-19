@@ -37,26 +37,6 @@ function accountFromRequest(req) {
     catch ( /* invalid/absent token → env fallback */_c) { /* invalid/absent token → env fallback */ }
     return undefined;
 }
-// Board IDs are numeric — strip anything else (stray spaces, a trailing ";" copied
-// from TS, quotes) so a malformed .env value can't break a GraphQL query like
-// `boards(ids: 2028904077;)`. Empty/absent → undefined (frontend leaves it unset).
-const cleanBoardId = (v) => {
-    const digits = (v || '').replace(/\D/g, '');
-    return digits || undefined;
-};
-// Read env board IDs at REQUEST time — not module load. `import routes` in app.ts
-// runs before dotenv.config(), so anything read at module-load would be undefined.
-// These are the tunnel/local fallback; a provisioned account's config wins over them.
-const envBoardIds = () => ({
-    orders: cleanBoardId(process.env.ORDER_BOARD_ID),
-    lineItems: cleanBoardId(process.env.ORDER_ITEM_BOARD_ID),
-    products: cleanBoardId(process.env.PRODUCTS_BOARD_ID),
-    suppliers: cleanBoardId(process.env.SUPPLIER_BOARD_ID),
-    supplierProducts: cleanBoardId(process.env.SUPPLIER_PRODUCT_BOARD_ID),
-    supplierManifests: cleanBoardId(process.env.SUPPLIER_MANIFEST_BOARD_ID),
-    shipments: cleanBoardId(process.env.SHIPMENTS_BOARD_ID),
-    customers: cleanBoardId(process.env.CUSTOMER_BOARD_ID),
-});
 // monday OAuth 2.0 install/authorize flow
 router.get('/oauth/authorize', oauth_controller_1.OAuthController.authorize);
 router.get('/oauth/callback', oauth_controller_1.OAuthController.callback);
@@ -83,30 +63,22 @@ router.post('/api/provision', authentication_1.default, (req, res) => __awaiter(
 router.get('/api/provision/schema', (_req, res) => {
     return res.json({ schema: provisioning_schema_1.PROVISIONING_SCHEMA });
 });
-// Tells the frontend whether THIS account still needs provisioning. Legacy account
-// (LEGACY_ACCOUNT_ID) and local/tunnel dev report as provisioned with the env boards so
-// they never re-create boards; any other account with no stored config → needs setup.
+// Tells the frontend whether THIS account still needs provisioning. Returns any stored
+// board config (even partial) so the frontend reuses it; an account with no stored config
+// reports as not provisioned → the frontend runs setup.
 router.get('/api/provision/status', authentication_1.default, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _c;
     try {
         const accountId = (_c = req.session) === null || _c === void 0 ? void 0 : _c.accountId;
         if (!accountId)
             return res.status(401).json({ error: 'no account session' });
-        console.log(`🔎 [provision/status] accountId="${accountId}"`);
         const stored = yield (0, account_store_1.getAccountConfig)(String(accountId));
         if ((stored === null || stored === void 0 ? void 0 : stored.boards) && Object.keys(stored.boards).length) {
             // Return whatever's stored (even a partial/half-provisioned config) so the
             // frontend can REUSE existing board IDs and only fill missing columns —
             // completeness is judged client-side against the schema, not this flag.
-            console.log(`🗂️ [provision/status] returning stored boards for "${accountId}":`, JSON.stringify(stored.boards));
             return res.json({ accountId: String(accountId), provisioned: !!stored.provisioned, boards: stored.boards, columns: stored.columns || {} });
         }
-        const legacyId = process.env.LEGACY_ACCOUNT_ID;
-        if (legacyId && String(accountId) === String(legacyId)) {
-            console.log(`🗂️ [provision/status] account "${accountId}" is LEGACY — returning env boards`);
-            return res.json({ accountId: String(accountId), provisioned: true, boards: envBoardIds(), columns: {}, legacy: true });
-        }
-        console.log(`🆕 [provision/status] account "${accountId}" not provisioned`);
         return res.json({ accountId: String(accountId), provisioned: false, boards: {}, columns: {} });
     }
     catch (err) {
@@ -132,7 +104,6 @@ router.post('/api/provision/save', authentication_1.default, (req, res) => __awa
         }
         const config = { provisioned, boards, columns };
         yield (0, account_store_1.saveAccountConfig)(String(accountId), config);
-        console.log(`✅ [provision/save] account "${accountId}" (provisioned=${provisioned}) boards:`, JSON.stringify(boards));
         return res.json({ success: true });
     }
     catch (err) {
@@ -149,7 +120,6 @@ router.post('/api/provision/reset', authentication_1.default, (req, res) => __aw
         if (!accountId)
             return res.status(401).json({ error: 'no account session' });
         yield (0, account_store_1.deleteAccountConfig)(String(accountId));
-        console.log(`♻️ Reset provisioning config for account ${accountId}`);
         return res.json({ success: true });
     }
     catch (err) {
@@ -206,25 +176,16 @@ router.post('/api/config/shopify-store', authentication_1.default, (req, res) =>
         return res.status(500).json({ error: err.message });
     }
 }));
-// Returns the board IDs the Multi-Order Processing frontend needs, so it no longer
-// has to hardcode them. Prefers the caller's provisioned board config (set up during
-// install — see board-provisioning.ts); falls back to env vars for accounts that
-// haven't been auto-provisioned yet (e.g. this legacy/tunnel-testing board).
+// Returns the caller account's provisioned board IDs (set up during install — see
+// board-provisioning.ts). Multi-tenant: there is NO env board-ID fallback (those would point
+// at the developer's boards). An account with no config yet gets empty boards, which signals
+// the frontend to run provisioning.
 router.get('/api/config/board-ids', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _p;
     try {
         const accountId = accountFromRequest(req);
         const provisioned = accountId ? (_p = (yield (0, account_store_1.getAccountConfig)(String(accountId)))) === null || _p === void 0 ? void 0 : _p.boards : null;
-        if (provisioned) {
-            return res.json({ boards: provisioned });
-        }
-        // Env board IDs are a single-tenant fallback tied to ONE account. Apply them only
-        // when there's no session (tunnel/local dev) or the caller IS that legacy account
-        // (LEGACY_ACCOUNT_ID). Any OTHER account gets empty boards, which signals the
-        // frontend to auto-provision instead of borrowing the legacy account's boards.
-        const legacyId = process.env.LEGACY_ACCOUNT_ID;
-        const useEnvFallback = !accountId || !legacyId || String(accountId) === String(legacyId);
-        return res.json({ boards: useEnvFallback ? envBoardIds() : {} });
+        return res.json({ boards: provisioned || {} });
     }
     catch (err) {
         return res.status(500).json({ error: err.message });

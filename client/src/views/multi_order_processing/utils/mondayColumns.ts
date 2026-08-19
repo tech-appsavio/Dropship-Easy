@@ -62,21 +62,6 @@ export async function resolveColumnIdsByTitles<T extends Record<string, string>>
     return result;
 }
 
-// Local-testing convenience: resolves a title map and logs the result, so you can
-// confirm titles match your real board's schema before wiring any component to it.
-//   import { titleMapOf, ORDER_COLUMNS } from "../columns";
-//   import { ORDER_BOARD_ID } from "../boardIds";
-//   useEffect(() => { logResolvedColumnIds(ORDER_BOARD_ID, titleMapOf(ORDER_COLUMNS), "Orders"); }, []);
-export async function logResolvedColumnIds(
-    boardId: string | number,
-    titleMap: Record<string, string>,
-    boardLabel: string = String(boardId)
-): Promise<void> {
-    const resolved = await resolveColumnIdsByTitles(boardId, titleMap);
-    // eslint-disable-next-line no-console
-    console.log(`[mondayColumns] Resolved columns for ${boardLabel} (board ${boardId}):`, resolved);
-}
-
 // Clears the cached column list for a board (or all boards if omitted) — useful in
 // local testing right after adding/renaming a column, without reloading the app.
 export function clearColumnCache(boardId?: string | number): void {

@@ -54,12 +54,10 @@ export function initializeBoardIds(): Promise<void> {
             const statusResp = await fetch("/api/provision/status", { headers: authHeaders });
             const status = await statusResp.json();
             const boards = status?.boards || {};
-            console.log(`[initBoardIds] account="${status?.accountId ?? "?"}", provisioned=${status?.provisioned}, legacy=${!!status?.legacy}`);
 
             // Normal case: setup already done at install (or legacy env boards) → just consume it.
             if ((status?.provisioned || status?.legacy) && hasAnyBoard(boards)) {
                 setBoardIds(boards);
-                console.log("[initBoardIds] Using provisioned board IDs:", boards);
                 return;
             }
 
@@ -67,14 +65,12 @@ export function initializeBoardIds(): Promise<void> {
             // test/share-link install where OAuth didn't run. Ask the BACKEND to finish
             // the setup (server-side, idempotent, coalesces with any install-time run).
             // The view never creates anything itself.
-            console.log("[initBoardIds] Not provisioned — asking backend to finish setup…");
             emitProgress(true, "Setting up your workspace…");
             try {
                 const ensureResp = await fetch("/api/provision/ensure", { method: "POST", headers: authHeaders });
                 const ensure = await ensureResp.json().catch(() => ({}));
                 if (ensureResp.ok && hasAnyBoard(ensure?.boards || {})) {
                     setBoardIds(ensure.boards);
-                    console.log("[initBoardIds] Setup finished — board IDs:", ensure.boards);
                 } else {
                     console.warn("[initBoardIds] Setup did not return boards:", ensure);
                 }

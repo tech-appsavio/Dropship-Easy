@@ -69,13 +69,13 @@ export const WelcomeScreen: React.FC<{ onGetStarted: () => void }> = ({ onGetSta
                 >
                     {/* Header */}
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: COLOR.primaryLight, color: COLOR.primary, borderRadius: 999, padding: "5px 14px", fontSize: 12, fontWeight: 700, letterSpacing: "0.02em" }}>
-                        🚀 Ship Easy
+                        🚀 Dropship Easy
                     </div>
                     <h1 style={{ fontSize: 26, fontWeight: 700, margin: "16px 0 8px", color: COLOR.text, letterSpacing: "-0.02em" }}>
-                        Welcome to Ship Easy
+                        Welcome to Dropship Easy
                     </h1>
                     <p style={{ margin: 0, fontSize: 14.5, color: COLOR.textMuted, lineHeight: 1.6, maxWidth: "58ch" }}>
-                        Ship Easy turns your Shopify orders into monday records and runs the whole dropshipping
+                        Dropship Easy turns your Shopify orders into monday records and runs the whole dropshipping
                         flow — supplier and courier selection, shipments, labels, and supplier manifests. Here's the
                         four-step flow you'll use each time:
                     </p>
@@ -83,7 +83,7 @@ export const WelcomeScreen: React.FC<{ onGetStarted: () => void }> = ({ onGetSta
                     {/* Hero screenshot (same-origin asset from public/how-to-assets) */}
                     <img
                         src="/how-to-assets/01-order-selection.png"
-                        alt="Ship Easy — the Bulk Order Processing view"
+                        alt="Dropship Easy — the Bulk Order Processing view"
                         loading="lazy"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         style={{ width: "100%", maxWidth: "100%", height: "auto", display: "block", marginTop: 20, border: `1px solid ${COLOR.borderLight}`, borderRadius: RADIUS.md, boxShadow: SHADOW.sm }}

@@ -89,12 +89,8 @@ class MondayService {
 
     static async changeMultipleColumnValues(token: string, boardId: number | string, itemId: number | string, columnValues: any) {
         try {
-            console.log('📝 changeMultipleColumnValues called');
-            console.log('   Board ID:', boardId);
-            console.log('   Item ID:', itemId);
             // Log only the column IDs being written — NOT the values, which can contain PII
             // (customer name/address/phone/email when writing order/customer records).
-            console.log('   Columns:', Object.keys(columnValues || {}).join(', '));
             
             const mondayClient = new ApiClient({token: token});
             
@@ -110,9 +106,7 @@ class MondayService {
                 columnValues: JSON.stringify(columnValues)
             };
 
-            console.log('🚀 Sending mutation to Monday API...');
             const response = await mondayClient.request(query, variables);
-            console.log('✅ Monday API response:', response);
             return response;
         } catch (err: any) {
             console.error('❌ changeMultipleColumnValues error:', err.message);
@@ -148,7 +142,6 @@ class MondayService {
         try {
             // Never log token bytes — log only that a token is present. Don't log the raw
             // item name either: for the Customers board it IS the customer's name (PII).
-            console.log(`🔑 Creating item on board ${boardId} (auth: ${token ? 'present' : 'MISSING'})`);
             
             const client = new GraphQLClient('https://api.monday.com/v2', {
                 headers: { Authorization: token }
@@ -285,7 +278,6 @@ class MondayService {
 
     static async changeColumnValue(token, boardId, itemId, columnId, value) {
         try {
-            console.log(`🔄 changeColumnValue: columnId=${columnId}, value=${value}`);
             const mondayClient = new ApiClient({token: token});
             const changeStatusColumn = await mondayClient.operations.changeColumnValueOp({
                 boardId: boardId,
@@ -293,7 +285,6 @@ class MondayService {
                 columnId: columnId,
                 value: value,
             });
-            console.log(`✅ changeColumnValue success:`, changeStatusColumn);
             return changeStatusColumn;
         } catch (err: any) {
             console.error(`❌ changeColumnValue error for column ${columnId}:`, err.message);

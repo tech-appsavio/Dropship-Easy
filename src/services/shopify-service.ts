@@ -17,7 +17,6 @@ export class ShopifyService {
         const shopDomain = opts?.shopDomain;
         const orderKey = String(shopifyOrder.id);
         if (processingOrders.has(orderKey)) {
-            console.log(`⏭️ Order ${orderKey} is already being processed — skipping duplicate webhook`);
             return { success: true, duplicate: true, orderId: '' };
         }
         processingOrders.add(orderKey);
@@ -25,11 +24,8 @@ export class ShopifyService {
         try {
             // Account comes from the per-account webhook token in the URL. Fall back to a
             // shop-domain lookup only for the legacy shared endpoint.
-            console.log(`🛒 [shopify] processing order ${orderKey} — account="${opts?.accountId ?? '(none)'}", shopDomain="${shopDomain ?? '(none)'}"`);
             const accountId = opts?.accountId || (shopDomain ? await getAccountByShop(shopDomain) : null);
-            console.log(`🔎 [shopify] resolved accountId="${accountId ?? '(none)'}"`);
             const MONDAY_API_TOKEN = await resolveMondayToken(accountId);
-            console.log(`🔑 [shopify] monday token resolved: ${MONDAY_API_TOKEN ? 'YES' : 'NO'}`);
             if (!MONDAY_API_TOKEN) {
                 throw new Error(`No monday token available for account "${accountId ?? 'unknown'}" (shop "${shopDomain ?? 'unknown'}") — this account must complete OAuth (Connect) in Account Settings.`);
             }
@@ -52,7 +48,6 @@ export class ShopifyService {
                 console.warn(`🩹 [shopify] account "${accountId}" not fully provisioned — provisioning now`);
                 config = await provisionAccount(String(accountId), MONDAY_API_TOKEN);
             }
-            console.log(`🗂️ [shopify] stored config for account "${accountId}":`, config?.boards ? JSON.stringify(config.boards) : 'NONE');
             const boards: Boards = {
                 customers: config?.boards?.customers || '',
                 orders:    config?.boards?.orders    || '',
@@ -62,7 +57,6 @@ export class ShopifyService {
             if (!boards.customers || !boards.orders || !boards.lineItems || !boards.products) {
                 throw new Error(`This monday account is not fully set up (provisioned boards missing) for account "${accountId ?? 'unknown'}". Open the app and complete setup, then retry.`);
             }
-            console.log(`📋 [shopify] resolved board IDs → customers=${boards.customers}, orders=${boards.orders}, lineItems=${boards.lineItems}, products=${boards.products}`);
 
             // Verify the resolved boards actually exist for this token. A stale config
             // (board deleted after provisioning) would otherwise fail deep inside with a
@@ -77,7 +71,6 @@ export class ShopifyService {
                 boards.orders    = repaired.boards?.orders    || boards.orders;
                 boards.lineItems = repaired.boards?.lineItems || boards.lineItems;
                 boards.products  = repaired.boards?.products  || boards.products;
-                console.log(`📋 [shopify] board IDs after repair → customers=${boards.customers}, orders=${boards.orders}, lineItems=${boards.lineItems}, products=${boards.products}`);
                 missingBoards = await MondayService.findMissingBoards(MONDAY_API_TOKEN, Object.values(boards));
             }
             if (missingBoards.length) {
@@ -99,7 +92,6 @@ export class ShopifyService {
                     MONDAY_API_TOKEN, boards.orders, orderIdColId, orderData.order.orderId
                 );
                 if (existing) {
-                    console.log(`⚠️ Order ${orderData.order.orderId} already exists in Monday (item: ${existing.id}) — skipping`);
                     return { success: true, customerId: 'existing', orderId: existing.id, duplicate: true };
                 }
             } else {
@@ -213,7 +205,6 @@ export class ShopifyService {
                 customer.shopifyId
             );
             if (existingCustomer) {
-                console.log(`✅ Found existing customer: ${existingCustomer.id} (External ID ${customer.shopifyId})`);
                 return existingCustomer.id;
             }
         }
@@ -258,7 +249,6 @@ export class ShopifyService {
             columnValues
         );
 
-        console.log(`✅ Created new customer: ${newCustomer.id}`);
         return newCustomer.id;
     }
 
@@ -269,7 +259,6 @@ export class ShopifyService {
             } catch (err: any) {
                 const is503 = err?.response?.status === 503 || err?.message?.includes('503');
                 if (is503 && attempt < retries) {
-                    console.log(`⚠️ 503 error, retrying in ${delayMs}ms (attempt ${attempt}/${retries})...`);
                     await new Promise(r => setTimeout(r, delayMs));
                 } else {
                     throw err;
@@ -332,7 +321,6 @@ export class ShopifyService {
             columnValues
         );
 
-        console.log(`✅ Created order: ${newOrder.id} as ${orderName}`);
         return newOrder.id;
     }
 
@@ -389,11 +377,9 @@ export class ShopifyService {
         );
 
         if (product) {
-            console.log(`✅ Found existing product: "${product.name}" (id: ${product.id})`);
             return product;
         }
 
-        console.log(`📦 Product "${productName}" not found in Products board — creating...`);
         const productColumns = await MondayService.getBoardColumns(token, productsBoardId);
         const findCol = (title: string) =>
             productColumns.find((c: any) => (c.title || '').trim().toLowerCase() === title.toLowerCase());
@@ -421,7 +407,6 @@ export class ShopifyService {
         const newProduct = await MondayService.createItem(token, productsBoardId, productName, productColumnValues);
         const created = { id: newProduct.id, name: productName, sku };
         existingProducts.push(created);
-        console.log(`✅ Created product: "${productName}" (id: ${newProduct.id}) | Price: ${price} | Category: ${category} | Weight: ${weight}`);
         return created;
     }
 
@@ -436,7 +421,6 @@ export class ShopifyService {
 
         const dateValue = (orderDate || new Date().toISOString()).split('T')[0];
 
-        console.log(`📋 Creating ${lineItems.length} line item(s) from Shopify order | Date: ${dateValue}`);
 
         for (const item of lineItems) {
             const productName = item.title || item.name || 'Unknown Product';
@@ -446,7 +430,6 @@ export class ShopifyService {
             // Shopify line_item.grams is the per-unit weight in grams; store it in kg.
             const weight      = item.grams ? String(item.grams / 1000) : '';
 
-            console.log(`🔍 Processing line item: "${productName}" | SKU: ${sku} | Qty: ${quantity} | Price: ${price} | Weight: ${weight}kg`);
 
             // Category intentionally not populated (left for later) — passed as ''.
             const product = await this.findOrCreateProduct(token, productName, sku, existingProducts, boards.products, price, '', weight);
@@ -483,7 +466,6 @@ export class ShopifyService {
             if (!productCol) console.warn('⚠️ No "Products" board_relation column found on Order Line Items board — product link not set.');
 
             await MondayService.createItem(token, boards.lineItems, productName, columnValues);
-            console.log(`✅ Created line item: "${productName}" | SKU: ${sku} | Qty: ${quantity} | Date: ${dateValue} | COD: ${cod}`);
         }
     }
 

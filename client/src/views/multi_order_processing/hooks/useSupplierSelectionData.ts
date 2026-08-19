@@ -24,7 +24,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
     const [loading, setLoading] = useState(true);
 
     const fetchLineItems = async () => {
-        console.log("[useSupplierSelectionData] ── Fetching line items for orders:", selectedOrderIds);
         setLoading(true);
         try {
             // Paginated (cursor) fetch — supports line-item boards with >500 items.
@@ -39,7 +38,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                     ... on FormulaValue { display_value }
                 }
             `);
-            console.log("[useSupplierSelectionData] Total line items on board:", allItems.length);
 
             const filteredItems = allItems
                 .map((item: any) => {
@@ -60,10 +58,8 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                 })
                 .filter((item: any) => selectedOrderIds.includes(item.linkedOrderId));
 
-            console.log("[useSupplierSelectionData] Line items matching selected orders:", filteredItems.length);
 
             const uniqueProductIds = [...new Set(filteredItems.map((i: any) => i.productId).filter(Boolean))];
-            console.log("[useSupplierSelectionData] Unique product IDs:", uniqueProductIds);
 
             const categoryMap: Record<string, string> = {};
             if (uniqueProductIds.length > 0) {
@@ -80,7 +76,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                     const catCol = p.column_values.find((cv: any) => cv.id === PRODUCT_ALL_COLUMN_IDS_MAP.CATEGORY);
                     categoryMap[p.id] = catCol?.label?.trim() || catCol?.text?.trim() || "";
                 });
-                console.log("[useSupplierSelectionData] Category map built:", categoryMap);
             }
 
             const itemsWithCategory = filteredItems
@@ -91,9 +86,7 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                 });
 
             setLineItems(itemsWithCategory);
-            console.log("[useSupplierSelectionData] Line items set. Pre-fetching suppliers for products...");
             uniqueProductIds.forEach((pid: any) => fetchSuppliersForProduct(pid));
-            console.log("[useSupplierSelectionData] ── Done");
         } catch (e) {
             console.error("[useSupplierSelectionData] Error fetching line items:", e);
         } finally {
@@ -152,10 +145,8 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
 
     const fetchSuppliersForProduct = async (productId: string, forceRefresh = false) => {
         if (suppliersMap[productId] && !forceRefresh) {
-            console.log("[useSupplierSelectionData] Suppliers already cached for product:", productId);
             return;
         }
-        console.log("[useSupplierSelectionData] Fetching suppliers for product:", productId);
 
         try {
             // Paginated (cursor) fetch — supports supplier-product boards with >500 rows.
@@ -167,7 +158,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                     ... on MirrorValue { display_value }
                 }
             `);
-            console.log("[useSupplierSelectionData] Total supplier-product rows:", allSupplierProductItems.length);
 
             const productRelations = allSupplierProductItems
                 .map((item: any) => {
@@ -187,7 +177,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                 })
                 .filter((item: any) => item.linkedProductId === productId && item.supplierId);
 
-            console.log("[useSupplierSelectionData] Matching supplier relations for product", productId, "->", productRelations.length);
 
             if (productRelations.length === 0) {
                 console.warn("[useSupplierSelectionData] No suppliers found for product:", productId);
@@ -196,7 +185,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
             }
 
             const supplierIdsToQuery = Array.from(new Set(productRelations.map((r) => r.supplierId)));
-            console.log("[useSupplierSelectionData] Querying supplier board for IDs:", supplierIdsToQuery);
 
             const supplierBoardQuery = `query {
                 items(ids: [${supplierIdsToQuery.join(",")}]) {
@@ -209,7 +197,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
 
             const suppRes: any = await monday.api(supplierBoardQuery);
             const sourceSupplierItems = suppRes.data?.items || [];
-            console.log("[useSupplierSelectionData] Supplier board items fetched:", sourceSupplierItems.length);
 
             const sourceSuppliersMap: Record<string, any> = {};
             sourceSupplierItems.forEach((sItem: any) => {
@@ -267,8 +254,6 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
                 };
             });
 
-            console.log("[useSupplierSelectionData] Ranked suppliers for product", productId, ":",
-                sortedSuppliers.map((s: any) => `${s.label} (${s.tag}, score:${s.finalScore?.toFixed(2)}, qty:${s.availableQty})`));
 
             setSuppliersMap((prev) => ({ ...prev, [productId]: sortedSuppliers }));
         } catch (e: any) {

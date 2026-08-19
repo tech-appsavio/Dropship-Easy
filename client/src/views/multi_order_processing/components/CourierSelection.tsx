@@ -396,7 +396,6 @@ export const CourierSelection = ({
             const v = getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS);
             return v?.toLowerCase() === "yes" || v === "1" || v === "true";
         });
-        console.log(`[CourierSelection] fetchCouriersForKey key=${key} pickup=${pickupZip} delivery=${deliveryZip} weight=${totalWeight} cod=${isCOD ? 1 : 0} srShipmentId=${srShipmentId}`);
 
         setRowCourierMap((prev) => ({ ...prev, [key]: { options: [], loading: true, error: null, selected: null } }));
 
@@ -413,7 +412,6 @@ export const CourierSelection = ({
             if (srShipmentId) {
                 response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0, srShipmentId);
                 if (!(response?.data?.available_courier_companies?.length)) {
-                    console.log(`[CourierSelection] Shipment serviceability empty for ${srShipmentId}, falling back to pincode check`);
                     response = await ShipRocketService.checkCourierServiceability(pickupZip, deliveryZip, totalWeight, isCOD ? 1 : 0);
                 }
             } else {
@@ -450,7 +448,7 @@ export const CourierSelection = ({
         }
     };
 
-    // ── AI ranking (progressive enhancement) ────────────────────────────────
+    // ── AI ranking (progressive enhancement) ──────
     // Re-ranks each loaded row's courier options via monday AI, overlaying the AI order + tags.
     // Best-effort: rows the AI can't rank keep their existing (weighted) order, so nothing breaks.
     const [aiRanking, setAiRanking] = useState(false);
@@ -607,8 +605,8 @@ export const CourierSelection = ({
 
     return (
         <div>
-            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={4000} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
-                {toast.message}
+            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={4000} className="mop-toast">
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{toast.message}</span>
             </Toast>
 
             {/* Header */}

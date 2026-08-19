@@ -19,6 +19,6 @@ app.use(securityHeaders);          // security response headers on every route
 app.use(bodyParser.json());
 app.use(routes);
 
-app.listen(port, () => console.log(`Quickstart app listening at http://localhost:${port}`));
+app.listen(port);
 
 export default app;

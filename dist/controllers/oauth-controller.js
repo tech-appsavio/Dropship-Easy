@@ -78,7 +78,6 @@ class OAuthController {
                     return res.status(500).send('Could not resolve monday account');
                 }
                 yield (0, account_store_1.saveAccountToken)(accountId, accessToken);
-                console.log(`✅ Stored OAuth token for account ${accountId}`);
                 // Run the FULL workspace setup now — on install, right after "Add App" (which
                 // triggers this OAuth flow) — so boards, all columns, connect + mirror columns,
                 // and the saved mapping are ready before the user opens any view. provisionAccount
@@ -91,7 +90,6 @@ class OAuthController {
                 // board/column is created. Column creation is parallelized so this stays fast.
                 try {
                     yield (0, board_provisioning_1.provisionAccount)(accountId, accessToken);
-                    console.log(`✅ Install-time setup complete for account ${accountId}`);
                 }
                 catch (err) {
                     // Don't fail the install if setup hiccups — the view's "finish setup" path

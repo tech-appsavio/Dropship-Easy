@@ -1,6 +1,6 @@
-# Ship Easy — Security & Privacy Review Evidence (monday Marketplace)
+# Dropship Easy — Security & Privacy Review Evidence (monday Marketplace)
 
-**App:** Ship Easy (Multi-Order Processing for monday.com)
+**App:** Dropship Easy (Multi-Order Processing for monday.com)
 **Publisher:** Appsavio
 **Support email:** info@appsavio.com  ·  **Website:** https://www.appsavio.com
 **Backend/Frontend domain:** `live1-service-29650221-e76f8f79.us.monday.app` (monday-code hosting)

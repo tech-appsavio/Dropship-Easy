@@ -14,7 +14,6 @@ export const useOrderData = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      console.log("[useOrderData] ── Fetching orders from board:", ORDER_BOARD_ID);
       try {
           // Paginate through the whole board — a single items_page(limit: 100) call
           // silently truncated to the first 100 orders, so any confirmed order beyond
@@ -61,7 +60,6 @@ export const useOrderData = () => {
               cursor = page.cursor || null;
           }
 
-          console.log("[useOrderData] Total items fetched:", items.length);
 
           const mappedOrders = items.map((item: any) => {
               const orderObj: Order = { id: item.id, name: item.name };
@@ -72,17 +70,7 @@ export const useOrderData = () => {
               return orderObj;
           });
 
-          // Diagnostics: the exact raw status text(s) seen, so a hidden order can be
-          // traced to either a column-resolution problem (all blank) or a label
-          // mismatch (unexpected text) at a glance in the console.
-          const statusColId = ORDER_ALL_COLUMN_IDS_MAP.STATUS;
-          const distinctStatuses = Array.from(new Set(mappedOrders.map((o: Order) => JSON.stringify(o.STATUS))));
-          console.log(`[useOrderData] Status column id resolved to: "${statusColId}" (empty means the "Status" title didn't resolve — check console for an [initColumnIds] warning)`);
-          console.log("[useOrderData] Distinct raw STATUS values across fetched orders:", distinctStatuses);
-          const confirmed = mappedOrders.filter((o: Order) => String(o.STATUS || "").trim().toLowerCase() === "confirmed");
-          console.log("[useOrderData] Confirmed orders:", confirmed.length, "of", mappedOrders.length);
           setOrders(mappedOrders);
-          console.log("[useOrderData] ── Done");
       } catch (err: any) {
           console.error("[useOrderData] Fetch failed:", err.message);
           setError("Failed to fetch orders: " + err.message + err);

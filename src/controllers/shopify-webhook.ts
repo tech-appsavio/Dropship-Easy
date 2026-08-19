@@ -19,7 +19,6 @@ export async function handleShopifyWebhook(req: express.Request, res: express.Re
     const data = JSON.parse(req.body);
     
     // Handle webhook data here
-    console.log("Shopify webhook received:", data);
 
     res.status(200).send();
   } catch (error) {

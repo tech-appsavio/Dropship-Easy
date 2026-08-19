@@ -111,7 +111,7 @@ const ExpandableOrderRowBase: React.FC<{
                                     {lineItems.length > 0 ? lineItems.map((li) => (
                                         <tr key={li.id} style={{ background: COLOR.white }}>
                                             {ORDERLINEITEMS_COLUMN_LABELS_VISIBLE.map((label) => {
-                                                // Resolve the column id at render time — the id maps are
+                                                // Resolve the column id at render time the id maps are
                                                 // populated after module load (see initColumnIds), so a
                                                 // module-level snapshot would capture empty strings.
                                                 const liKey = ORDERLINEITEMS_LABEL_TO_KEY[label];

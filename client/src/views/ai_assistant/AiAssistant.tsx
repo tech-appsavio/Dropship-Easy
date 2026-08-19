@@ -225,7 +225,7 @@ const AiAssistant: React.FC = () => {
         <div style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", padding: 16, color: "var(--ds-text)", background: "var(--ds-bg)", minHeight: "100%", boxSizing: "border-box" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 18 }}>✨</span>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Ship Easy AI Assistant</h3>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Dropship Easy AI Assistant</h3>
             </div>
             <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--ds-text-faint)" }}>
                 Ask about this board's items and statuses. Powered by monday AI — no data leaves your account.

@@ -123,7 +123,6 @@ export class WhatsappWebhook {
         try {
             const token = pendingByItem.get(String(itemId));
             if (!token || !itemId || !boardId) {
-                console.log(`⚠️ No stored token for order ${itemId} — cannot update status`);
                 return;
             }
             await MondayService.changeColumnValue(

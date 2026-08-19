@@ -29,7 +29,6 @@ function handleShopifyWebhook(req, res) {
             }
             const data = JSON.parse(req.body);
             // Handle webhook data here
-            console.log("Shopify webhook received:", data);
             res.status(200).send();
         }
         catch (error) {

@@ -24,7 +24,6 @@ export class ShipmentCancelController {
 
         const event = req.body?.event;
         const statusLabel = event?.value?.label?.text || '';
-        console.log(`🛑 [cancel] webhook received — type="${event?.type}", label="${statusLabel}", item="${event?.pulseId}"`);
 
         // Acknowledge IMMEDIATELY. monday marks the automation "failed" if we return non-2xx
         // or respond slowly — but cancelling in Shiprocket takes several API calls. So we
@@ -33,7 +32,6 @@ export class ShipmentCancelController {
 
         if (event?.type !== 'update_column_value') return;
         if (statusLabel.toLowerCase() !== 'cancel') {
-            console.log('🛑 [cancel] status is not "Cancel" — nothing to do');
             return;
         }
 
@@ -48,7 +46,6 @@ export class ShipmentCancelController {
                 }
                 const awbCode = await ShipmentCancelController.fetchAWBCode(shortLivedToken, boardId, itemId);
                 if (!awbCode) throw new Error('AWB code not found on this shipment (Shiprocket AWB ID column is empty).');
-                console.log(`🛑 [cancel] AWB="${awbCode}" — authenticating with Shiprocket…`);
 
                 const shiprocketToken = await ShipmentCancelController.authenticateShiprocket(accountId);
                 // Only reaches here if Shiprocket CONFIRMED the cancellation (else it throws).
@@ -58,7 +55,6 @@ export class ShipmentCancelController {
                 // otherwise), so report a clear completed message — not Shiprocket's raw
                 // "in progress" text, which reads as if the operation hasn't finished.
                 await ShipmentCancelController.updateMondayStatus(shortLivedToken, boardId, itemId, `✅ Shipment(s) cancelled successfully.`);
-                console.log(`✅ [cancel] shipment ${itemId} cancelled (AWB ${awbCode}): ${confirmation}`);
             } catch (error: any) {
                 console.error(`❌ [cancel] failed for item ${itemId}:`, safeError(error));
                 logAccountError(accountId, {
@@ -175,7 +171,6 @@ export class ShipmentCancelController {
         const raw = await response.text();
         let data: any = {};
         try { data = JSON.parse(raw); } catch { data = { message: raw }; }
-        console.log(`🛑 [cancel] Shiprocket response for AWB ${awbCode} (HTTP ${response.status}):`, JSON.stringify(data));
 
         if (!response.ok) {
             throw new Error(`Shiprocket cancellation failed (HTTP ${response.status}): ${data?.message || raw || 'no response'}`);

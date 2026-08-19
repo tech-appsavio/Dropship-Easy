@@ -11,7 +11,6 @@ export class ShopifyController {
     static async orderCreateByToken(req: Request, res: Response) {
         const token = req.params.token;
         const shopifyOrder = req.body;
-        console.log('🛒 Shopify Order Webhook Received (token route)');
 
         // Validate the payload shape before doing anything with it.
         if (!shopifyOrder || typeof shopifyOrder !== 'object' || Array.isArray(shopifyOrder) || !shopifyOrder.id) {
@@ -29,7 +28,6 @@ export class ShopifyController {
 
         const shopDomain = (req.headers['x-shopify-shop-domain'] as string) || shopifyOrder.shop_domain || '';
         ShopifyService.processOrderCreate(shopifyOrder, { accountId, shopDomain })
-            .then((result) => console.log(`✅ Order processed:`, result))
             .catch((error) => {
                 console.error('❌ Shopify order processing error:', safeError(error));
                 logAccountError(accountId, {
@@ -46,7 +44,6 @@ export class ShopifyController {
     // Legacy shared endpoint kept for backward compatibility — routes by shop domain.
     // New installs use the token route above.
     static async orderCreate(req: Request, res: Response) {
-        console.log('🛒 Shopify Order Webhook Received (legacy domain route)');
         const shopifyOrder = req.body;
 
         // Validate the payload shape before doing anything with it.
@@ -55,12 +52,10 @@ export class ShopifyController {
         }
 
         const shopDomain = (req.headers['x-shopify-shop-domain'] as string) || shopifyOrder.shop_domain || '';
-        console.log(`🏪 Shopify shop domain from webhook: "${shopDomain}"`);
 
         res.status(200).json({ received: true, orderId: shopifyOrder.id });
 
         ShopifyService.processOrderCreate(shopifyOrder, { shopDomain })
-            .then((result) => console.log(`✅ Order processed:`, result))
             .catch((error) => console.error('❌ Shopify order processing error:', safeError(error)));
     }
 }

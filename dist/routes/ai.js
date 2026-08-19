@@ -43,7 +43,7 @@ router.post('/api/ai/assistant', authentication_1.default, (req, res) => __await
         // Board-aware system prompt: the assistant works on ANY of the app's boards, so it must
         // refer to the records by what they actually are (line items, customers, suppliers,
         // shipments, errors…) based on the board name — NOT always call them "orders".
-        const sys = `You are the Ship Easy assistant embedded in a monday.com board` +
+        const sys = `You are the Dropship Easy assistant embedded in a monday.com board` +
             (boardName ? ` named "${boardName}"` : '') + `. ` +
             `Refer to the board's records by what they actually are, inferred from the board name ` +
             `(e.g. "Order Line Items" → line items; "Customers" → customers; "Suppliers" → suppliers; ` +

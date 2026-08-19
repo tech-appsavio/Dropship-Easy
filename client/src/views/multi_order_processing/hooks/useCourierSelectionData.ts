@@ -10,7 +10,6 @@ import {
 import {
     ORDER_ITEM_BOARD_ID,
     ORDER_BOARD_ID,
-    SUPPLIER_BOARD_ID,
 } from "../boardIds";
 import { fetchAllBoardItems } from "../utils/fetchAllItems";
 
@@ -34,16 +33,13 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
 
     const fetchData = async () => {
         if (!selectedOrderIds || selectedOrderIds.length === 0) {
-            console.log("[useCourierSelectionData] No order IDs provided, skipping fetch.");
             setLineItems([]);
             setLoading(false);
             return;
         }
-        console.log("[useCourierSelectionData] ── Fetching courier data for orders:", selectedOrderIds);
         setLoading(true);
         try {
             // 1. Orders
-            console.log("[useCourierSelectionData] STEP 1: Fetching orders from board:", ORDER_BOARD_ID);
             const allOrders = await fetchAllBoardItems(ORDER_BOARD_ID, `
                 id name
                 column_values(ids: [
@@ -59,7 +55,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
             const filteredOrders = allOrders.filter(
                 (o: any) => selectedOrderIds.includes(o.id)
             );
-            console.log("[useCourierSelectionData] STEP 1: Matched orders:", filteredOrders.length);
 
             // Build parent-order → srShipmentId map
             const parentSRMap: Record<string, string> = {};
@@ -69,14 +64,12 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
             });
 
             // 2. Customer postal codes
-            console.log("[useCourierSelectionData] STEP 2: Extracting customer IDs...");
             const customerIds: string[] = [];
             filteredOrders.forEach((o: any) => {
                 const col = o.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.CUSTOMER);
                 const id = getLinkedItemId(col);
                 if (id && !customerIds.includes(id)) customerIds.push(id);
             });
-            console.log("[useCourierSelectionData] STEP 2: Customer IDs:", customerIds);
 
             const customerPostalMap: Record<string, string> = {};
             if (customerIds.length > 0) {
@@ -90,7 +83,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                     const postal = c.column_values?.[0]?.text || "";
                     if (postal) customerPostalMap[c.id] = postal;
                 });
-                console.log("[useCourierSelectionData] STEP 2: Customer postal map:", customerPostalMap);
             }
 
             const orderPostalMap: Record<string, string> = {};
@@ -101,7 +93,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
             });
 
             // 3. Line items
-            console.log("[useCourierSelectionData] STEP 3: Fetching line items from board:", ORDER_ITEM_BOARD_ID);
             const allLI = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
                 id name
                 column_values {
@@ -110,7 +101,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                     ... on MirrorValue { display_value }
                 }
             `);
-            console.log("[useCourierSelectionData] STEP 3: Total line items on board:", allLI.length);
 
             const enriched = allLI
                 .map((li: any) => {
@@ -132,12 +122,9 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                 })
                 .filter((li: any) => selectedOrderIds.includes(li.linkedOrderId));
 
-            console.log("[useCourierSelectionData] STEP 3: Line items for selected orders:", enriched.length);
 
             // 4. Supplier postal codes
-            console.log("[useCourierSelectionData] STEP 4: Fetching supplier postal codes...");
             const supplierIds = [...new Set(enriched.map((li: any) => li.supplierId).filter(Boolean))];
-            console.log("[useCourierSelectionData] STEP 4: Unique supplier IDs:", supplierIds);
             const supplierPostalMap: Record<string, string> = {};
             if (supplierIds.length > 0) {
                 const suppRes: any = await monday.api(`query {
@@ -156,7 +143,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                     }
                     if (postal) supplierPostalMap[s.id] = postal;
                 });
-                console.log("[useCourierSelectionData] STEP 4: Supplier postal map:", supplierPostalMap);
             }
 
             // 5. Fetch split-order Shiprocket shipment IDs
@@ -177,7 +163,6 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                 (splitRes.data?.items || []).forEach((so: any) => {
                     splitSRMap[so.id] = so.column_values.find((cv: any) => cv.id === ORDER_ALL_COLUMN_IDS_MAP.Shiprocket_Shipment_ID)?.text?.trim() || "";
                 });
-                console.log("[useCourierSelectionData] STEP 5: Split order SR shipment map:", splitSRMap);
             }
 
             const final = enriched
@@ -195,13 +180,10 @@ export const useCourierSelectionData = (selectedOrderIds: string[]) => {
                     return orderCmp !== 0 ? orderCmp : (a.name || "").localeCompare(b.name || "");
                 });
 
-            console.log("[useCourierSelectionData] STEP 4: Final enriched line items:", final.length);
             final.forEach((li: any) => {
-                console.log(`[useCourierSelectionData]   Item "${li.name}" supplier="${li.supplierName}" supplierPostal="${li.supplierPostalCode}" customerPostal="${li.customerPostalCode}" courier="${li.courierName}"`);
             });
 
             setLineItems(final);
-            console.log("[useCourierSelectionData] ── Done");
         } catch (e) {
             console.error("[useCourierSelectionData] Fetch error:", e);
         }

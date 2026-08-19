@@ -239,19 +239,3 @@ export const generateManifestPDF = async (manifestData: any) => {
 
     return doc.output("blob");
 };
-
-const fetchLogoAsBase64 = async (url: string): Promise<string | null> => {
-    try {
-        const response = await fetch(url, { credentials: "include" });
-        if (!response.ok) return null;
-        const blob = await response.blob();
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(blob);
-        });
-    } catch {
-        return null;
-    }
-};

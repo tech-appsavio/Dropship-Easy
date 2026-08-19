@@ -17,8 +17,8 @@ const OrderProcessingPathBase: React.FC<{ activeView: string }> = ({ activeView 
     const activeIndex = STAGES.findIndex((s) => s.key === activeView);
     const N = STAGES.length;
     // Nodes are centered in equal flex columns, so the first/last node centers sit `edge`%
-    // in from each side. The track must span between those centers — not the container
-    // edges — otherwise it overhangs past the first and last nodes.
+    // in from each side. The track must span between those centers not the container
+    // edges otherwise it overhangs past the first and last nodes.
     const edge = 100 / (2 * N);
     const span = 100 - 2 * edge;
     const fillW = N > 1 ? (activeIndex / (N - 1)) * span : 0;
@@ -49,7 +49,7 @@ const OrderProcessingPathBase: React.FC<{ activeView: string }> = ({ activeView 
             {/* Stepper */}
             <div style={{ background: COLOR.white, border: `1px solid ${COLOR.borderLight}`, borderRadius: RADIUS.lg, padding: "18px 22px 14px", boxShadow: SHADOW.sm }}>
                 <div style={{ position: "relative", display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    {/* Track (behind the nodes) — spans first node center → last node center */}
+                    {/* Track (behind the nodes) spans first node center → last node center */}
                     <div style={{ position: "absolute", left: `${edge}%`, width: `${span}%`, top: 15, height: 3, background: COLOR.borderLight, borderRadius: 2 }} />
                     <div style={{ position: "absolute", left: `${edge}%`, width: `${fillW}%`, top: 15, height: 3, background: COLOR.primary, borderRadius: 2, transition: "width .35s ease" }} />
 
@@ -90,5 +90,5 @@ const OrderProcessingPathBase: React.FC<{ activeView: string }> = ({ activeView 
     );
 };
 
-// Only re-renders when the active step changes — not on every selection change upstream.
+// Only re-renders when the active step changes not on every selection change upstream.
 export const OrderProcessingPath = React.memo(OrderProcessingPathBase);

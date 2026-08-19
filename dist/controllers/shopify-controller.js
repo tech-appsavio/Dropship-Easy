@@ -22,7 +22,6 @@ class ShopifyController {
         return __awaiter(this, void 0, void 0, function* () {
             const token = req.params.token;
             const shopifyOrder = req.body;
-            console.log('🛒 Shopify Order Webhook Received (token route)');
             // Validate the payload shape before doing anything with it.
             if (!shopifyOrder || typeof shopifyOrder !== 'object' || Array.isArray(shopifyOrder) || !shopifyOrder.id) {
                 return res.status(400).json({ error: 'Invalid Shopify order payload' });
@@ -36,7 +35,6 @@ class ShopifyController {
             res.status(200).json({ received: true, orderId: shopifyOrder.id });
             const shopDomain = req.headers['x-shopify-shop-domain'] || shopifyOrder.shop_domain || '';
             shopify_service_1.ShopifyService.processOrderCreate(shopifyOrder, { accountId, shopDomain })
-                .then((result) => console.log(`✅ Order processed:`, result))
                 .catch((error) => {
                 console.error('❌ Shopify order processing error:', (0, log_safe_1.safeError)(error));
                 (0, error_log_1.logAccountError)(accountId, {
@@ -54,17 +52,14 @@ class ShopifyController {
     // New installs use the token route above.
     static orderCreate(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log('🛒 Shopify Order Webhook Received (legacy domain route)');
             const shopifyOrder = req.body;
             // Validate the payload shape before doing anything with it.
             if (!shopifyOrder || typeof shopifyOrder !== 'object' || Array.isArray(shopifyOrder) || !shopifyOrder.id) {
                 return res.status(400).json({ error: 'Invalid Shopify order payload' });
             }
             const shopDomain = req.headers['x-shopify-shop-domain'] || shopifyOrder.shop_domain || '';
-            console.log(`🏪 Shopify shop domain from webhook: "${shopDomain}"`);
             res.status(200).json({ received: true, orderId: shopifyOrder.id });
             shopify_service_1.ShopifyService.processOrderCreate(shopifyOrder, { shopDomain })
-                .then((result) => console.log(`✅ Order processed:`, result))
                 .catch((error) => console.error('❌ Shopify order processing error:', (0, log_safe_1.safeError)(error)));
         });
     }

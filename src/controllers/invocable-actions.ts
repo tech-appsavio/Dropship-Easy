@@ -23,40 +23,23 @@ const maskPhone = (p: string): string => {
 export class InvocableActions {
     static async actionSendMessage(req: Request, res: Response) {
         try {
-            console.log('📨 actionSendMessage called');
             const { payload } = req.body;
-            console.log('📦 Action fields:', Object.keys(payload?.inputFields || {}).join(', '));
             
             const { shortLivedToken, accountId } = req.session;
             if (!shortLivedToken) {
-                console.log('❌ Missing shortLivedToken');
                 throw new Error('Missing shortLivedToken');
             }
-            console.log('✅ shortLivedToken present');
 
             const { 
                 itemId, boardId, toPhoneColumn, templateId, fromPhone, message,
                 messageColumn, wanidColumn, statusColumn
             } = payload.inputFields;
             
-            console.log('📋 Input fields:', {
-                itemId,
-                boardId,
-                toPhoneColumn,
-                templateId,
-                fromPhone,
-                message,
-                messageColumn,
-                wanidColumn,
-                statusColumn
-            });
 
             // Check if multiple items selected
             const itemIds = Array.isArray(itemId) ? itemId : [itemId];
-            console.log(`📊 Processing ${itemIds.length} item(s)`);
             
             if (itemIds.length > 1) {
-                console.log('🔄 Multiple items detected, processing in batches');
                 // Process in batches
                 InvocableActions.processBatchMessages(itemIds, payload, shortLivedToken, accountId, res);
                 return res.status(200).json({
@@ -65,10 +48,8 @@ export class InvocableActions {
                 });
             }
 
-            console.log('📤 Processing single message');
             // Single message - process immediately
             await InvocableActions.processSingleMessage(itemIds[0], payload, shortLivedToken, accountId);
-            console.log('✅ Message processed successfully');
             return res.status(200).json({ success: true });
 
         } catch (error: any) {
@@ -88,7 +69,6 @@ export class InvocableActions {
         setImmediate(async () => {
             for (let i = 0; i < itemIds.length; i += MESSAGE_BATCH_SIZE) {
                 const batch = itemIds.slice(i, i + MESSAGE_BATCH_SIZE);
-                console.log(`📤 Processing batch ${Math.floor(i / MESSAGE_BATCH_SIZE) + 1}: ${batch.length} messages`);
 
                 // Process batch in parallel
                 await Promise.all(
@@ -100,11 +80,9 @@ export class InvocableActions {
                 
                 // Delay before next batch (except for last batch)
                 if (i + MESSAGE_BATCH_SIZE < itemIds.length) {
-                    console.log(`⏳ Waiting ${BATCH_DELAY_MS}ms before next batch...`);
                     await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
                 }
             }
-            console.log(`✅ Completed processing ${itemIds.length} messages`);
         });
     }
 
@@ -114,7 +92,6 @@ export class InvocableActions {
         shortLivedToken: string,
         accountId?: string
     ) {
-        console.log(`🔹 processSingleMessage started for item: ${itemId}`);
         const {
             boardId, toPhoneColumn, templateId, fromPhone, message,
             messageColumn, wanidColumn, statusColumn
@@ -123,7 +100,6 @@ export class InvocableActions {
         // Deduplicate: ignore duplicate requests within 5 seconds
         const dedupKey = `${itemId}-${toPhoneColumn}-${Date.now() - (Date.now() % 5000)}`;
         if (recentRequests.has(dedupKey)) {
-            console.log(`⏭️ Skipping duplicate request: ${dedupKey}`);
             return;
         }
         recentRequests.add(dedupKey);
@@ -144,22 +120,17 @@ export class InvocableActions {
         // or an undefined id to Meta.
         const finalFromPhone = resolveField(fromPhone);
         
-        console.log(`🎯 Template: ${finalTemplateName}, Phone Column: ${finalPhoneColumn}`);
 
         if (!itemId || !finalPhoneColumn) {
-            console.log('❌ Missing itemId or toPhoneColumn');
             throw new Error('Missing itemId or toPhoneColumn');
         }
 
-        console.log(`📞 Fetching phone number from column ${finalPhoneColumn}...`);
         const rawValue = await MondayService.getColumnValue(shortLivedToken, itemId, finalPhoneColumn);
 
         if (!rawValue) {
-            console.log(`❌ No value found in column '${finalPhoneColumn}'`);
             throw new Error(`No value found in column '${finalPhoneColumn}' for item ${itemId}.`);
         }
         
-        console.log(`📱 Phone value received from column (masked)`);
 
         let phoneNumber = rawValue;
         try {
@@ -168,10 +139,8 @@ export class InvocableActions {
         } catch { /* not JSON, use as-is */ }
 
         const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-        console.log(`✅ Phone resolved (masked): ${maskPhone(cleanPhone)}`);
 
         if (cleanPhone.length < 10) {
-            console.log(`❌ Invalid phone number length: ${cleanPhone.length}`);
             throw new Error(`Invalid phone number: ${rawValue}`);
         }
 
@@ -185,7 +154,6 @@ export class InvocableActions {
         // missing text value"), so substitute a dash for any blank value.
         const safe = (v: string) => (v && v.trim() ? v.trim() : '-');
         const bodyParams: string[] = [safe(orderParams.orderName), safe(orderParams.totalPrice), safe(orderParams.products)];
-        console.log(`🧩 Template body params: ${JSON.stringify(bodyParams)} (lineItemsBoard=${lineItemsBoardId ?? 'env'})`);
 
         // Resolve the order's board columns + Status column up front, so the Status
         // column id can be embedded in the reply-button payloads below.
@@ -199,10 +167,9 @@ export class InvocableActions {
 
         // Fetch actual template content from WhatsApp API
         let actualMessageSent = message || '';
-        let templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
+        let templateLanguage = 'en'; // default; overwritten by the template's actual language below
         let templateButtons: { index: number; type: string; text: string }[] = [];
         try {
-            console.log(`📝 Fetching template content for: ${finalTemplateName}`);
             const template = await WhatsappService.getTemplateContent(finalTemplateName, accountId);
             templateLanguage = template.language;
             templateButtons = template.buttons || [];
@@ -211,9 +178,7 @@ export class InvocableActions {
                 (text, param, i) => text.replace(new RegExp(`\\{\\{${i + 1}\\}\\}`, 'g'), param),
                 template.text
             );
-            console.log(`✅ Template content fetched (language: ${templateLanguage})`);
         } catch (err: any) {
-            console.log(`⚠️ Could not fetch template: ${err.message}`);
         }
 
         // Encode the order identity + intended status into each quick-reply button's
@@ -230,7 +195,6 @@ export class InvocableActions {
                 return { index: b.index, payload: JSON.stringify({ ...orderRef, a: action }) };
             });
         if (replyButtons.length > 0) {
-            console.log(`🔘 Reply button payloads: ${replyButtons.map(b => b.payload).join(' | ')}`);
         }
 
         // Prepare logging values
@@ -238,18 +202,15 @@ export class InvocableActions {
         let wanid = '';
 
         try {
-            console.log(`📤 Sending WhatsApp message to ${maskPhone(cleanPhone)}...`);
             // Send WhatsApp message with body variables + order-tracking button payloads.
             const waResponse: any = await WhatsappService.sendTemplate(cleanPhone, finalTemplateName, templateLanguage, finalFromPhone, bodyParams, replyButtons, accountId);
 
             // Extract wamid from Meta response
             if (waResponse?.messages?.length > 0) {
                 wanid = waResponse.messages[0].id;
-                console.log(`✅ Message sent! WAMID: ${wanid}`);
             }
 
         } catch (waError: any) {
-            console.log(`❌ WhatsApp send error: ${waError.message}`);
             statusMsg = `Failed: ${waError.message}`.substring(0, 255);
             logAccountError(accountId, {
                 stage: 'WhatsApp', severity: 'Error',
@@ -264,10 +225,8 @@ export class InvocableActions {
 
         // Update Monday columns
         if (boardId) {
-            console.log(`📝 Updating Monday columns one by one...`);
 
             // boardColumns was already fetched above (reused here to avoid a second call).
-            console.log(`📋 Available columns:`, boardColumns.map((c: any) => `${c.title} (${c.id}, ${c.type})`).join(', '));
             const getColumnType = (colId: string) => {
                 const col = boardColumns.find((c: any) => c.id === colId);
                 return col?.type;
@@ -278,8 +237,6 @@ export class InvocableActions {
                 if (messageColumn && actualMessageSent) {
                     const colId = resolveField(messageColumn);
                     const colType = getColumnType(colId);
-                    console.log(`📝 Message column type: ${colType}`);
-                    console.log(`📝 Message to store: "${actualMessageSent}"`);
                     
                     // Format value based on column type
                     let value;
@@ -290,7 +247,6 @@ export class InvocableActions {
                     }
                     
                     await MondayService.changeColumnValue(shortLivedToken, boardId, itemId, colId, value);
-                    console.log(`✅ Message column updated`);
                 }
             } catch (err: any) {
                 console.error(`❌ Message column error:`, err.message);
@@ -300,7 +256,6 @@ export class InvocableActions {
                 if (wanidColumn && wanid) {
                     const colId = resolveField(wanidColumn);
                     const colType = getColumnType(colId);
-                    console.log(`📝 WANID column type: ${colType}; storing: "${wanid}"`);
                     // A text column takes a plain string; long_text needs {"text": "..."}.
                     // Previously this always used the {text} form, which is invalid for a
                     // text column, so the WANID silently never saved.
@@ -308,7 +263,6 @@ export class InvocableActions {
                         ? { [colId]: { text: wanid } }
                         : { [colId]: wanid };
                     await MondayService.changeMultipleColumnValues(shortLivedToken, boardId, itemId, columnValues);
-                    console.log(`✅ WANID column updated`);
                 }
             } catch (err: any) {
                 console.error(`❌ WANID column error:`, err.message);
@@ -318,13 +272,11 @@ export class InvocableActions {
                 if (statusColumn && statusMsg) {
                     const colId = resolveField(statusColumn);
                     const colType = getColumnType(colId);
-                    console.log(`📝 Status column type: ${colType}; Status to store: "${statusMsg}"`);
                     // long_text needs {"text": "..."}, plain text/other take the raw string.
                     const value = colType === 'long_text'
                         ? JSON.stringify({ text: statusMsg })
                         : JSON.stringify(statusMsg);
                     await MondayService.changeColumnValue(shortLivedToken, boardId, itemId, colId, value);
-                    console.log(`✅ Status column updated`);
                 }
             } catch (err: any) {
                 console.error(`❌ Status column error:`, err.message);
@@ -342,23 +294,18 @@ export class InvocableActions {
                 itemId: String(itemId),
                 statusColumnId: statusColumnId as string
             });
-            console.log(`📌 Stored webhook token mapping for order ${itemId} / phone ${maskPhone(cleanPhone)}`);
         }
         
-        console.log(`✅ processSingleMessage completed for item: ${itemId}`);
     }
 
     static async getColumnsDropdownOptions(req: Request, res: Response) {
         try {
-            console.log('🔍 Remote options request received');
             
             const boardId = req.body?.payload?.dependencyData?.boardId
                 || req.body?.payload?.boardId;
 
-            console.log('📋 Board ID:', boardId);
             
             if (!boardId) {
-                console.log('❌ No boardId found');
                 return res.status(200).json({ options: [] });
             }
 
@@ -366,19 +313,16 @@ export class InvocableActions {
             // (same dynamic approach the Multi-Order Processing views use) — no hardcoded token.
             const token = req.session?.shortLivedToken;
             if (!token) {
-                console.log('❌ No shortLivedToken on request (is the route authenticated?)');
                 return res.status(200).json({ options: [] });
             }
 
             const boardColumns = await MondayService.getBoardColumns(token, boardId);
-            console.log(`✅ Found ${boardColumns.length} columns`);
 
             const options = boardColumns.map((col: any) => ({
                 title: `${col.title} (${col.type})`,
                 value: col.id
             }));
 
-            console.log('📤 Returning options:', options.length);
             return res.status(200).json({ options });
 
         } catch (error: any) {
