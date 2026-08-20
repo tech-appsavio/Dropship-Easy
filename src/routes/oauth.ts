@@ -9,8 +9,8 @@ import { verifyMondayJwt, sessionFromDecoded } from '../utils/verify-monday-jwt'
 const router = Router();
 
 // Leniently resolve the monday account from the session token if one is present.
-// Never throws — returns undefined so callers can still fall back to env board IDs.
-// Tries both the Signing Secret and the OAuth Client Secret (see verify-monday-jwt.ts) —
+// Never throws  returns undefined so callers can still fall back to env board IDs.
+// Tries both the Signing Secret and the OAuth Client Secret (see verify-monday-jwt.ts) 
 // a monday.get("sessionToken") value (what the frontend actually sends here) is signed
 // with the Client Secret, not the Signing Secret.
 function accountFromRequest(req: any): string | undefined {
@@ -28,7 +28,7 @@ function accountFromRequest(req: any): string | undefined {
 router.get('/oauth/authorize', OAuthController.authorize);
 router.get('/oauth/callback', OAuthController.callback);
 
-// Manually (re)provision boards for the caller's account — useful for testing or if
+// Manually (re)provision boards for the caller's account  useful for testing or if
 // install-time provisioning was interrupted. Idempotent: no-op if already provisioned.
 router.post('/api/provision', authenticationMiddleware, async (req, res) => {
     try {
@@ -45,7 +45,7 @@ router.post('/api/provision', authenticationMiddleware, async (req, res) => {
 });
 
 // The board/column schema to provision. The FRONTEND creates the boards client-side via
-// monday.api() (runs in the user's monday session — no token/OAuth needed for setup), so
+// monday.api() (runs in the user's monday session  no token/OAuth needed for setup), so
 // it needs the schema. Kept here as the single source of truth (titles + relationships).
 router.get('/api/provision/schema', (_req, res) => {
     return res.json({ schema: PROVISIONING_SCHEMA });
@@ -62,7 +62,7 @@ router.get('/api/provision/status', authenticationMiddleware, async (req, res) =
         const stored = await getAccountConfig(String(accountId));
         if (stored?.boards && Object.keys(stored.boards).length) {
             // Return whatever's stored (even a partial/half-provisioned config) so the
-            // frontend can REUSE existing board IDs and only fill missing columns —
+            // frontend can REUSE existing board IDs and only fill missing columns 
             // completeness is judged client-side against the schema, not this flag.
             return res.json({ accountId: String(accountId), provisioned: !!stored.provisioned, boards: stored.boards, columns: stored.columns || {} });
         }
@@ -75,7 +75,7 @@ router.get('/api/provision/status', authenticationMiddleware, async (req, res) =
 
 // Persist the board/column mapping the frontend created via monday.api(), so the
 // session-less webhooks (Shopify order-create, etc.) and board-ids can resolve this
-// account's real boards. accountId comes from the verified session — never the body.
+// account's real boards. accountId comes from the verified session  never the body.
 router.post('/api/provision/save', authenticationMiddleware, async (req, res) => {
     try {
         const accountId = req.session?.accountId;
@@ -112,7 +112,7 @@ router.post('/api/provision/reset', authenticationMiddleware, async (req, res) =
     }
 });
 
-// "Finish setup" — the safety-net the Multi-Order view calls when it opens and the
+// "Finish setup"  the safety-net the Multi-Order view calls when it opens and the
 // account isn't provisioned yet (install-time setup still running, or a test/share-link
 // install where OAuth didn't run). The view itself NEVER creates boards; it just asks the
 // backend to run/await the SAME server-side provisioning (idempotent, self-locked, so it
@@ -127,13 +127,13 @@ router.post('/api/provision/ensure', authenticationMiddleware, async (req, res) 
             return res.json({ provisioned: true, boards: existing.boards, alreadyProvisioned: true });
         }
 
-        // Prefer the account's STORED OAuth token (created at install — the reliable API
+        // Prefer the account's STORED OAuth token (created at install  the reliable API
         // token); fall back to the session's short-lived token for test installs with no
         // OAuth yet.
         const token = (await resolveMondayToken(String(accountId))) || req.session?.shortLivedToken;
         if (!token) {
             return res.status(400).json({
-                error: 'no monday token available to finish setup — the account must complete the install (OAuth) first',
+                error: 'no monday token available to finish setup  the account must complete the install (OAuth) first',
             });
         }
 
@@ -147,7 +147,7 @@ router.post('/api/provision/ensure', authenticationMiddleware, async (req, res) 
 
 // Register which Shopify store belongs to the caller's monday account, so the
 // (session-less) Shopify order webhook can be routed to the right account token.
-// Authenticated via the monday session — accountId comes from the verified JWT.
+// Authenticated via the monday session  accountId comes from the verified JWT.
 router.post('/api/config/shopify-store', authenticationMiddleware, async (req, res) => {
     try {
         const accountId = req.session?.accountId;
@@ -162,7 +162,7 @@ router.post('/api/config/shopify-store', authenticationMiddleware, async (req, r
     }
 });
 
-// Returns the caller account's provisioned board IDs (set up during install — see
+// Returns the caller account's provisioned board IDs (set up during install  see
 // board-provisioning.ts). Multi-tenant: there is NO env board-ID fallback (those would point
 // at the developer's boards). An account with no config yet gets empty boards, which signals
 // the frontend to run provisioning.

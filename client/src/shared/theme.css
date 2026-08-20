@@ -98,3 +98,10 @@ body {
     max-width: 90% !important;
     z-index: 2147483000 !important; /* above the stepper and everything else */
 }
+
+/* Centered variant  used for the "please wait" processing toast so it sits in the
+   middle of the screen instead of at the top. */
+.mop-toast--center {
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+}

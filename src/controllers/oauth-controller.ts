@@ -31,7 +31,7 @@ export class OAuthController {
         return res.redirect(`${AUTHORIZE_URL}?${params.toString()}`);
     }
 
-    // Step 2: monday redirects back here with ?code=... — exchange it for an
+    // Step 2: monday redirects back here with ?code=... exchange it for an
     // account-scoped access token and persist it keyed by account id.
     static async callback(req: Request, res: Response) {
         try {
@@ -63,7 +63,7 @@ export class OAuthController {
                 return res.status(500).send('No access token returned');
             }
 
-            // The token response has no account id — resolve it from the API.
+            // The token response has no account id resolve it from the API.
             const client = new GraphQLClient('https://api.monday.com/v2', {
                 headers: { Authorization: accessToken }
             });
@@ -75,8 +75,8 @@ export class OAuthController {
 
             await saveAccountToken(accountId, accessToken);
 
-            // Run the FULL workspace setup now — on install, right after "Add App" (which
-            // triggers this OAuth flow) — so boards, all columns, connect + mirror columns,
+            // Run the FULL workspace setup now on install, right after "Add App" (which
+            // triggers this OAuth flow) so boards, all columns, connect + mirror columns,
             // and the saved mapping are ready before the user opens any view. provisionAccount
             // is idempotent (reuses existing boards on reinstall, recreates only what's
             // missing) and self-locks against concurrent runs.
@@ -88,7 +88,7 @@ export class OAuthController {
             try {
                 await provisionAccount(accountId, accessToken);
             } catch (err: any) {
-                // Don't fail the install if setup hiccups — the view's "finish setup" path
+                // Don't fail the install if setup hiccups the view's "finish setup" path
                 // will reconcile whatever is missing on first open.
                 console.error(`❌ Install-time setup failed for account ${accountId}:`, err.message);
             }
@@ -99,7 +99,7 @@ export class OAuthController {
 <style>body{font-family:Inter,-apple-system,'Segoe UI',sans-serif;background:#f6f7fb;color:#323338;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
 .box{text-align:center;background:#fff;border:1px solid #e6e8ef;border-radius:12px;padding:32px 40px;box-shadow:0 1px 6px rgba(29,41,57,.06)}
 .check{font-size:40px}</style></head>
-<body><div class="box"><div class="check">✅</div><h2>App installed</h2><p style="color:#676879">Setting up your workspace… You can return to monday — your boards will be ready in a moment.</p></div>
+<body><div class="box"><div class="check">✅</div><h2>App installed</h2><p style="color:#676879">Setting up your workspace… You can return to monday your boards will be ready in a moment.</p></div>
 <script>try{if(window.opener){window.opener.postMessage({type:'oauth-connected'},'*');setTimeout(function(){window.close();},1500);}else{/* install flow (main window): return the user to monday */setTimeout(function(){window.location.href='https://monday.com';},2000);}}catch(e){}</script>
 </body></html>`);
         } catch (err: any) {

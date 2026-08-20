@@ -19,7 +19,7 @@ export class ShopifyController {
 
         const accountId = token ? await getAccountByWebhookToken(token) : null;
         if (!accountId) {
-            console.warn('❌ [shopify] unknown/invalid webhook token — rejecting');
+            console.warn('[shopify] unknown/invalid webhook token rejecting');
             return res.status(404).json({ error: 'Unknown webhook token' });
         }
 
@@ -41,7 +41,7 @@ export class ShopifyController {
             });
     }
 
-    // Legacy shared endpoint kept for backward compatibility — routes by shop domain.
+    // Legacy shared endpoint kept for backward compatibility routes by shop domain.
     // New installs use the token route above.
     static async orderCreate(req: Request, res: Response) {
         const shopifyOrder = req.body;

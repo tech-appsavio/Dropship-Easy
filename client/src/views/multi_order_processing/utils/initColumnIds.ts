@@ -1,7 +1,5 @@
-// src/views/multi_order_processing/utils/initColumnIds.ts
-//
 // Fills the runtime column-ID maps in ../columns.ts by resolving each board's columns
-// BY TITLE (from the single source of truth, columns.ts) — no hardcoded IDs. Must run
+// BY TITLE (from the single source of truth, columns.ts) no hardcoded IDs. Must run
 // AFTER initBoardIds.ts (board IDs must be real before columns can be looked up), and
 // be awaited before any component reads a column map — see MultiOrderProcessing.tsx.
 //

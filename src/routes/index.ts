@@ -7,7 +7,7 @@ import oauthRoutes from './oauth';
 import settingsRoutes from './settings';
 import aiRoutes from './ai';
 
-// monday marketplace domain-association file — served at the app root so monday can
+// monday marketplace domain-association file served at the app root so monday can
 // verify the app ↔ domain link. Uses the configured OAuth Client ID, so it's always
 // correct and nothing sensitive is hardcoded. Publicly accessible by design.
 router.get('/monday-app-association.json', (_req, res) => {

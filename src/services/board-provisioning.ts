@@ -24,7 +24,7 @@ async function resolveApiVersion(token: string): Promise<string | undefined> {
     }
 }
 
-// Runs `worker` over `items` with at most `limit` in flight — parallel speed without
+// Runs `worker` over `items` with at most `limit` in flight  parallel speed without
 // hammering the monday API rate limit.
 async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
     let i = 0;
@@ -40,7 +40,7 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
 // ── Live board/column mapping ─────────────────────────────────────────────────
 // A snapshot of what actually exists in monday right now, keyed by our logical board
 // key. Everything downstream (connect/mirror creation) resolves IDs from here by
-// title — never hardcoded. `type` is kept so callers can tell a connect column from a
+// title  never hardcoded. `type` is kept so callers can tell a connect column from a
 // standard one when needed.
 interface ColumnInfo { id: string; type: string; }
 type BoardColumnMap = Record<string, { boardId: string; byTitle: Record<string, ColumnInfo> }>;
@@ -62,7 +62,7 @@ async function fetchBoardColumnMap(client: GraphQLClient, boards: Record<string,
         const b = boardsById[String(boardId)];
         const byTitle: Record<string, ColumnInfo> = {};
         for (const col of b?.columns ?? []) {
-            // First column wins on duplicate titles — provisioning avoids creating dupes.
+            // First column wins on duplicate titles  provisioning avoids creating dupes.
             if (!(col.title in byTitle)) byTitle[col.title] = { id: col.id, type: col.type };
         }
         map[key] = { boardId: String(boardId), byTitle };
@@ -129,7 +129,7 @@ async function createBoard(client: GraphQLClient, name: string, workspaceId?: st
 
 // Resolves (creating if needed) the "Dropship Easy" folder to hold all of the app's boards.
 // Idempotent: reuses the stored folder/workspace, then an existing folder found by name,
-// before creating a new one — so reinstalls never make duplicate folders. Returns empty
+// before creating a new one  so reinstalls never make duplicate folders. Returns empty
 // on any failure so provisioning falls back to creating boards without a folder.
 async function ensureDropshipEasyFolder(
     client: GraphQLClient,
@@ -148,7 +148,7 @@ async function ensureDropshipEasyFolder(
             }
         }
         // Fallback: the `workspaces` query does NOT return the built-in "Main workspace" on
-        // many accounts — so on a brand-new account (which has only the Main workspace) the
+        // many accounts  so on a brand-new account (which has only the Main workspace) the
         // list above comes back empty. Resolve the workspace from any existing board instead,
         // so the folder still lands in the right (main) workspace.
         if (!workspaceId) {
@@ -157,7 +157,7 @@ async function ensureDropshipEasyFolder(
             if (wid) workspaceId = String(wid);
         }
         if (!workspaceId) {
-            console.warn('⚠️ Could not resolve a workspace for the "Dropship Easy" folder — creating boards at the default location.');
+            console.warn('⚠️ Could not resolve a workspace for the "Dropship Easy" folder  creating boards at the default location.');
             return {};
         }
 
@@ -177,7 +177,7 @@ async function ensureDropshipEasyFolder(
         const folderId = createResp?.create_folder?.id;
         return { workspaceId, folderId: folderId ? String(folderId) : undefined };
     } catch (err: any) {
-        console.error('⚠️ Could not create/resolve the "Dropship Easy" folder — creating boards without it:', err.message);
+        console.error('Could not create/resolve the "Dropship Easy" folder  creating boards without it:', err.message);
         return {};
     }
 }
@@ -240,7 +240,7 @@ async function createMirrorColumn(
 // ── Orchestration ─────────────────────────────────────────────────────────────
 // Provisions (or repairs) every board, standard column, connect column and mirror
 // column for one account, persisting the resulting IDs. Fully idempotent: anything
-// that already exists (matched by title) is reused, so a re-run only fills gaps — safe
+// that already exists (matched by title) is reused, so a re-run only fills gaps  safe
 // to call on install AND as a repair for accounts provisioned before connect/mirror
 // support existed. Individual failures are logged and skipped so one can't abort the rest.
 //
@@ -288,7 +288,7 @@ async function provisionAccountImpl(accountId: string, token: string): Promise<A
         const live = await fetchExistingBoardIds(client, storedIds);
         for (const [key, id] of Object.entries({ ...config.boards })) {
             if (id && !live.has(String(id))) {
-                console.warn(`♻️ board "${key}" (${id}) no longer exists — will recreate`);
+                console.warn(`♻️ board "${key}" (${id}) no longer exists  will recreate`);
                 delete config.boards[key];
                 delete config.columns[key];
             }
@@ -315,7 +315,7 @@ async function provisionAccountImpl(accountId: string, token: string): Promise<A
         }
     }));
 
-    // Create every missing standard column across all boards with bounded concurrency —
+    // Create every missing standard column across all boards with bounded concurrency 
     // this is the bulk of the work, so parallelizing it keeps install-time setup fast.
     const colTasks: { board: BoardDef; boardId: string; col: typeof PROVISIONING_SCHEMA[number]['columns'][number] }[] = [];
     for (const board of PROVISIONING_SCHEMA) {
@@ -401,7 +401,7 @@ async function createColumnsForBoard<T extends { title: string }>(
     const entry = map[board.key] || (map[board.key] = { boardId, byTitle: {} });
 
     for (const def of defs) {
-        if (entry.byTitle[def.title]) continue; // already exists — idempotent
+        if (entry.byTitle[def.title]) continue; // already exists  idempotent
         try {
             const id = await create(def);
             if (id) {

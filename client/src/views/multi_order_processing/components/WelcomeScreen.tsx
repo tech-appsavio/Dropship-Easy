@@ -50,7 +50,7 @@ export function useWelcomeGate(): { seen: boolean | null; markSeen: () => void }
 
 const STEPS: { n: number; title: string; desc: string }[] = [
     { n: 1, title: "Order Selection", desc: "Pick the confirmed Shopify orders you want to process." },
-    { n: 2, title: "Supplier Selection", desc: "Assign a supplier to each item — multi-supplier orders split automatically." },
+    { n: 2, title: "Supplier Selection", desc: "Assign a supplier to each item  multi-supplier orders split automatically." },
     { n: 3, title: "Courier Selection", desc: "Check serviceability and choose the best courier per shipment." },
     { n: 4, title: "Create Shipment & Manifest", desc: "Assign AWBs, create shipments, and generate labels & supplier manifests." },
 ];
@@ -76,14 +76,14 @@ export const WelcomeScreen: React.FC<{ onGetStarted: () => void }> = ({ onGetSta
                     </h1>
                     <p style={{ margin: 0, fontSize: 14.5, color: COLOR.textMuted, lineHeight: 1.6, maxWidth: "58ch" }}>
                         Dropship Easy turns your Shopify orders into monday records and runs the whole dropshipping
-                        flow — supplier and courier selection, shipments, labels, and supplier manifests. Here's the
+                        flow  supplier and courier selection, shipments, labels, and supplier manifests. Here's the
                         four-step flow you'll use each time:
                     </p>
 
                     {/* Hero screenshot (same-origin asset from public/how-to-assets) */}
                     <img
                         src="/how-to-assets/01-order-selection.png"
-                        alt="Dropship Easy — the Bulk Order Processing view"
+                        alt="Dropship Easy  the Bulk Order Processing view"
                         loading="lazy"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         style={{ width: "100%", maxWidth: "100%", height: "auto", display: "block", marginTop: 20, border: `1px solid ${COLOR.borderLight}`, borderRadius: RADIUS.md, boxShadow: SHADOW.sm }}

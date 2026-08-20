@@ -16,9 +16,6 @@ const STAGES = [
 const OrderProcessingPathBase: React.FC<{ activeView: string }> = ({ activeView }) => {
     const activeIndex = STAGES.findIndex((s) => s.key === activeView);
     const N = STAGES.length;
-    // Nodes are centered in equal flex columns, so the first/last node centers sit `edge`%
-    // in from each side. The track must span between those centers not the container
-    // edges otherwise it overhangs past the first and last nodes.
     const edge = 100 / (2 * N);
     const span = 100 - 2 * edge;
     const fillW = N > 1 ? (activeIndex / (N - 1)) * span : 0;

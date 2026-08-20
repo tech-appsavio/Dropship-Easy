@@ -23,7 +23,7 @@ export interface LogErrorInput {
 }
 
 // Records an error to the account's Error Logs board via the backend (which resolves the
-// board/column IDs and writes the record). Fire-and-forget and fully guarded — logging an
+// board/column IDs and writes the record). Fire-and-forget and fully guarded logging an
 // error must never throw or block the flow that raised it.
 export async function logError(input: LogErrorInput): Promise<void> {
     try {

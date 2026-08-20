@@ -55,7 +55,7 @@ const SECTIONS: { title: string; icon: string; hint?: string; fields: FieldDef[]
     {
         title: "WhatsApp (Meta Cloud API)",
         icon: "💬",
-        hint: "From your Meta WhatsApp Business app — used to send order confirmations.",
+        hint: "From your Meta WhatsApp Business app  used to send order confirmations.",
         fields: [
             { key: "whatsappAccessToken", label: "Access Token", type: "password" },
             { key: "whatsappPhoneId", label: "Phone Number ID" },
@@ -152,7 +152,7 @@ const AccountSettings: React.FC = () => {
                 setToken(sessionToken);
                 const resp = await fetch("/api/settings", { headers: { Authorization: sessionToken } });
                 const json = await resp.json();
-                // Template language is fixed to "en" (read-only field), so always force it —
+                // Template language is fixed to "en" (read-only field), so always force it 
                 // this makes the disabled input show "en" and saves "en" regardless of any
                 // previously-stored value.
                 setSettings({ ...(json?.settings || {}), whatsappTemplateLanguage: FIXED_TEMPLATE_LANGUAGE });
@@ -185,7 +185,7 @@ const AccountSettings: React.FC = () => {
     const onConnect = () => {
         window.open("/oauth/authorize", "_blank", "width=640,height=760");
         // Poll until the token is stored (the popup lives on a different origin, so we
-        // can't read its result directly — we just watch our own status flip to connected).
+        // can't read its result directly  we just watch our own status flip to connected).
         setConnecting(true);
         let tries = 0;
         if (pollTimer.current) clearInterval(pollTimer.current);
@@ -209,7 +209,7 @@ const AccountSettings: React.FC = () => {
             await navigator.clipboard.writeText(text);
             setCopiedId(id);
             setTimeout(() => setCopiedId(""), 2000);
-        } catch { /* clipboard blocked — user can select manually */ }
+        } catch { /* clipboard blocked  user can select manually */ }
     };
 
     const urlRow = (url: string, id: string) => (
@@ -311,10 +311,10 @@ const AccountSettings: React.FC = () => {
                                 label="Connection"
                                 detail={
                                     status.oauthConnected
-                                        ? "Connected — order webhooks can write to your boards."
+                                        ? "Connected  order webhooks can write to your boards."
                                         : connecting
                                             ? "Waiting for you to approve in the popup…"
-                                            : "Not connected — required for Shopify / WhatsApp / Shiprocket webhooks."
+                                            : "Not connected  required for Shopify / WhatsApp / Shiprocket webhooks."
                                 }
                                 action={!status.oauthConnected && (
                                     <button
@@ -335,11 +335,11 @@ const AccountSettings: React.FC = () => {
                     <Card>
                         <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 3px", color: C.text }}>🔗 Webhook URLs</h2>
                         <p style={{ color: C.faint, fontSize: 12, margin: "0 0 16px", lineHeight: 1.5 }}>
-                            These URLs are unique to your account — events sent to them always route to <i>your</i> boards. No account ID is exposed, so they're safe to keep private.
+                            These URLs are unique to your account  events sent to them always route to <i>your</i> boards. No account ID is exposed, so they're safe to keep private.
                         </p>
 
                         <div style={{ marginBottom: 16 }}>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 3px" }}>Shopify — Order creation</p>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 3px" }}>Shopify  Order creation</p>
                             <p style={{ color: C.faint, fontSize: 12, margin: "0 0 8px" }}>
                                 Shopify → <b>Settings → Notifications → Webhooks</b> → <b>Order creation</b> (format JSON).
                             </p>
@@ -347,7 +347,7 @@ const AccountSettings: React.FC = () => {
                         </div>
 
                         <div>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 3px" }}>Shipments — Cancel automation</p>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: "0 0 3px" }}>Shipments  Cancel automation</p>
                             <p style={{ color: C.faint, fontSize: 12, margin: "0 0 8px" }}>
                                 Shipments board → <b>Integrate → Webhooks</b> → when <b>Cancel Shipment</b> changes, send a webhook to this URL.
                             </p>
@@ -362,7 +362,7 @@ const AccountSettings: React.FC = () => {
                             >
                                 {regenerating ? "Regenerating…" : "Regenerate URLs"}
                             </button>
-                            <span style={{ color: C.faint, fontSize: 12, marginLeft: 8 }}>only if a URL leaked — you'll then need to update both in Shopify and your board automation</span>
+                            <span style={{ color: C.faint, fontSize: 12, marginLeft: 8 }}>only if a URL leaked  you'll then need to update both in Shopify and your board automation</span>
                         </div>
                     </Card>
                 )}
@@ -376,7 +376,7 @@ const AccountSettings: React.FC = () => {
                         {section.hint && <p style={{ color: C.faint, fontSize: 12, margin: "0 0 14px" }}>{section.hint}</p>}
                         {section.title === "Shiprocket" && (
                             <div style={{ background: "var(--ds-warning-light)", border: `1px solid var(--ds-warning-bd)`, borderRadius: 8, padding: "10px 12px", margin: "0 0 14px", fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>
-                                ⚠️ These are your Shiprocket <b>API User</b> credentials — <b>not</b> your main Shiprocket account login. Create an API user in Shiprocket and paste its email &amp; password below.
+                                ⚠️ These are your Shiprocket <b>API User</b> credentials  <b>not</b> your main Shiprocket account login. Create an API user in Shiprocket and paste its email &amp; password below.
                                 <div style={{ marginTop: 8 }}>
                                     <button
                                         type="button"
@@ -451,7 +451,7 @@ const AccountSettings: React.FC = () => {
                             <li>Copy that API user's <b>email and password</b> and paste them into the fields here.</li>
                         </ol>
                         <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
-                            Tip: keep these API-user credentials safe — they let the app act on your Shiprocket account.
+                            Tip: keep these API-user credentials safe  they let the app act on your Shiprocket account.
                             If you set an “API Token”, you can paste that instead of the email/password.
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>

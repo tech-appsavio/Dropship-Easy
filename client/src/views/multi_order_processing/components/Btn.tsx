@@ -16,7 +16,6 @@ interface BtnProps {
 }
 
 // Shared button primitive: consistent styling with real hover, loading, and disabled
-// states (inline styles alone can't do hover). Drop-in for the screens' nav actions.
 export const Btn: React.FC<BtnProps> = ({ variant = "primary", onClick, disabled, loading, style, title, type = "button", children }) => {
     const [hover, setHover] = useState(false);
     const [active, setActive] = useState(false);

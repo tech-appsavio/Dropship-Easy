@@ -30,7 +30,7 @@ export default async function authenticationMiddleware(
       return;
     }
 
-    // monday issues TWO differently-signed JWT types that both land here — a
+    // monday issues TWO differently-signed JWT types that both land here a
     // traditional board/item-view context token (Signing Secret) and a token from
     // monday.get("sessionToken") used by Account Settings / the Shiprocket proxy
     // (OAuth Client Secret). verifyMondayJwt tries both so either type verifies
@@ -43,7 +43,7 @@ export default async function authenticationMiddleware(
     next();
   } catch (err: any) {
     // Don't leak internal JWT error detail (invalid signature, missing secret, etc.)
-    // to the client — log server-side, return a generic 401.
+    // to the client log server-side, return a generic 401.
     console.error("Authentication failed:", err?.message);
     return res.status(401).json({
       error: "authentication error, could not verify credentials",

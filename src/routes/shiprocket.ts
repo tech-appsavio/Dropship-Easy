@@ -9,10 +9,10 @@ const SHIPROCKET_LOGIN_URL = "https://apiv2.shiprocket.in/v1/external/auth/login
 const SR_BASE = "https://apiv2.shiprocket.in/v1/external";
 
 // Resolves the caller's monday account from a verified session token. Returns
-// undefined if the token is missing/invalid — callers must treat that as
+// undefined if the token is missing/invalid  callers must treat that as
 // unauthenticated (see requireMondayAuth below), not silently proceed. The frontend
 // sends a monday.get("sessionToken") value here, which is signed with the OAuth
-// Client Secret, not the Signing Secret — verifyMondayJwt tries both.
+// Client Secret, not the Signing Secret  verifyMondayJwt tries both.
 function resolveAccount(req: express.Request): string | undefined {
     try {
         const auth = (req.headers.authorization ?? (req.query?.token as string)) as string | undefined;
@@ -27,16 +27,16 @@ function resolveAccount(req: express.Request): string | undefined {
 // Requires a verified monday session token before any Shiprocket proxy call is
 // allowed through. Without this, these routes were callable by anyone with no
 // credentials at all, silently falling back to the server's own env Shiprocket
-// account — a real account-takeover-adjacent gap, not just a missing-feature.
+// account  a real account-takeover-adjacent gap, not just a missing-feature.
 // The frontend (client/src/services/shiprocketCourier.ts) always sends this token
 // via monday.get("sessionToken") when the app is opened inside monday.com, so this
-// does not change behavior for normal app usage — only for direct/unauthenticated
+// does not change behavior for normal app usage  only for direct/unauthenticated
 // calls to these URLs.
 function requireMondayAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
     const accountId = resolveAccount(req);
     if (!accountId) {
         return res.status(401).json({
-            error: "Missing or invalid monday session. Open this app from within monday.com — direct/unauthenticated requests to this endpoint are not allowed.",
+            error: "Missing or invalid monday session. Open this app from within monday.com direct/unauthenticated requests to this endpoint are not allowed.",
         });
     }
     (req as any).mondayAccountId = accountId;
@@ -44,7 +44,7 @@ function requireMondayAuth(req: express.Request, res: express.Response, next: ex
 }
 
 // Resolves a Shiprocket token STRICTLY from the account's saved credentials (Settings
-// screen). Multi-tenant: no env fallback — an unconfigured account gets a clear error
+// screen). Multi-tenant: no env fallback  an unconfigured account gets a clear error
 // instead of silently using the developer's Shiprocket account.
 async function getShiprocketToken(accountId?: string): Promise<string> {
     const settings = accountId ? await getAccountSettings(accountId) : null;
@@ -231,7 +231,7 @@ router.post("/api/shiprocket/shipment/cancel-awbs", requireMondayAuth, async (re
 // Primary: per-account token in the path identifies the account (secure, no spoofable
 // ?account= param). Set this URL on the Shipments board's cancel automation.
 router.post("/api/shiprocket/webhook/cancel_shipment/:token", webhookTokenAuthMiddleware, ShipmentCancelController.onStatusChange);
-// Legacy: account resolved from a ?account= query param — kept for backward compatibility.
+// Legacy: account resolved from a ?account= query param  kept for backward compatibility.
 router.post("/api/shiprocket/webhook/cancel_shipment", webhookAuthenticationMiddleware, ShipmentCancelController.onStatusChange);
 
 export default router;

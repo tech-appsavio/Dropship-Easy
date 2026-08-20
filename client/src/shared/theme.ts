@@ -22,15 +22,13 @@ function apply(theme: unknown) {
         // 1. Drive OUR CSS variables (theme.css) via data-theme on <html>.
         document.documentElement.setAttribute("data-theme", t);
         // 2. Drive the @vibe/core components (Dropdown, Button, menus, etc.) via the theme
-        //    class @vibe reads. Without this, vibe components stay LIGHT while our page is
-        //    dark — e.g. a white dropdown with our light label text = invisible values.
-        //    Apply to BOTH <html> and <body> so portaled menus (rendered under body) inherit.
+        //    class @vibe reads.
         [document.documentElement, document.body].forEach((el) => {
             if (!el) return;
             el.classList.remove(...VIBE_CLASSES);
             el.classList.add(`${t}-app-theme`);
         });
-    } catch { /* no DOM (SSR/tests) — ignore */ }
+    } catch { /* no DOM (SSR/tests) ignore */ }
 }
 
 let started = false;
@@ -43,5 +41,5 @@ export function initMondayTheme(): void {
         monday.get("context").then((res: any) => apply(res?.data?.theme)).catch(() => {});
         // Keep in sync when the user switches monday's theme while the app is open.
         monday.listen("context", (res: any) => apply(res?.data?.theme));
-    } catch { /* SDK unavailable (local dev outside monday) — stays on light */ }
+    } catch { /* SDK unavailable (local dev outside monday)stays on light */ }
 }

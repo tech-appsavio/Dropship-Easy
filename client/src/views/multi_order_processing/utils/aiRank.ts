@@ -21,7 +21,7 @@ const sig = (kind: string, items: AiRankItem[]) =>
     kind + "|" + items.map((i) => `${i.id}:${i.price ?? ""}:${i.rating ?? ""}:${i.availableQty ?? ""}`).sort().join(",");
 
 // Asks the backend (monday Models API) to rank supplier/courier options. Returns null on ANY
-// failure or when AI is unavailable — callers MUST fall back to their existing ordering, so
+// failure or when AI is unavailable callers MUST fall back to their existing ordering, so
 // this is a pure progressive enhancement that never breaks or blocks the flow.
 export async function aiRank(kind: "supplier" | "courier", items: AiRankItem[]): Promise<AiRankResult[] | null> {
     try {

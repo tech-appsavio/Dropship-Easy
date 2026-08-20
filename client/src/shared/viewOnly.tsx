@@ -34,7 +34,7 @@ function flagFrom(obj: any): boolean {
 }
 
 // Determines whether the current user is view-only (a viewer / read-only guest), who cannot
-// use the monday API. Per monday's guidance, `isViewOnly` is passed in the sessionToken — so
+// use the monday API. Per monday's guidance, `isViewOnly` is passed in the sessionToken so
 // we decode the token AND read the context user object, treating the user as view-only if
 // EITHER source says so (defense in depth). See:
 // https://developer.monday.com/apps/docs/choosing-your-app-type#user-permissions

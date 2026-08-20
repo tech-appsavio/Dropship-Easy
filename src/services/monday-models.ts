@@ -1,15 +1,11 @@
-// Thin client for monday's **Models API** — an OpenAI-compatible AI gateway hosted by monday.
-// The app authenticates with the ACCOUNT's own monday token, so usage draws down that
-// account's monday AI tokens (no third-party key, no separate billing). Requires the token to
-// carry the `ai:consume` scope and the account to be on a Pro/Enterprise plan with AI features.
-// Docs: https://developer.monday.com/api-reference/docs/getting-started-with-the-models-api
+
 const MODELS_API = 'https://api.monday.com/platform-ai-gateway/openai/v1/chat/completions';
 
 export type ModelAlias = 'monday-fast' | 'monday-standard' | 'monday-powerful';
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string; }
 export interface ModelsChatResult { ok: boolean; content: string; error?: string }
 
-// Best-effort chat completion. NEVER throws — returns { ok:false } on any failure so callers
+// Best-effort chat completion. NEVER throws  returns { ok:false } on any failure so callers
 // can fall back gracefully (existing behavior is preserved when AI is unavailable).
 export async function mondayModelsChat(
     token: string,
@@ -19,7 +15,7 @@ export async function mondayModelsChat(
     if (!token) return { ok: false, content: '', error: 'no token' };
     try {
         const body: any = {
-            model: opts?.model || 'monday-fast',        // Claude Haiku 4.5 — lowest AI-token cost
+            model: opts?.model || 'monday-fast',        // Claude Haiku 4.5  lowest AI-token cost
             messages,
             temperature: opts?.temperature ?? 0.2,
         };

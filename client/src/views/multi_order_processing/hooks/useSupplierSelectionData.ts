@@ -26,7 +26,7 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
     const fetchLineItems = async () => {
         setLoading(true);
         try {
-            // Paginated (cursor) fetch — supports line-item boards with >500 items.
+            // Paginated (cursor) fetch  supports line-item boards with >500 items.
             const allItems = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
                 id
                 name
@@ -149,7 +149,7 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
         }
 
         try {
-            // Paginated (cursor) fetch — supports supplier-product boards with >500 rows.
+            // Paginated (cursor) fetch  supports supplier-product boards with >500 rows.
             const allSupplierProductItems = await fetchAllBoardItems(SUPPLIER_PRODUCT_BOARD_ID, `
                 id
                 column_values {

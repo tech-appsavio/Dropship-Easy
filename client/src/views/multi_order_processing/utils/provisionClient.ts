@@ -2,7 +2,7 @@
 //
 // Client-side board/column provisioning. Runs INSIDE monday via monday.api(), which
 // executes against the monday API using the logged-in user's session and the app's
-// granted scopes (boards:write) — so a brand-new account provisions itself the first
+// granted scopes (boards:write). so a brand-new account provisions itself the first
 // time the app is opened, with NO OAuth, no stored token, and no per-account setup.
 //
 // The WHAT-to-create (board names, column titles, connect/mirror relationships) is the
@@ -17,7 +17,7 @@ import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
 
-// board_relation + mirror creation via create_column is version-gated — older API
+// board_relation + mirror creation via create_column is version-gated older API
 // versions reject them ("This column type is not supported yet in the API"). Instead of
 // pinning a fixed date, we resolve the account's CURRENT version at runtime (the newest
 // stable, which supports these), cached for the session.
@@ -255,7 +255,7 @@ export async function provisionViaClient(
 
     // ── Phase 0: reconcile the saved config with what actually exists ──────────
     // 1) Drop any stored board ID that no longer exists (user deleted the board) so it
-    //    gets recreated — otherwise writes fail with InvalidBoardIdException.
+    //    gets recreated otherwise writes fail with InvalidBoardIdException.
     // 2) Reuse any board that already exists BY NAME (survives config loss on uninstall/
     //    reinstall), so a board we can see is never duplicated.
     // The result: exactly the MISSING boards get created; everything else is reused.
@@ -280,7 +280,7 @@ export async function provisionViaClient(
 
     // ── Phase 1a: create only the still-missing boards ────────────────────────
     for (const board of schema) {
-        if (boards[board.key]) continue; // reused above — never duplicate
+        if (boards[board.key]) continue; // reused above never duplicate
         onProgress(`Creating board "${board.name}"…`);
         const boardId = await createBoard(board.name);
         if (!boardId) throw new Error(`Failed to create board "${board.name}"`);

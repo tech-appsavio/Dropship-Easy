@@ -87,7 +87,7 @@ router.post('/api/settings/webhook-url/regenerate', authenticationMiddleware, as
 });
 
 // The shop→account mapping is maintained automatically when the Shopify Store Domain is
-// saved via POST /api/settings (see below), and the API token comes from OAuth — so the
+// saved via POST /api/settings (see below), and the API token comes from OAuth  so the
 // old manual "bootstrap-shop" endpoint (which took a pasted monday API token) is gone.
 
 // Load the caller account's saved settings (for populating the form).

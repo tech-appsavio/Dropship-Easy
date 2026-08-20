@@ -27,11 +27,11 @@ export class ShopifyService {
             const accountId = opts?.accountId || (shopDomain ? await getAccountByShop(shopDomain) : null);
             const MONDAY_API_TOKEN = await resolveMondayToken(accountId);
             if (!MONDAY_API_TOKEN) {
-                throw new Error(`No monday token available for account "${accountId ?? 'unknown'}" (shop "${shopDomain ?? 'unknown'}") — this account must complete OAuth (Connect) in Account Settings.`);
+                throw new Error(`No monday token available for account "${accountId ?? 'unknown'}" (shop "${shopDomain ?? 'unknown'}")  this account must complete OAuth (Connect) in Account Settings.`);
             }
 
             // Verify the token is still valid. It gets REVOKED when the app is uninstalled,
-            // yet survives in storage across reinstall — so a stale token would otherwise
+            // yet survives in storage across reinstall  so a stale token would otherwise
             // fail deep inside create_item with a confusing NOT_AUTHENTICATED. Clear it and
             // prompt reconnection instead.
             if (accountId && !(await MondayService.isTokenValid(MONDAY_API_TOKEN))) {
@@ -39,13 +39,13 @@ export class ShopifyService {
                 throw new Error(`monday OAuth token for account "${accountId}" is invalid/expired (the app was likely uninstalled & reinstalled). Reconnect via Account Settings → Connect, then retry.`);
             }
 
-            // Resolve this account's provisioned board IDs STRICTLY from its own config —
+            // Resolve this account's provisioned board IDs STRICTLY from its own config 
             // no hardcoded dev-board fallback (multi-tenant isolation). If the account isn't
             // provisioned yet, provision now rather than writing to some default board.
             let config = accountId ? await getAccountConfig(accountId) : null;
             const boardsMissing = (c: any) => !c?.boards?.customers || !c?.boards?.orders || !c?.boards?.lineItems || !c?.boards?.products;
             if (accountId && boardsMissing(config)) {
-                console.warn(`🩹 [shopify] account "${accountId}" not fully provisioned — provisioning now`);
+                console.warn(`🩹 [shopify] account "${accountId}" not fully provisioned  provisioning now`);
                 config = await provisionAccount(String(accountId), MONDAY_API_TOKEN);
             }
             const boards: Boards = {
@@ -62,10 +62,10 @@ export class ShopifyService {
             // (board deleted after provisioning) would otherwise fail deep inside with a
             // confusing InvalidBoardIdException. If any is missing AND we have an account,
             // self-heal by re-provisioning server-side (prunes dead IDs, reuses existing
-            // boards by name, recreates the rest), then re-resolve — no manual step needed.
+            // boards by name, recreates the rest), then re-resolve  no manual step needed.
             let missingBoards = await MondayService.findMissingBoards(MONDAY_API_TOKEN, Object.values(boards));
             if (missingBoards.length && accountId) {
-                console.warn(`🩹 [shopify] boards missing for account "${accountId}": [${missingBoards.join(', ')}] — re-provisioning to repair…`);
+                console.warn(`shopify boards missing for account "${accountId}": [${missingBoards.join(', ')}]  re-provisioning to repair…`);
                 const repaired = await provisionAccount(String(accountId), MONDAY_API_TOKEN);
                 boards.customers = repaired.boards?.customers || boards.customers;
                 boards.orders    = repaired.boards?.orders    || boards.orders;
@@ -83,7 +83,7 @@ export class ShopifyService {
             // Step 1: Parse Shopify data
             const orderData = this.parseShopifyOrder(shopifyOrder);
 
-            // Step 2: Dedup check — skip if this Shopify order ID already exists in Monday
+            // Step 2: Dedup check  skip if this Shopify order ID already exists in Monday
             const ordersColumns = await MondayService.getBoardColumns(MONDAY_API_TOKEN, boards.orders);
             const colMap = this.buildColumnMap(ordersColumns);
             const orderIdColId = colMap['Shopify Order ID'] || colMap['Order ID'] || colMap['OrderId'];
@@ -95,7 +95,7 @@ export class ShopifyService {
                     return { success: true, customerId: 'existing', orderId: existing.id, duplicate: true };
                 }
             } else {
-                console.warn(`⚠️ No "Shopify Order ID" column on the Orders board — dedup disabled, duplicates possible.`);
+                console.warn(`No "Shopify Order ID" column on the Orders board  dedup disabled, duplicates possible.`);
             }
 
             // Step 3: Find or create customer
@@ -134,7 +134,7 @@ export class ShopifyService {
             phone: rawPhone,
             // "Created Date" = when this record enters the system (the ORDER's date), matching
             // Orders and Line Items. Do NOT use the customer's Shopify signup date
-            // (data.customer.created_at) — that can be months/years old and misrepresents when
+            // (data.customer.created_at)  that can be months/years old and misrepresents when
             // the customer record was created here.
             createdAt: data.created_at || new Date().toISOString(),
             defaultAddress: {
@@ -193,7 +193,7 @@ export class ShopifyService {
         // column can't be found, dedup can't work and duplicate customers get created.
         const externalIdCol = colMap['External ID'] || colMap['ExternalId'];
         if (!externalIdCol) {
-            console.warn('⚠️ No "External ID" column on the Customers board — customer dedup disabled, duplicates possible.');
+            console.warn('No "External ID" column on the Customers board  customer dedup disabled, duplicates possible.');
         }
 
         // Find existing customer by External ID (only when we have both the column and a value)
@@ -228,14 +228,14 @@ export class ShopifyService {
         if (colMap['Created Date']) columnValues[colMap['Created Date']] = { date: customer.createdAt.split('T')[0] };
         if (colMap['Phone'] && customer.phone) {
             const digitsOnly = customer.phone.replace(/\D/g, '');
-            // Indian mobile numbers are always 10 digits. Anything beyond that is noise —
+            // Indian mobile numbers are always 10 digits. Anything beyond that is noise 
             // a leading trunk "0" (e.g. "09876543210"), the country code "91", or both
-            // (e.g. "+91 09876543210") — so always keep just the last 10 digits rather
+            // (e.g. "+91 09876543210")  so always keep just the last 10 digits rather
             // than only stripping when longer than 10 (which missed the plain 10-digit
             // "0XXXXXXXXX" case and left a stray leading 0 in the stored number).
             const phoneNumber = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
             // countryShortName is how monday's phone column represents the country code
-            // (renders as +91 in the UI) — the stored digits themselves must NOT include it.
+            // (renders as +91 in the UI)  the stored digits themselves must NOT include it.
             const countryShortName = 'IN';
             if (phoneNumber.length === 10) {
                 columnValues[colMap['Phone']] = { phone: phoneNumber, countryShortName };
@@ -301,7 +301,7 @@ export class ShopifyService {
         const customerExtIdCol = colMap['Customer External ID'] || colMap['External ID'];
         if (customerExtIdCol) columnValues[customerExtIdCol] = order.customerShopifyId;
         // Populate the real billing/shipping addresses from the Shopify order.
-        // Shopify may omit the shipping address (e.g. digital/pickup orders) — fall back to billing.
+        // Shopify may omit the shipping address (e.g. digital/pickup orders)  fall back to billing.
         const shippingAddress = order.shippingAddress || order.billingAddress;
         if (colMap['Billing Address']) columnValues[colMap['Billing Address']] = order.billingAddress;
         if (colMap['Shipping Address']) columnValues[colMap['Shipping Address']] = shippingAddress;
@@ -395,7 +395,7 @@ export class ShopifyService {
         // variant as a fallback in case a differently-provisioned board uses it.
         const priceCol = findCol('Selling Price(Per Unit)') || findCol('Selling Price (Per Unit)');
         if (priceCol && price) productColumnValues[priceCol.id] = price;
-        else if (!priceCol) console.warn('⚠️ No "Selling Price(Per Unit)" column found on the Products board — price not set.');
+        else if (!priceCol) console.warn('No "Selling Price(Per Unit)" column found on the Products board  price not set.');
 
         const categoryCol = findCol('Category');
         if (categoryCol && category) productColumnValues[categoryCol.id] = this.formatColumnValue(categoryCol.type, category);
@@ -431,14 +431,14 @@ export class ShopifyService {
             const weight      = item.grams ? String(item.grams / 1000) : '';
 
 
-            // Category intentionally not populated (left for later) — passed as ''.
+            // Category intentionally not populated (left for later)  passed as ''.
             const product = await this.findOrCreateProduct(token, productName, sku, existingProducts, boards.products, price, '', weight);
 
             // Connect-column titles are the PLURAL of their target board (e.g. "Orders",
-            // "Products") — accept the old singular titles too for boards that haven't
+            // "Products")  accept the old singular titles too for boards that haven't
             // been renamed yet. Must also be an actual board_relation column: a same-titled
             // mirror/lookup (e.g. "Customers" on this board mirrors the customer through
-            // the Order connection — it's intentionally read-only, not a direct connect)
+            // the Order connection  it's intentionally read-only, not a direct connect)
             // can't be written via the API at all, and sending item_ids to one aborts the
             // whole create_item call, so it must be filtered out here.
             const findConnectCol = (...titles: string[]): string | undefined => {
@@ -450,7 +450,7 @@ export class ShopifyService {
             };
             const orderCol = findConnectCol('Orders', 'Order');
             const productCol = findConnectCol('Products', 'Product');
-            // No direct Customer connect on this board — customer is shown via the
+            // No direct Customer connect on this board  customer is shown via the
             // "Customers" mirror through Order, so it's read-only and never written here.
 
             const columnValues: any = {};
@@ -462,8 +462,8 @@ export class ShopifyService {
             if (colMap['Created Date']) columnValues[colMap['Created Date']] = { date: dateValue };
             if (colMap['COD (1/0)'] !== undefined) columnValues[colMap['COD (1/0)']] = cod;
 
-            if (!orderCol) console.warn('⚠️ No "Orders" board_relation column found on Order Line Items board — order link not set.');
-            if (!productCol) console.warn('⚠️ No "Products" board_relation column found on Order Line Items board — product link not set.');
+            if (!orderCol) console.warn('No "Orders" board_relation column found on Order Line Items board  order link not set.');
+            if (!productCol) console.warn('No "Products" board_relation column found on Order Line Items board  product link not set.');
 
             await MondayService.createItem(token, boards.lineItems, productName, columnValues);
         }

@@ -324,7 +324,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         ).size;
     }, [selectedLineItemIds, filteredLineItems]);
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Helpers fun ─────────
     const formatDateTime = (date: Date): string => {
         const day = date.getDate();
         const month = date.toLocaleString("en-US", { month: "long" });
@@ -335,7 +335,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         return `${day} ${month} ${year} ${hours % 12 || 12}:${minutes} ${ampm}`;
     };
 
-    // ── Phase 1: Assign AWB only (called concurrently per group) ──────────────
+    // ── Phase 1: Assign AWB only (called concurrently per group) ──────────
     const assignAwbForGroup = async (srShipmentId: string, courierId: string, orderName: string) => {
         if (!srShipmentId) throw new Error(`Shiprocket Shipment ID missing for "${orderName}"`);
 
@@ -399,7 +399,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         throw new Error(primary.error);
     };
 
-    // ── Phase 2: Post-AWB steps per group (Steps 2-8) ───────────────────────
+    // ── Phase 2: Post-AWB steps per group (Steps 2-8) ────────────
     const runPostAwbSteps = async (group: { awbCode: string; srShipmentId: string; courierId: string; courierName: string; orderName: string; splitOrderName?: string; supplierData: any; supplierName: string; splitOrderId: string; monitorId: string; items: any[]; allSiblingIds: string[] }) => {
         const { awbCode, srShipmentId, courierId, courierName, orderName, splitOrderName, supplierData, supplierName, splitOrderId, monitorId, items, allSiblingIds } = group;
         // Use the split order's own name if this group is a split; otherwise the main order name.
@@ -444,8 +444,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         if (SHIPMENTS_ALL_COLUMN_IDS_MAP.CANCEL_SHIPMENT) {
             shipCV[SHIPMENTS_ALL_COLUMN_IDS_MAP.CANCEL_SHIPMENT] = { label: "Active" };
         }
-        // Populate the "Created Date" date column (resolved by title, not hardcoded ID,
-        // since the Shipments board previously had no real date-typed column captured).
+        // Populate the "Created Date" date column
         const shipCreatedDateColId = await resolveColumnIdByTitle(SHIPMENTS_BOARD_ID, "Created Date");
         if (shipCreatedDateColId) shipCV[shipCreatedDateColId] = { date: now.toISOString().slice(0, 10) };
 
@@ -497,7 +496,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         }
     };
 
-    // ── Phase 3: Manifest generation for given item IDs ──────────────────────
+    // ── Phase 3: Manifest generation for given item IDs ─────
     const runManifestPhase = async (
         itemIds: string[],
         awbOverrides: Record<string, string> = {},
@@ -817,7 +816,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
     // ── Phase 2 + 3: Run post-AWB steps then manifest for success groups ─────
     const runPhase2AndManifest = async (successGroups: NonNullable<typeof awbFailModal>["successGroups"]) => {
         setIsProcessing(true);
-        showToast("⏳ Please wait while shipments, manifests, and shipping labels are being generated…", "dark");
+        showToast("⏳ Please wait while shipments, manifests, and shipping labels are being generated…", "normal", true);
         const collectedErrors: { group: string; step: string; error: string; splitOrderItemId?: string }[] = [];
         const phase2SuccessGroups: typeof successGroups = [];
         try {
@@ -1068,7 +1067,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         }
     };
 
-    // ── Reassign courier helpers ────────────────────────────────────────────
+    // ── Reassign courier helpers ───────────────────
     const fetchReassignCouriers = async (fg: FailedGroup): Promise<ReassignRowState> => {
         const first = fg.items[0];
         const pickupZip = first?.supplierPostalCode || "";
@@ -1206,7 +1205,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         }
     };
 
-    // ── Modal handlers ───────────────────────────────────────────────────────
+    // ── Modal handlers ──────────────
     const handleAwbFailYes = async () => {
         const groups = awbFailModal!.successGroups;
         setAwbFailModal(null);
@@ -1248,7 +1247,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             {isProcessing && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.55)", zIndex: 9000, cursor: "wait" }} aria-busy="true" />
             )}
-            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={15000} className="mop-toast">
+            <Toast open={toast.open} type={toast.type} onClose={hideToast} autoHideDuration={15000} className={`mop-toast${toast.center ? " mop-toast--center" : ""}`}>
                 <span style={{ fontSize: 14.5, fontWeight: 600 }}>{toast.message}</span>
             </Toast>
 

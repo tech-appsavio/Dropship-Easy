@@ -3,14 +3,14 @@
 // Naming convention for ALL titles: Title Case, words separated by spaces, common
 // acronyms uppercase (ID, SKU, COD, AWB). No snake_case / camelCase. Connect (board
 // relation) columns are named as the PLURAL of the board they point to (e.g.
-// "Suppliers" connects to the Suppliers board) — this makes the direction obvious.
+// "Suppliers" connects to the Suppliers board)  this makes the direction obvious.
 //
 // monday's API can now create ALL required column types, so the app provisions the
 // full schema automatically (see board-provisioning.ts):
-//   • `columns`        — standard columns (text/status/date/numbers/...), created first.
-//   • `connectColumns` — board_relation columns, created after all boards exist so the
+//   • `columns`         standard columns (text/status/date/numbers/...), created first.
+//   • `connectColumns`  board_relation columns, created after all boards exist so the
 //                        target board IDs are known.
-//   • `mirrorColumns`  — mirror columns, created last (a mirror pulls a source column
+//   • `mirrorColumns`   mirror columns, created last (a mirror pulls a source column
 //                        THROUGH an existing connect column, so both must already exist).
 // Everything resolves by title at runtime, so IDs never need to be hardcoded. The
 // board/column titles here are the single source of truth (mirrored in SETUP_GUIDE.md
@@ -37,7 +37,7 @@ export interface ConnectColumnDef {
 
 // A Mirror column: shows a source column from a connected board, THROUGH an existing
 // connect column on this board. All three references resolve by title from the mapping
-// built after boards + connect columns exist — nothing is hardcoded.
+// built after boards + connect columns exist  nothing is hardcoded.
 export interface MirrorColumnDef {
     title: string;        // exact column title created on this board
     throughConnect: string; // title of the connect column ON THIS BOARD to mirror through

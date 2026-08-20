@@ -2,11 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
-
-// ── Minimal, SAFE markdown renderer ──────────────────────────────────────────
-// Renders the assistant's markdown (headings, bold/italic, inline code, bullet lists,
-// paragraphs) as React elements — NO dangerouslySetInnerHTML, so there is no HTML-injection
-// surface. This is why the raw "**" / "##" no longer show up as literal characters.
 function renderInline(text: string, kp: string): React.ReactNode[] {
     const out: React.ReactNode[] = [];
     const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g).filter((p) => p !== "");
@@ -133,7 +128,7 @@ function pickSuggestions(boardName: string): string[] {
 }
 
 // Board-header AI assistant. Answers questions about the CURRENT board using monday's Models
-// API (via our backend). It sends a NON-PII summary (item counts + status breakdowns — never
+// API (via our backend). It sends a NON-PII summary (item counts + status breakdowns never
 // customer names/addresses) plus the board NAME so answers use the right terminology.
 const AiAssistant: React.FC = () => {
     const [prompt, setPrompt] = useState("");
@@ -228,7 +223,7 @@ const AiAssistant: React.FC = () => {
                 <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Dropship Easy AI Assistant</h3>
             </div>
             <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--ds-text-faint)" }}>
-                Ask about this board's items and statuses. Powered by monday AI — no data leaves your account.
+                Ask about this board's items and statuses. Powered by monday AI no data leaves your account.
             </p>
 
             <textarea

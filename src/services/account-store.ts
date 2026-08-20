@@ -3,8 +3,8 @@ import crypto from 'crypto';
 
 // Per-account persistence for OAuth tokens and external-service → account mappings.
 // Backed by monday-code SecureStorage (app-global, encrypted). All calls degrade
-// gracefully (return null / no-op) when SecureStorage is unavailable — e.g. local dev
-// without the monday-code environment — so nothing crashes during the transition.
+// gracefully (return null / no-op) when SecureStorage is unavailable  e.g. local dev
+// without the monday-code environment  so nothing crashes during the transition.
 
 const KEY_TOKEN    = (accountId: string) => `monday_token:${accountId}`;
 const KEY_SHOP     = (shopDomain: string) => `shop_account:${shopDomain.toLowerCase()}`;
@@ -77,7 +77,7 @@ export async function getAccountToken(accountId: string): Promise<string | null>
     }
 }
 
-// Removes a stored OAuth token — e.g. after monday rejects it (revoked on app uninstall),
+// Removes a stored OAuth token  e.g. after monday rejects it (revoked on app uninstall),
 // so the account shows as disconnected and the user is prompted to reconnect.
 export async function deleteAccountToken(accountId: string): Promise<void> {
     const s = getStorage();
@@ -113,7 +113,7 @@ export async function getAccountByShop(shopDomain: string): Promise<string | nul
 
 // ── Shopify webhook token → account routing (Option A) ────────────────────────
 // Each account gets an unguessable token embedded in its own Shopify webhook URL, so
-// the incoming order webhook identifies the account from the URL — no domain matching,
+// the incoming order webhook identifies the account from the URL  no domain matching,
 // no hijacking, no "stuck" mappings.
 
 // Returns the account's existing webhook token, creating one on first call. Stable
@@ -147,7 +147,7 @@ export async function getAccountByWebhookToken(token: string): Promise<string | 
     }
 }
 
-// Issues a fresh token (invalidating the old one) — use if a URL was leaked. The old
+// Issues a fresh token (invalidating the old one)  use if a URL was leaked. The old
 // token stops routing immediately; the account must update its Shopify webhook URL.
 export async function regenerateWebhookToken(accountId: string): Promise<string | null> {
     const s = getStorage();
@@ -227,15 +227,15 @@ export async function getAccountSettings(accountId: string): Promise<AccountSett
 //
 // MULTI-TENANT MARKETPLACE: there is NO shared/env token fallback. Every account authenticates
 // with its own OAuth token (obtained at install). An account with no token must (re)connect via
-// Account Settings — we return null so the caller fails clearly instead of ever acting on another
+// Account Settings  we return null so the caller fails clearly instead of ever acting on another
 // account's behalf (which a shared env token would do, writing one customer's data into another's).
 export async function resolveMondayToken(accountId?: string | null): Promise<string | null> {
     if (accountId) {
         const token = await getAccountToken(accountId);
         if (token) return token;
-        console.error(`❌ No OAuth token for account "${accountId}" — it must connect via Account Settings.`);
+        console.error(`No OAuth token for account "${accountId}"  it must connect via Account Settings.`);
     } else {
-        console.error('❌ resolveMondayToken called without an account id.');
+        console.error('resolveMondayToken called without an account id.');
     }
     return null;
 }

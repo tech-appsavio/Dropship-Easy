@@ -108,7 +108,7 @@ export class WhatsappService {
         }
 
         // Attach a dynamic payload to each quick-reply button so the reply webhook can
-        // identify exactly which order the customer responded to — independent of phone
+        // identify exactly which order the customer responded to  independent of phone
         // number or time elapsed (Meta echoes this payload back whenever the button is tapped).
         if (buttons && buttons.length > 0) {
             for (const btn of buttons) {

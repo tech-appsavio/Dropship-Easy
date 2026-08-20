@@ -13,7 +13,7 @@ const recentRequests = new Set<string>();
 const MESSAGE_BATCH_SIZE = 2;
 const BATCH_DELAY_MS = 2000; // 2 seconds delay between batches
 
-// Mask a phone number for logging — keep only the last 2 digits so logs never contain
+// Mask a phone number for logging keep only the last 2 digits so logs never contain
 // full PII. e.g. "919876543210" → "…10".
 const maskPhone = (p: string): string => {
     const d = String(p || "").replace(/\s/g, "");
@@ -182,7 +182,7 @@ export class InvocableActions {
         }
 
         // Encode the order identity + intended status into each quick-reply button's
-        // payload. The reply webhook reads this back to update the exact order —
+        // payload. The reply webhook reads this back to update the exact order
         // independent of phone-number reuse or how long the customer takes to respond.
         const orderRef = { i: String(itemId), b: String(boardId ?? ''), s: statusColumnId };
         const replyButtons = templateButtons
@@ -310,7 +310,7 @@ export class InvocableActions {
             }
 
             // Use the account-scoped short-lived token from the signed monday request
-            // (same dynamic approach the Multi-Order Processing views use) — no hardcoded token.
+            // (same dynamic approach the Multi-Order Processing views use) no hardcoded token.
             const token = req.session?.shortLivedToken;
             if (!token) {
                 return res.status(200).json({ options: [] });

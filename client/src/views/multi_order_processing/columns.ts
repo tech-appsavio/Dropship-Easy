@@ -1,8 +1,4 @@
-// src/views/multi_order_processing/columns.ts
-//
-// SINGLE SOURCE OF TRUTH for every monday column this app touches. Replaces the old
-// constants.ts / mondayConfig.ts / columnTitles.ts / columnLabels.ts.
-//
+
 // Per column we store its `key` (the stable identifier used in code), its actual
 // monday `title` (used to FETCH the column, populate dropdowns and save mappings),
 // and — for columns shown in the app's order/line-item tables — a user-facing
@@ -14,10 +10,6 @@
 //     utils/initColumnIds.ts (resolved from `title`), read by components as MAP.KEY.
 //   - <BOARD>_COLUMN_LABELS_VISIBLE / <BOARD>_LABEL_TO_KEY — table display config.
 //   - COLUMN_REGISTRY / titleMapOf — used by utils/initColumnIds.ts to resolve IDs.
-//
-// Board IDs are intentionally NOT here — they come from .env via the backend
-// (/api/config/board-ids) into ./boardIds.ts.
-//
 // Titles marked "unverified" are best-guess Title Case for real live-board columns
 // that aren't part of the canonical provisioning schema — confirm against the board
 // if a [initColumnIds] console warning appears.

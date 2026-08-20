@@ -54,7 +54,7 @@ function formatDate(raw: string | null | undefined): string {
     }
 }
 
-// ── Icons (inline SVG, stroke = currentColor) ───────────────────────────────────
+// ── Icons (inline SVG, stroke = currentColor) 
 type IconName = "package" | "boxCheck" | "truck" | "pin" | "check" | "user" | "calendar" | "refresh" | "clock" | "alert" | "route";
 const ICON_PATHS: Record<IconName, React.ReactNode> = {
     package: <><path d="M12 2 3 7v10l9 5 9-5V7z" /><path d="M3 7l9 5 9-5" /><path d="M12 12v10" /></>,
@@ -77,7 +77,7 @@ function Icon({ name, size = 18, color = "currentColor", strokeWidth = 1.8 }: { 
     );
 }
 
-// ── Shipment progress stages ────────────────────────────────────────────────────
+// ── Shipment progress stages ─────────────
 const STAGES: { label: string; icon: IconName }[] = [
     { label: "Order Placed", icon: "package" },
     { label: "Picked Up", icon: "boxCheck" },
@@ -120,7 +120,7 @@ interface TrackingData {
     activities: Activity[];
 }
 
-// Injected once — enables hover, media queries, and animation that inline styles can't do.
+// Injected once  enables hover, media queries, and animation that inline styles can't do.
 const STYLES = `
 .ot-root { --fade: 0; }
 @keyframes otFade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none;} }
@@ -154,7 +154,7 @@ export default function OrderTracking() {
     const [refreshing, setRefreshing] = useState(false);
     const { loading: viewerLoading, isViewOnly } = useViewOnly();
 
-    // ── Load item context from Monday ─────────────────────────────────────────
+    // ── Load item context from Monday ────────────
     useEffect(() => {
         monday.listen("context", async (res: any) => {
             const itemId = res?.data?.itemId;
@@ -191,7 +191,7 @@ export default function OrderTracking() {
         });
     }, []);
 
-    // ── Fetch tracking data ───────────────────────────────────────────────────
+    // ── Fetch tracking data ───────────
     const fetchTracking = useCallback(async (shipmentId: string, orderId: string) => {
         setError("");
         try {
@@ -228,7 +228,7 @@ export default function OrderTracking() {
                 consignee_name: td.consignee_name || shipmentTrack?.consignee_name || "",
                 activities,
             });
-            // The user got real value — live shipment tracking is shown (monday value-created
+            // The user got real value  live shipment tracking is shown (monday value-created
             // event; fire every time it happens, not just the first).
             monday.execute("valueCreatedForUser");
         } catch (e: any) {
@@ -249,7 +249,7 @@ export default function OrderTracking() {
         setRefreshing(false);
     };
 
-    // ── Render ────────────────────────────────────────────────────────────────
+    // ── Render ──────────
     const shell = (children: React.ReactNode) => (
         <div className="ot-root" style={{ padding: "20px 22px", background: C.bg, minHeight: "100vh", fontFamily: "Inter, Roboto, -apple-system, 'Segoe UI', sans-serif", color: C.text, boxSizing: "border-box" }}>
             <style>{STYLES}</style>

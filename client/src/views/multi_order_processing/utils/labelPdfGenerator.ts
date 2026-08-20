@@ -26,7 +26,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
     items.forEach((item, pageIndex) => {
         if (pageIndex > 0) doc.addPage();
 
-        // ── Page geometry ─────────────────────────────────────────────
+        // ── Page geometry ─────────
         const PW = 101.6;
         const PH = 152.4;
         const M = 4; // outer margin
@@ -52,16 +52,14 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
 
         let y = M; // incremental y-cursor
 
-        // ═════════════════════════════════════════════════════════════
         // SECTION 1 — HEADER: DELIVER TO (left) | SHIPPED BY (right)
-        // ═════════════════════════════════════════════════════════════
         const SPLIT = MID;
         const colW = W / 2 - PAD - 2;
 
         doc.setLineWidth(0.25);
         doc.line(SPLIT, y, SPLIT, y + HEADER_H); // vertical divider
 
-        // ── Left: Deliver To ────────────────────────────────────────
+        // ── Left: Deliver To ────────
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(6);
         doc.text("DELIVER TO:", LX + PAD, y + 4.5);
@@ -90,7 +88,7 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
             doc.text(`Email: ${custEmail}`, LX + PAD, y + 31);
         }
 
-        // ── Right: Shipped By ────────────────────────────────────────
+        // ── Right: Shipped By ───────────────
         const RCol = SPLIT + PAD;
 
         doc.setFont("Helvetica", "bold");
@@ -121,9 +119,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         y += HEADER_H;
         hRule(y, LX, RX);
 
-        // ═════════════════════════════════════════════════════════════
-        // SECTION 2 — ORDER # + BARCODE
-        // ═════════════════════════════════════════════════════════════
+        // SECTION 2 — ORDER #
+
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(10);
         doc.text(`ORDER #: ${cleanDisplay(item.orderId) || "N/A"}`, LX + PAD, y + 5.5);
@@ -131,9 +128,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         y += ORDER_H;
         hRule(y, LX, RX);
 
-        // ═════════════════════════════════════════════════════════════
         // SECTION 3 — WEIGHT / PAYMENT METHOD / COD AMOUNT
-        // ═════════════════════════════════════════════════════════════
+
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(6.5);
         doc.text("WEIGHT: 1 | DIMENSIONS: 29×26×23 (cm)", LX + PAD, y + 4.5);
@@ -149,9 +145,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         y += PAYMENT_H;
         hRule(y, LX, RX);
 
-        // ═════════════════════════════════════════════════════════════
-        // SECTION 4 — COURIER NAME + AWB BARCODE
-        // ═════════════════════════════════════════════════════════════
+        // SECTION 4 — COURIER NAME
+
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(9.5);
         doc.text(cleanDisplay(item.courierName) || "Courier", LX + PAD, y + 5);
@@ -162,9 +157,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
         y += COURIER_H;
         hRule(y, LX, RX);
 
-        // ═════════════════════════════════════════════════════════════
         // SECTION 5 — PRODUCT TABLE
-        // ═════════════════════════════════════════════════════════════
+
         const C = { sku: LX, item: LX + 20, qty: LX + 66, price: LX + 77 };
         const vCols = [C.item, C.qty, C.price];
         const drawVLines = (top: number, h: number) => vCols.forEach((cx) => doc.line(cx, top, cx, top + h));
@@ -218,9 +212,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
 
         y += ROW_H + 3;
 
-        // ═════════════════════════════════════════════════════════════
         // SECTION 6 — TERMS & CONDITIONS
-        // ═════════════════════════════════════════════════════════════
+
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(6);
         doc.text("TERMS AND CONDITIONS:", LX + 1, y);
@@ -240,9 +233,8 @@ export const generateLabelPDF = async (items: any[]): Promise<Blob> => {
             y += 3;
         });
 
-        // ═════════════════════════════════════════════════════════════
         // FOOTER — anchored to bottom of border
-        // ═════════════════════════════════════════════════════════════
+        
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(5);
         doc.text("THIS IS AN AUTO-GENERATED LABEL AND DOES NOT NEED SIGNATURE.", LX + 1, PH - M - 2);

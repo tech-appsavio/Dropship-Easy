@@ -1,5 +1,3 @@
-// src/views/multi_order_processing/utils/initBoardIds.ts
-//
 // Loads this account's already-provisioned board IDs and writes them into boardIds.ts's
 // `let`-exported constants. Must run BEFORE initColumnIds.ts (column-ID resolution needs
 // the real board IDs) — see the sequencing in MultiOrderProcessing.tsx.
@@ -7,7 +5,7 @@
 // IMPORTANT: this view is a pure CONSUMER of the configuration. The workspace setup
 // (creating boards/columns/connect/mirror) happens during app INSTALL, server-side, in
 // the OAuth callback (see src/controllers/oauth-controller.ts). This module never creates
-// anything itself — at most it asks the backend to *finish* setup (POST /api/provision/
+// anything itself at most it asks the backend to *finish* setup (POST /api/provision/
 // ensure) if the account isn't ready yet, and the backend does all the work.
 import mondaySdk from "monday-sdk-js";
 import { setBoardIds } from "../boardIds";
@@ -61,7 +59,7 @@ export function initializeBoardIds(): Promise<void> {
                 return;
             }
 
-            // Not ready yet — either install-time setup is still running, or this is a
+            // Not ready yet either install-time setup is still running, or this is a
             // test/share-link install where OAuth didn't run. Ask the BACKEND to finish
             // the setup (server-side, idempotent, coalesces with any install-time run).
             // The view never creates anything itself.

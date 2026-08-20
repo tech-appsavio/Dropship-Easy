@@ -268,7 +268,7 @@ export const CourierSelection = ({
         const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
         return col?.linked_item_ids?.[0] || "";
     };
-    // Human split name (e.g. "ORD-0001-S2") — used to order splits S1, S2, S3… correctly.
+    // split name (e.g. "ORD-0001-S2")  used to order splits S1, S2, S3… correctly.
     const getSplitOrderName = (item: any): string => {
         const col = item.column_values?.find((cv: any) => cv.id === ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.SPLIT_ORDERS);
         return col?.display_value || "";
@@ -302,7 +302,7 @@ export const CourierSelection = ({
     }, [sortedDisplayedLineItems, currentPage, pageSize]);
 
     // orderSpans: rowSpan by linked order
-    // sharedSpans: rowSpan for all shared columns — groups split items by split-group and
+    // sharedSpans: rowSpan for all shared columns  groups split items by split-group and
     //   groups ALL consecutive non-split items in the same order together, so columns like
     //   COD, Postal, Supplier, Status, and the Courier dropdown each render only once.
     const { orderSpans, sharedSpans } = useMemo(() => {
@@ -448,7 +448,7 @@ export const CourierSelection = ({
         }
     };
 
-    // ── AI ranking (progressive enhancement) ──────
+    // ── AI ranking ──────
     // Re-ranks each loaded row's courier options via monday AI, overlaying the AI order + tags.
     // Best-effort: rows the AI can't rank keep their existing (weighted) order, so nothing breaks.
     const [aiRanking, setAiRanking] = useState(false);
@@ -561,7 +561,7 @@ export const CourierSelection = ({
                     }
                     if (missing.length) {
                         throw new Error(
-                            `These columns weren't found on the Order Line Items board — ` +
+                            `These columns weren't found on the Order Line Items board  ` +
                             `check the exact column title(s): "${missing.join('", "')}"`
                         );
                     }
@@ -766,7 +766,7 @@ export const CourierSelection = ({
                                     onMouseEnter={(e) => { if (!selectedRowIds.has(rowKey)) e.currentTarget.style.backgroundColor = "var(--ds-bg-header)"; }}
                                     onMouseLeave={(e) => { if (!selectedRowIds.has(rowKey)) e.currentTarget.style.backgroundColor = COLOR.white; }}
                                     style={{ backgroundColor: selectedRowIds.has(rowKey) ? COLOR.primaryLight : COLOR.white, transition: "background 0.15s" }}>
-                                    {/* Checkbox — shared span (one per split-group OR per non-split order) */}
+                                    {/* Checkbox  shared span (one per split-group OR per non-split order) */}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...TD, width: 36, minWidth: 36, padding: "8px 4px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             <input type="checkbox" checked={selectedRowIds.has(rowKey)}
@@ -778,23 +778,23 @@ export const CourierSelection = ({
                                                 style={{ width: 14, height: 14, cursor: "pointer", display: "block", margin: "0 auto", accentColor: "#0073ea" }} />
                                         </td>
                                     )}
-                                    {/* Order — order-group span */}
+                                    {/* Order  order-group span */}
                                     {orderSpan !== 0 && (
                                         <td style={{ ...TD, verticalAlign: "middle", fontWeight: 600 }} rowSpan={orderSpan > 1 ? orderSpan : undefined}>
                                             {item.orderName || "-"}
                                         </td>
                                     )}
-                                    {/* Split Order — shared span */}
+                                    {/* Split Order  shared span */}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...TD, verticalAlign: "middle", fontWeight: isSplit ? 500 : undefined }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {splitName}
                                         </td>
                                     )}
-                                    {/* Per-item columns — always one row each */}
+                                    {/* Per-item columns  always one row each */}
                                     <td style={{ ...TD, textAlign: "left" }}>{item.name}</td>
                                     <td style={TD}>{skuCol?.text || "-"}</td>
                                     <td style={TD}>{formatNumeric(getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.PRODUCTWEIGHT)) || "-"}</td>
-                                    {/* Shared columns — rowspanned for both split groups and non-split orders */}
+                                    {/* Shared columns  rowspanned for both split groups and non-split orders */}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...TD, verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                             {getRobustValue(item.column_values, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP.COD_STATUS) || "-"}
@@ -827,9 +827,9 @@ export const CourierSelection = ({
                                             </span>
                                         </td>
                                     )}
-                                    {/* Courier dropdown — one per group. Fixed width + a min-height
+                                    {/* Courier dropdown  one per group. Fixed width + a min-height
                                         wrapper so the cell reserves its full size while couriers load
-                                        async — the Loader→Dropdown swap then causes no table reflow. */}
+                                        async  the Loader→Dropdown swap then causes no table reflow. */}
                                     {sharedSpan !== 0 && (
                                         <td style={{ ...TD, width: 420, minWidth: 420, padding: "6px 10px", verticalAlign: "middle" }} rowSpan={sharedSpan > 1 ? sharedSpan : undefined}>
                                           <div style={{ minHeight: 38, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -861,7 +861,7 @@ export const CourierSelection = ({
                                     <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ds-neutral-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>🚚</div>
                                     <div style={{ fontSize: 14, fontWeight: 600, color: COLOR.text, marginBottom: 3 }}>No line items</div>
                                     <div style={{ fontSize: 13 }}>
-                                        {hasActiveFilters ? "No line items match the selected filters — try clearing them." : "No line items found for the selected orders."}
+                                        {hasActiveFilters ? "No line items match the selected filters  try clearing them." : "No line items found for the selected orders."}
                                     </div>
                                 </td>
                             </tr>

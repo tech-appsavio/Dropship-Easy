@@ -3,7 +3,7 @@ import { resolveMondayToken, getAccountByWebhookToken } from "../services/accoun
 import { verifyMondayJwt, sessionFromDecoded } from "../utils/verify-monday-jwt";
 
 // Auth for a per-account webhook URL that carries an unguessable token in its path
-// (/…/:token) — the same pattern as the Shopify order webhook. The token maps to a
+// (/…/:token) the same pattern as the Shopify order webhook. The token maps to a
 // monday account; its stored OAuth token is loaded into req.session. No account ID is
 // exposed in the URL, so it can't be spoofed by guessing an account.
 export async function webhookTokenAuthMiddleware(
@@ -11,7 +11,7 @@ export async function webhookTokenAuthMiddleware(
   res: express.Response,
   next: express.NextFunction
 ) {
-  // monday's setup challenge carries no token context — let it through so the
+  // monday's setup challenge carries no token context let it through so the
   // controller can echo it back and the webhook verifies on save.
   if (req.body?.challenge) return next();
 
@@ -37,10 +37,10 @@ export async function webhookTokenAuthMiddleware(
 
 // Auth for session-less webhooks (e.g. monday board webhooks). If the request carries
 // a valid monday JWT, its account-scoped shortLivedToken is used. Otherwise the account
-// is taken from an `?account=<id>` param (or `accountId` in the body) — set on the webhook
-// URL at configuration time — and that account's own stored OAuth token is resolved via
+// is taken from an `?account=<id>` param (or `accountId` in the body) set on the webhook
+// URL at configuration time and that account's own stored OAuth token is resolved via
 // resolveMondayToken (which is strictly per-account; it does NOT fall back to any shared/
-// env token for real accounts — see account-store.ts).
+// env token for real accounts see account-store.ts).
 export async function webhookAuthenticationMiddleware(
   req: express.Request,
   res: express.Response,
@@ -70,7 +70,7 @@ export async function webhookAuthenticationMiddleware(
     req.session = sessionFromDecoded(decoded);
     next();
   } catch (err) {
-    // JWT missing/invalid — fall back to account-based token resolution.
+    // JWT missing/invalid fall back to account-based token resolution.
     await resolveByAccount();
   }
 }

@@ -7,14 +7,14 @@ const router = Router();
 
 // Serve the SPA shell for the board-header AI assistant surface. monday loads this URL in the
 // assistant iframe; the React app then routes to <AiAssistant/> and authenticates via the
-// session token. No auth here — it's just the HTML shell (same pattern as /settings, /view).
+// session token. No auth here it's just the HTML shell (same pattern as /settings, /view).
 router.get(['/ai_assistant', '/ai-assistant'], (_req, res) => {
     res.sendFile('index.html', { root: 'client/build/' });
 });
 
 // ── Board-header AI assistant ────────────────────────────────────────────────
 // Answers a question using board context the caller passes in (non-PII attributes). Uses the
-// account's own monday token via the Models API — draws on the account's monday AI tokens.
+// account's own monday token via the Models API draws on the account's monday AI tokens.
 router.post('/api/ai/assistant', authenticationMiddleware, async (req, res) => {
     try {
         const accountId = req.session?.accountId;
@@ -30,7 +30,7 @@ router.post('/api/ai/assistant', authenticationMiddleware, async (req, res) => {
 
         // Board-aware system prompt: the assistant works on ANY of the app's boards, so it must
         // refer to the records by what they actually are (line items, customers, suppliers,
-        // shipments, errors…) based on the board name — NOT always call them "orders".
+        // shipments, errors…) based on the board name NOT always call them "orders".
         const sys =
             `You are the Dropship Easy assistant embedded in a monday.com board` +
             (boardName ? ` named "${boardName}"` : '') + `. ` +
@@ -38,7 +38,7 @@ router.post('/api/ai/assistant', authenticationMiddleware, async (req, res) => {
             `(e.g. "Order Line Items" → line items; "Customers" → customers; "Suppliers" → suppliers; ` +
             `"Shipments" → shipments; "Error Logs" → errors; "Orders" → orders). Do NOT call everything "orders". ` +
             `Answer using ONLY the provided board data. Be clear and genuinely helpful: give a well-structured answer ` +
-            `using light markdown — an optional short heading, **bold** labels, and "- " bullet points — and end with a ` +
+            `using light markdown an optional short heading, **bold** labels, and "- " bullet points and end with a ` +
             `one-line takeaway when useful. If the data does not contain the answer, say so plainly and suggest what to check. ` +
             `Keep it under ~180 words.`;
 
@@ -94,7 +94,7 @@ router.post('/api/ai/rank', authenticationMiddleware, async (req, res) => {
         const ranking = Array.isArray(parsed?.ranking) ? parsed.ranking : null;
         if (!ranking) return res.json({ ranking: null });
 
-        // Safety: every returned id must exist in the input, exactly once — else discard so the
+        // Safety: every returned id must exist in the input, exactly once else discard so the
         // client falls back to its own ordering (never trust a malformed AI reordering).
         const inputIds = items.map((i: any) => String(i.id));
         const returnedIds = ranking.map((r: any) => String(r?.id));

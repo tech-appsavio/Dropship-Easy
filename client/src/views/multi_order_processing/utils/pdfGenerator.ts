@@ -24,7 +24,7 @@ export const generateManifestPDF = async (manifestData: any) => {
     const tblRight = margin + 1;
     const tblW = innerW - 2; // 275mm
 
-    // ── TOP HEADER ────────────────────────────────────────────────────────────
+    // ── TOP HEADER ─────────────────
     let y = margin + pad + 6;
 
     // Left: supplier name

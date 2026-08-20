@@ -15,7 +15,7 @@ export const useOrderData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-          // Paginate through the whole board — a single items_page(limit: 100) call
+          // Paginate through the whole board a single items_page(limit: 100) call
           // silently truncated to the first 100 orders, so any confirmed order beyond
           // that page never reached the UI at all (this was the actual root cause of
           // "confirmed order not shown": the board has grown past 100 items).

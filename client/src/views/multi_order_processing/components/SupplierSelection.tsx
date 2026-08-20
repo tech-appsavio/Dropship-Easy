@@ -100,7 +100,7 @@ export const SupplierSelection = ({
 
     // Pre-fill each row's supplier dropdown: first from the supplier actually SAVED on the board,
     // otherwise auto-select the supplier when a product has exactly ONE (the only possible choice)
-    // — mirroring Courier Selection, which auto-selects a single serviceable courier.
+    //  mirroring Courier Selection, which auto-selects a single serviceable courier.
     React.useEffect(() => {
         setRowSupplierMap((prev) => {
             const next = { ...prev };
@@ -258,7 +258,7 @@ export const SupplierSelection = ({
     // Effective supplier for a row: global overrides inline (keyed by item id)
     const getEffectiveSupplier = (itemId: string) => globalSupplier || rowSupplierMap[itemId] || null;
 
-    // ── AI ranking (progressive enhancement) ────────────────────────────────
+    // ── AI ranking (progressive enhancement) ─────────────
     // Re-ranks each product's supplier options via monday AI into aiSupplierOverride, which is
     // merged OVER the weighted suppliersMap. Best-effort: products the AI can't rank keep their
     // existing (weighted) order, so nothing breaks when AI is off/unavailable.
@@ -382,7 +382,7 @@ export const SupplierSelection = ({
             const affectedProductIds = [...new Set(selectedItems.map((i) => i.productId).filter(Boolean))] as string[];
             await Promise.all(affectedProductIds.map((pid) => fetchSuppliersForProduct(pid, true)));
 
-            // -"-"- Create Shiprocket orders -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-
+            // Create Shiprocket orders
             // Fetch order + customer + product details needed for Shiprocket payload
             const uniqueOrderIds = [...new Set(selectedItems.map((i) => i.linkedOrderId).filter(Boolean))] as string[];
             const orderRes: any = await monday.api(`query {
@@ -521,7 +521,7 @@ export const SupplierSelection = ({
                     console.warn("[SR Create] Failed to create pickup location for", pickupName, ":", e.message);
                 }
             }
-            // ── End pickup location setup ─────────────────────────────────────────────────────
+            // ── End pickup location setup ────────────────────────────────
 
             // Collect split order IDs per parent order so we can update the parent after all groups run
             const createdSplitOrders: Record<string, string[]> = {};
@@ -628,7 +628,7 @@ export const SupplierSelection = ({
 
                         // Split Total Price = the actual value of THIS split's items (qty ×
                         // each product's real Selling Price, already computed above as
-                        // `totalValue`) — not a proportional cut of the parent order's total.
+                        // `totalValue`)  not a proportional cut of the parent order's total.
                         const splitTotal = totalValue;
 
                         // Discount distributed proportionally to this split's share of the
@@ -753,7 +753,7 @@ export const SupplierSelection = ({
             }
 
             // Mark each parent order as a Header. NOTE: we intentionally do NOT write the
-            // split orders into the parent's "Parent Orders" column — that column means
+            // split orders into the parent's "Parent Orders" column  that column means
             // "this order's parent". The child→parent link is set on each split order
             // (see PARENTORDER above); the parent must not list its children here, or the
             // parent-child direction is inverted.
@@ -1045,7 +1045,7 @@ export const SupplierSelection = ({
                                     <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ds-neutral-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>📋</div>
                                     <div style={{ fontSize: 14, fontWeight: 600, color: COLOR.text, marginBottom: 3 }}>No line items</div>
                                     <div style={{ fontSize: 13 }}>
-                                        {hasActiveFilters ? "No line items match the selected filters — try clearing them." : "No line items found for the selected orders."}
+                                        {hasActiveFilters ? "No line items match the selected filters  try clearing them." : "No line items found for the selected orders."}
                                     </div>
                                 </td>
                             </tr>

@@ -50,7 +50,7 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
     useEffect(() => {
         const fetchLineItems = async () => {
             try {
-                // Paginated (cursor) fetch — supports line-item boards with >500 items.
+                // Paginated (cursor) fetch supports line-item boards with >500 items.
                 const items = await fetchAllBoardItems(ORDER_ITEM_BOARD_ID, `
                     id
                     name
@@ -132,7 +132,7 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                 if (!o.CREATEDDATE) {
                     matchesDate = false;
                 } else {
-                    // monday returns "YYYY-MM-DD" — parse parts directly to avoid UTC offset shifting the date
+                    // monday returns "YYYY-MM-DD" parse parts directly to avoid UTC offset shifting the date
                     const [year, month, day] = String(o.CREATEDDATE).split("-").map(Number);
                     const orderDate = new Date(year, month - 1, day);
                     if (selectedDateFilter.value === "today") {

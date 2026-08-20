@@ -57,7 +57,7 @@ class MondayService {
             const existing = new Set((resp?.boards ?? []).map((b: any) => String(b.id)));
             return ids.filter((id) => !existing.has(id));
         } catch (err) {
-            return []; // on query failure, don't block — let the downstream call surface it
+            return []; // on query failure, don't block  let the downstream call surface it
         }
     }
 
@@ -89,7 +89,7 @@ class MondayService {
 
     static async changeMultipleColumnValues(token: string, boardId: number | string, itemId: number | string, columnValues: any) {
         try {
-            // Log only the column IDs being written — NOT the values, which can contain PII
+            // Log only the column IDs being written  NOT the values, which can contain PII
             // (customer name/address/phone/email when writing order/customer records).
             
             const mondayClient = new ApiClient({token: token});
@@ -140,7 +140,7 @@ class MondayService {
 
     static async createItem(token: string, boardId: string, itemName: string, columnValues: any) {
         try {
-            // Never log token bytes — log only that a token is present. Don't log the raw
+            // Never log token bytes  log only that a token is present. Don't log the raw
             // item name either: for the Customers board it IS the customer's name (PII).
             
             const client = new GraphQLClient('https://api.monday.com/v2', {
@@ -174,7 +174,7 @@ class MondayService {
             headers: { Authorization: token }
         });
         // Use the caller account's provisioned line-items board. Multi-tenant: no env /
-        // hardcoded fallback — using the wrong board would either read another tenant's data
+        // hardcoded fallback  using the wrong board would either read another tenant's data
         // or make "products" come back empty. If it's missing, skip the connection scan
         // (the board-scan fallback below still works off the order's own line-item links).
         const LINE_ITEMS_BOARD_ID = lineItemsBoardId || '';
@@ -222,7 +222,7 @@ class MondayService {
             console.error('❌ getOrderWhatsappParams error:', err.message);
         }
 
-        // Fallback: no two-way connection on the order — scan the line-items board for
+        // Fallback: no two-way connection on the order  scan the line-items board for
         // items connected back to this order via their "Order" relation column. Requires the
         // account's line-items board id (no env fallback); skip if it wasn't provided.
         if (!products && LINE_ITEMS_BOARD_ID) {

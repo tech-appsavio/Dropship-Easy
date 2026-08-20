@@ -1,17 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 
-// Adds the standard security response headers that automated scanners (Burp / OWASP ZAP)
-// expect, WITHOUT breaking the fact that this app is designed to run inside a monday iframe.
-//
-// Deliberate choices:
-// - CSP is limited to `frame-ancestors` only. We DON'T set script-src/style-src, because the
-//   app (and the OAuth success page) rely on inline styles/scripts — a restrictive CSP would
-//   break them. frame-ancestors still hardens against clickjacking.
-// - `frame-ancestors` ALLOWS monday to embed us (that's required) but blocks everyone else,
-//   so this is a security win that keeps the board views + how-to page embeddable.
-// - We intentionally do NOT send `X-Frame-Options: DENY` — that would break monday embedding.
-//   (frame-ancestors is the modern replacement and is respected by current browsers.)
-// - HSTS is asserted here too; monday-code also sets it at the edge (harmless to reinforce).
+// Adds security headers for Burp/OWASP ZAP while keeping monday iframe support.
+// - CSP uses only frame-ancestors to prevent clickjacking without breaking inline scripts/styles.
+// - Allows monday to embed the app but blocks other sites.
+// - Does not use X-Frame-Options: DENY because it would break monday embedding.
+// - Adds HSTS for extra security; monday-code also sets it at the edge.
+
 export function securityHeaders(_req: Request, res: Response, next: NextFunction) {
     // Who is allowed to iframe this app: monday only (plus itself).
     res.setHeader(

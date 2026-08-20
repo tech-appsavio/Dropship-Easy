@@ -19,14 +19,14 @@ const monday = mondaySdk();
 export const MultiOrderProcessing: React.FC = () => {
     const [view, setView] = useState<View>("ORDERS");
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
-    // Board IDs (boardIds.ts) and column IDs (columns.ts) are resolved at runtime — board IDs
+    // Board IDs (boardIds.ts) and column IDs (columns.ts) are resolved at runtime  board IDs
     // first (from .env / provisioned account config), then column IDs by title against
     // those boards (see initBoardIds.ts / initColumnIds.ts). Nothing below renders
     // until both complete, so no component ever reads an unresolved (empty-string) ID.
     const [columnsReady, setColumnsReady] = useState(false);
     const [provision, setProvision] = useState<ProvisionProgress>({ active: false, message: "" });
     const { loading: viewerLoading, isViewOnly } = useViewOnly();
-    // One-time onboarding gate (monday UI/UX guideline). Purely additive — the board/column
+    // One-time onboarding gate (monday UI/UX guideline). Purely additive  the board/column
     // init below still runs on mount regardless, so dismissing the welcome reveals an
     // already-warmed-up wizard with no change to any existing behavior.
     const { seen: welcomeSeen, markSeen } = useWelcomeGate();
@@ -51,7 +51,7 @@ export const MultiOrderProcessing: React.FC = () => {
         }
     }, [columnsReady, welcomeSeen, viewerLoading, isViewOnly]);
 
-    // View-only users (viewers) can't perform order processing — show a clear message
+    // View-only users (viewers) can't perform order processing  show a clear message
     // instead of the interactive app (monday marketplace product requirement).
     if (!viewerLoading && isViewOnly) return <ViewOnlyMessage />;
 

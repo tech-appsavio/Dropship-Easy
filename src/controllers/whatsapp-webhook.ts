@@ -6,7 +6,7 @@ export class WhatsappWebhook {
 
     // Step 1: Meta calls this to verify your webhook URL. The customer configures the
     // callback URL with `?account=<their monday account id>`, so we verify STRICTLY against
-    // that account's own saved verify token — never the app's env (multi-tenant isolation).
+    // that account's own saved verify token never the app's env (multi-tenant isolation).
     static async verify(req: Request, res: Response) {
         const mode = req.query['hub.mode'];
         const token = req.query['hub.verify_token'];
@@ -112,13 +112,13 @@ export class WhatsappWebhook {
                 };
             }
         } catch {
-            // Not our JSON payload — fall back to text/phone handling.
+            // Not our JSON payload fall back to text/phone handling.
         }
         return null;
     }
 
     // Updates a specific order's status using the account-scoped token captured when the
-    // message was sent (looked up by order/item id) — no hardcoded token.
+    // message was sent (looked up by order/item id) no hardcoded token.
     static async updateOrderStatus(itemId: string, boardId: string, statusColumnId: string, status: string) {
         try {
             const token = pendingByItem.get(String(itemId));

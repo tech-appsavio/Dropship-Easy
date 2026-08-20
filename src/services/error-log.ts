@@ -32,7 +32,7 @@ const asItemIds = (id?: string): number[] | null => {
 
 const clip = (s?: string, n = 2000) => (s ? String(s).slice(0, n) : undefined);
 
-// Best-effort: writes one record to the account's "Error Logs" board. NEVER throws —
+// Best-effort: writes one record to the account's "Error Logs" board. NEVER throws 
 // logging must never break the flow that raised the original error. The record NAME is
 // the Error ID (ERR-…). Column IDs are resolved from the provisioned account config.
 export async function logAccountError(accountId: string | null | undefined, input: ErrorLogInput): Promise<void> {
@@ -41,7 +41,7 @@ export async function logAccountError(accountId: string | null | undefined, inpu
         const config = await getAccountConfig(String(accountId));
         const boardId = config?.boards?.errorLogs;
         const cols = config?.columns?.errorLogs || {};
-        if (!boardId) return; // Error Logs board not provisioned (older account) — skip silently.
+        if (!boardId) return; // Error Logs board not provisioned (older account)  skip silently.
 
         const token = await resolveMondayToken(String(accountId));
         if (!token) return;
