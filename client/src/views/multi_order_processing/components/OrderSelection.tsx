@@ -214,7 +214,7 @@ export const OrderSelection: React.FC<Props> = ({ selectedOrderIds, onSelectionC
                 <div>
                     <h3 style={sectionTitle}>Order Selection</h3>
                     <p style={{ margin: "3px 0 0", fontSize: 13, color: COLOR.textMuted }}>
-                        Select orders to process — only <strong>Confirmed</strong> orders are shown
+                        Select the orders you want to process. Only <strong>Confirmed</strong> orders are shown.
                     </p>
                 </div>
                 {selectedOrderIds.size > 0 && (

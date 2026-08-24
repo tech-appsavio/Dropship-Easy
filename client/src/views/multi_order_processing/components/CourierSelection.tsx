@@ -383,6 +383,8 @@ export const CourierSelection = ({
                 }
             }
         });
+        // getRowKey is a stable pure helper; intentionally not a dependency.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lineItems, rowCourierMap]);
 
     const fetchCouriersForKey = async (key: string, items: any[]) => {
@@ -517,6 +519,8 @@ export const CourierSelection = ({
             if (!item) return false;
             return !!item.supplierName?.trim() && (!!rowCourierMap[rowId]?.selected || !!item.courierName?.trim());
         });
+        // getRowKey is a stable pure helper; intentionally not a dependency.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedRowIds, rowCourierMap, lineItems]);
 
     const handleUpdateCourier = async () => {

@@ -1,4 +1,4 @@
-﻿// src/views/multi_order_processing/components/OrderManifestGeneration.tsx
+// src/views/multi_order_processing/components/OrderManifestGeneration.tsx
 import React, { useState, useMemo } from "react";
 import { Button, Loader, Toast, Dropdown } from "@vibe/core";
 import { useCourierSelectionData } from "../hooks/useCourierSelectionData";
@@ -292,6 +292,8 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
             i = j;
         }
         return { orderSpans, splitSpans, sharedSpans };
+        // orderColumn is a stable render helper; intentionally not a dependency.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [paginatedLineItems]);
 
     const processValidation = useMemo(() => {
@@ -1230,7 +1232,7 @@ export const OrderManifestGeneration = ({ selectedOrderIds, onPrev, onNext }: { 
         return generateLabelPDF(items);
     };
 
-    const sanitizeFilename = (name: string) => name.replace(/[^a-zA-Z0-9_(). \-]/g, "").trim();
+    const sanitizeFilename = (name: string) => name.replace(/[^a-zA-Z0-9_(). -]/g, "").trim();
 
     if (loading) return (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center", alignItems: "center", minHeight: 400, color: COLOR.textMuted }}>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Dropdown, Button, Loader, Toast } from "@vibe/core";
 import { useSupplierSelectionData } from "../hooks/useSupplierSelectionData";
 import { ORDER_ALL_COLUMN_IDS_MAP, ORDERLINEITEMS_ALL_COLUMN_IDS_MAP, SUPPLIER_PRODUCT_COLUMN_IDS_MAP, CUSTOMER_ALL_COLUMN_IDS_MAP, PRODUCT_ALL_COLUMN_IDS_MAP, SUPPLIER_ALL_COLUMN_IDS_MAP } from "../columns";

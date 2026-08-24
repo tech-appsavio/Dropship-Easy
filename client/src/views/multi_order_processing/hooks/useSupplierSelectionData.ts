@@ -94,9 +94,10 @@ export const useSupplierSelectionData = (selectedOrderIds: string[]) => {
         }
     };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (selectedOrderIds.length > 0) fetchLineItems();
+        // Re-fetch only when the selected orders change, not when fetchLineItems' identity does.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedOrderIds]);
 
     // Unique products derived from the locally filtered line items

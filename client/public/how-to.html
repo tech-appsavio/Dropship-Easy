@@ -43,6 +43,13 @@
   .shots { display:grid; grid-template-columns:1fr; gap:22px; }
   b { color:var(--ink); }
   a { color:var(--primary); }
+  .guide-link { display:flex; align-items:center; gap:14px; background:var(--primary-soft); border:1px solid var(--primary); border-radius:12px; padding:16px 20px; margin:18px 0 8px; text-decoration:none; }
+  .guide-link:hover { box-shadow:0 2px 10px rgba(0,115,234,.16); }
+  .guide-link .gl-icon { font-size:24px; line-height:1; flex:0 0 auto; }
+  .guide-link .gl-body { flex:1; }
+  .guide-link .gl-title { font-weight:700; color:var(--primary); font-size:15px; }
+  .guide-link .gl-sub { font-size:13px; color:var(--muted); margin-top:2px; }
+  .guide-link .gl-arrow { color:var(--primary); font-weight:700; flex:0 0 auto; }
   @media (prefers-color-scheme: dark) {
     :root { --ink:#e8eaf0; --muted:#a7b0bf; --faint:#7c8698; --bg:#12161d; --card:#1a2029; --line:#2a323e; --primary-soft:#12314f; }
     code { background:#232a34; } .chip { background:#1f2630; }
@@ -56,6 +63,15 @@
   <p class="lede">Dropship Easy turns Shopify orders into monday records and automates the whole
   dropshipping flow confirmation, supplier and courier selection, shipments, and supplier
   manifests. Here's how to set it up and use it.</p>
+
+  <a class="guide-link" href="https://docs.google.com/document/d/1foJ5J_gQI60cs9P151m0SxDm_d9lkpay/edit?usp=drive_link&ouid=112596317257158883289&rtpof=true&sd=true" target="_blank" rel="noopener noreferrer">
+    <span class="gl-icon">📖</span>
+    <span class="gl-body">
+      <span class="gl-title">Need more detail? Open the full user guide</span>
+      <span class="gl-sub">A complete step-by-step walkthrough with screenshots for every stage.</span>
+    </span>
+    <span class="gl-arrow">→</span>
+  </a>
 
   <h2>Getting started (one-time setup)</h2>
   <div class="card">
@@ -101,7 +117,7 @@
   </div>
 
   <h2>Processing orders</h2>
-  <p class="lede">Open the <b>Multi Order Processing</b> board view and work through four steps:</p>
+  <p class="lede">Open the <b>Dropship Easy Multi Order Processing</b> board view and work through four steps:</p>
   <div class="card flow">
     <div class="stage">
       <div class="rail"><div class="node">1</div></div>
@@ -129,19 +145,15 @@
   <div class="card">
     <div class="shots">
       <figure class="shot">
-        <img src="/how-to-assets/01-order-selection.png" alt="Order Selection  step 1 of the Bulk Order Processing view listing confirmed orders" loading="lazy" />
+        <img src="/how-to-assets/order_selection_Screen_DropshipEasy.png" alt="Order Selection  step 1 of the Multi Order Processing view listing confirmed orders" loading="lazy" />
         <figcaption>Step 1  Order Selection: pick the confirmed orders to process.</figcaption>
       </figure>
       <figure class="shot">
-        <img src="/how-to-assets/02-supplier-selection.png" alt="Supplier Selection  step 2, assigning a supplier to each line item" loading="lazy" />
-        <figcaption>Step 2  Supplier Selection: assign a supplier per item (multi-supplier orders split automatically).</figcaption>
+        <img src="/how-to-assets/AI_Rank_Feature_supplier_courier_DropshipEasy.png" alt="Supplier and Courier Selection  assigning a supplier per item and a courier per shipment, with the AI Rank feature" loading="lazy" />
+        <figcaption>Steps 2 &amp; 3  Supplier &amp; Courier Selection: assign a supplier per item and a courier per shipment (multi-supplier orders split automatically; use ✨ AI Rank to sort options best-first).</figcaption>
       </figure>
       <figure class="shot">
-        <img src="/how-to-assets/03-courier-selection.png" alt="Courier Selection  step 3, choosing a courier per shipment" loading="lazy" />
-        <figcaption>Step 3  Courier Selection: pick a courier per shipment, or use “Select Best for All”.</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="/how-to-assets/04-create-shipment-manifest.png" alt="Create Shipment &amp; Manifest  step 4, assigning AWBs and generating manifests" loading="lazy" />
+        <img src="/how-to-assets/shipment_manifest_and_label_generation_screen_DropshipEasy.png" alt="Create Shipment &amp; Manifest  step 4, assigning AWBs and generating manifests and labels" loading="lazy" />
         <figcaption>Step 4  Create Shipment &amp; Manifest: assign AWBs and generate supplier manifests &amp; labels.</figcaption>
       </figure>
     </div>
@@ -165,7 +177,7 @@
     set the <b>Cancel Shipment</b> status to <b>Cancel</b>  the app cancels it in Shiprocket and
     writes the result to the <b>Cancellation Response</b> column.</p>
     <figure class="shot">
-      <img src="/how-to-assets/05-order-tracking.png" alt="Order Tracking view showing live shipment status, timeline and courier details" loading="lazy" />
+      <img src="/how-to-assets/order_tracking_view_DropshipEasy.png" alt="Order Tracking view showing live shipment status, timeline and courier details" loading="lazy" />
       <figcaption>The Order Tracking view: live status, delivery timeline, and shipment details.</figcaption>
     </figure>
   </div>
@@ -189,6 +201,10 @@
       <p class="note" style="margin-top:8px">Works on any board (Orders, Order Line Items, Suppliers, Shipments,
       Error Logs, …) and uses the right terms for each. It sends only counts/statuses to the AI never customer
       names, addresses, or phone numbers.</p>
+      <figure class="shot" style="margin-top:12px">
+        <img src="/how-to-assets/AI_Assistant_Board_Header_DropshipEasy.png" alt="Board header AI Assistant panel answering a question about the board" loading="lazy" />
+        <figcaption>The Board AI Assistant, opened from the board header.</figcaption>
+      </figure>
     </div>
 
     <div>
@@ -214,8 +230,15 @@
     own Shopify, WhatsApp, and Shiprocket  your data stays in your account only.</p>
   </div>
 
-  <p class="note" style="margin-top:28px">For more information, use the <b>How to use</b> guide.</p>
-  <p class="note" style="margin-top:8px">Need help? Contact support and mention which step you're on.</p>
+  <h2>Need help?</h2>
+  <div class="card">
+    <p style="margin:0 0 12px;color:var(--muted)">If you run into any issues during installation or setup, reach
+    out through the <b>Dropship Easy</b> listing on the <b>monday.com Marketplace</b>, or contact support
+      <p style="margin:0;color:var(--muted)">
+      <b>Website:</b> <a href="https://www.appsavio.com" target="_blank" rel="noopener noreferrer">appsavio.com</a><br />
+      <b>Email:</b> <a href="mailto:info@appsavio.com">info@appsavio.com</a>
+    </p>
+  </div>
 </div>
 </body>
 </html>
