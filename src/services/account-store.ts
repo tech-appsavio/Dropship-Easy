@@ -223,6 +223,60 @@ export async function getAccountSettings(accountId: string): Promise<AccountSett
     }
 }
 
+// Deletes an account's saved third-party credentials (WhatsApp / Shiprocket / Shopify).
+export async function deleteAccountSettings(accountId: string): Promise<void> {
+    const s = getStorage();
+    if (!s || !accountId) return;
+    try {
+        await s.delete(KEY_SETTINGS(String(accountId)));
+    } catch (err: any) {
+        console.error('❌ deleteAccountSettings failed:', err.message);
+    }
+}
+
+// Removes an account's Shopify webhook token (both directions of the bidirectional map),
+// so a leaked/old URL stops routing and nothing dangles after uninstall.
+export async function deleteWebhookToken(accountId: string): Promise<void> {
+    const s = getStorage();
+    if (!s || !accountId) return;
+    try {
+        const token = await s.get(KEY_ACCT_WH(String(accountId)));
+        if (token) await s.delete(KEY_WH_TOKEN(String(token)));
+        await s.delete(KEY_ACCT_WH(String(accountId)));
+    } catch (err: any) {
+        console.error('❌ deleteWebhookToken failed:', err.message);
+    }
+}
+
+// FULL data purge for an account. Called when the app is UNINSTALLED (monday lifecycle
+// webhook) so no customer data  credentials, OAuth token, board config, webhook routing,
+// shop mapping  survives into a later reinstall. Best-effort and idempotent: each delete
+// is independent and never throws, so a partial failure still removes everything it can.
+export async function purgeAccountData(accountId: string): Promise<void> {
+    if (!accountId) return;
+    const id = String(accountId);
+    // Grab the mapped shop domain BEFORE deleting settings so we can also clear the
+    // shop→account routing entry (keyed by domain).
+    let shopDomain: string | undefined;
+    try {
+        const settings = await getAccountSettings(id);
+        shopDomain = settings?.shopifyStoreDomain;
+    } catch { /* best-effort */ }
+
+    await deleteAccountSettings(id);
+    await deleteAccountToken(id);
+    await deleteAccountConfig(id);
+    await deleteWebhookToken(id);
+
+    if (shopDomain) {
+        const s = getStorage();
+        if (s) {
+            try { await s.delete(KEY_SHOP(shopDomain)); }
+            catch (err: any) { console.error('❌ purge shop-map failed:', err.message); }
+        }
+    }
+}
+
 // Resolves the monday API token for an account: its OWN stored OAuth token, or null.
 //
 // MULTI-TENANT MARKETPLACE: there is NO shared/env token fallback. Every account authenticates

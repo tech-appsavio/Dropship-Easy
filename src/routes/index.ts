@@ -6,6 +6,7 @@ import shiprocketRoutes from './shiprocket';
 import oauthRoutes from './oauth';
 import settingsRoutes from './settings';
 import aiRoutes from './ai';
+import lifecycleRoutes from './lifecycle';
 
 // monday marketplace domain-association file served at the app root so monday can
 // verify the app ↔ domain link. Uses the configured OAuth Client ID, so it's always
@@ -22,6 +23,7 @@ router.use(shopifyRoutes);
 router.use(oauthRoutes);
 router.use(settingsRoutes);
 router.use(aiRoutes);
+router.use(lifecycleRoutes);
 
 // serve client app
 router.use(express.static('client/build'));
